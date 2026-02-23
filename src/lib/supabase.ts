@@ -8,5 +8,3 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-export type UserRole = 'creator' | 'operator' | 'admin';
