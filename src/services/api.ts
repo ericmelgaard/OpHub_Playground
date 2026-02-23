@@ -1,5 +1,6 @@
 import { MenuItem, Device, Concept, Company, Store, Rule } from '../types';
-import { mockMenuItems, mockDevices, mockConcepts, mockCompanies, mockStores, mockPlacements } from './mockData';
+import { mockDevices, mockConcepts, mockCompanies, mockStores, mockPlacements } from './mockData';
+import { supabase } from '../lib/supabase';
 
 export class NoContentError extends Error {
   constructor(message: string = 'No content available') {
@@ -16,19 +17,47 @@ const clone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
 
 // Initialize mock channel items with some default data
 const mockChannelItems: Record<string, Set<number>> = {
-  'shelf-labels': new Set([1, 2, 3]), // Classic Breakfast, Belgian Waffle, Signature Burger
-  'digital-signage': new Set([4, 5]), // Mediterranean Salad, Grilled Salmon
-  'order-confirmation': new Set([6])   // Margherita Pizza
+  'shelf-labels': new Set([1, 2, 3]),
+  'digital-signage': new Set([4, 5]),
+  'order-confirmation': new Set([6])
 };
 
 // Mock rules storage
 let mockRules: Rule[] = [];
 
 export const api = {
-  // Menu Items
+  // Menu Items - now from Supabase
   getMenuItems: async (): Promise<MenuItem[]> => {
-    await mockDelay();
-    return clone(mockMenuItems);
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching menu items:', error);
+      return [];
+    }
+
+    return data.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description || '',
+      category: item.station_id?.toString() || 'Other',
+      price: parseFloat(item.price) || 0,
+      imageUrl: '',
+      tags: item.icons ? item.icons.map((icon: any) => icon.name) : [],
+      calories: parseInt(item.calories) || 0,
+      allergens: item.allergens ? item.allergens.split(', ') : [],
+      nutrition: {
+        protein: item.nutrition?.protein?.value || '0',
+        carbs: item.nutrition?.carbohydrates?.value || '0',
+        fat: item.nutrition?.fat?.value || '0',
+        fiber: item.nutrition?.fiber?.value || '0',
+      },
+      ingredients: item.ingredients ? item.ingredients.split(', ') : [],
+      dayparts: [item.meal_period_id?.toString() || 'all-day'],
+      activeDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    }));
   },
 
   // Devices
