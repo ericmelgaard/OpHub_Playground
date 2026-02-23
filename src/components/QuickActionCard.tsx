@@ -18,29 +18,22 @@ export function QuickActionCard({
   subtitle,
   isActive,
   onClick,
-  iconColor = 'bg-orange-500'
+  iconColor = 'text-orange-500'
 }: QuickActionCardProps) {
   return (
     <button
       onClick={onClick}
-      className={`flex-shrink-0 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${
-        isActive
-          ? 'bg-slate-700/80 ring-2 ring-cyan-500/50'
-          : 'bg-slate-700/50 hover:bg-slate-700/70'
-      }`}
+      className="flex-shrink-0 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-3 min-w-[140px] shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer group"
+      aria-label={`View ${title.toLowerCase()}`}
     >
-      <div className="flex items-center gap-2.5">
-        <div className={`${iconColor} p-1.5 rounded-md`}>
-          <Icon className="w-4 h-4 text-white" />
-        </div>
-        <div className="text-left">
-          <div className="text-xs font-semibold text-slate-300">{title}</div>
-          <div className="flex items-baseline gap-1.5 mt-0.5">
-            <span className="text-xl font-bold text-white leading-none">{count}</span>
-            <span className="text-[10px] text-slate-400">{subtitle}</span>
-          </div>
-        </div>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className={`w-4 h-4 group-hover:scale-110 transition-transform ${iconColor}`} />
+        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100">
+          {title}
+        </span>
       </div>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{count}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
     </button>
   );
 }

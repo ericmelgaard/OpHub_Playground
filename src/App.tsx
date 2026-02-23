@@ -273,7 +273,7 @@ function App() {
         />
 
         <div className="w-full mx-auto">
-          <main className="pt-24">
+          <main className="pt-16">
             <QuickActionBar
               selectedAction={selectedQuickAction}
               onActionSelect={handleQuickActionSelect}
@@ -282,7 +282,18 @@ function App() {
               onCustomize={handleCustomize}
             />
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Displays</h2>
+                <button className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+
               <MenuFilters
                 viewMode={viewMode}
                 setViewMode={setViewMode}
@@ -339,15 +350,15 @@ function App() {
                 />
               ) : selectedQuickAction === 'groups' ? (
                 <div className="text-center py-20">
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Groups</h3>
-                  <p className="text-gray-500">Work in progress - coming soon</p>
+                  <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">Groups</h3>
+                  <p className="text-gray-500 dark:text-gray-500">Work in progress - coming soon</p>
                 </div>
               ) : (
                 <div className="text-center py-20">
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">
                     {selectedQuickAction.charAt(0).toUpperCase() + selectedQuickAction.slice(1).replace('-', ' ')}
                   </h3>
-                  <p className="text-gray-500">Coming soon</p>
+                  <p className="text-gray-500 dark:text-gray-500">Coming soon</p>
                 </div>
               )}
             </div>
