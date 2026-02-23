@@ -144,3 +144,18 @@ export interface Rule {
   action: RuleAction;
   active: boolean;
 }
+
+export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date';
+
+export interface DateRange {
+  start: string;
+  end: string;
+}
+
+export interface FilterConfig {
+  id: string;
+  type: FilterType;
+  selectedValues: string[];
+  dateRange?: DateRange;
+  singleDate?: string;
+}

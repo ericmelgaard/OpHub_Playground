@@ -8,7 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
-import { Theme, Channel, MenuItem, Device, Rule } from './types';
+import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
 import { api } from './services/api';
 
 function App() {
@@ -55,9 +55,10 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'tiles'>('grid');
   const [searchValue, setSearchValue] = useState('');
-  const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
-  const [selectedStation, setSelectedStation] = useState('all');
   const [showDevices, setShowDevices] = useState(false);
+
+  // Filter state
+  const [activeFilters, setActiveFilters] = useState<FilterConfig[]>([]);
 
   // Device state
   const [devices, setDevices] = useState<Device[]>([]);
@@ -200,6 +201,24 @@ function App() {
     setShowDeviceWorkflow(true);
   }, []);
 
+  const handleAddFilter = useCallback((filter: FilterConfig) => {
+    setActiveFilters(prev => [...prev, filter]);
+  }, []);
+
+  const handleEditFilter = useCallback((updatedFilter: FilterConfig) => {
+    setActiveFilters(prev =>
+      prev.map(filter => filter.id === updatedFilter.id ? updatedFilter : filter)
+    );
+  }, []);
+
+  const handleDeleteFilter = useCallback((filterId: string) => {
+    setActiveFilters(prev => prev.filter(filter => filter.id !== filterId));
+  }, []);
+
+  const handleClearAllFilters = useCallback(() => {
+    setActiveFilters([]);
+  }, []);
+
   return (
     <div className={theme}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
@@ -241,12 +260,6 @@ function App() {
         <div className="w-full max-w-7xl mx-auto">
           <main className="pt-24 px-4 sm:px-6 lg:px-8">
             <MenuFilters
-              mealPeriods={['all', 'Breakfast', 'Lunch', 'Dinner']}
-              selectedMealPeriod={selectedMealPeriod}
-              setSelectedMealPeriod={setSelectedMealPeriod}
-              stations={['all', 'Grill', 'Deli', 'Salad Bar']}
-              selectedStation={selectedStation}
-              setSelectedStation={setSelectedStation}
               viewMode={viewMode}
               setViewMode={setViewMode}
               searchValue={searchValue}
@@ -257,6 +270,13 @@ function App() {
               placements={placements}
               selectedPlacement={selectedPlacement}
               setSelectedPlacement={setSelectedPlacement}
+              activeFilters={activeFilters}
+              onAddFilter={handleAddFilter}
+              onEditFilter={handleEditFilter}
+              onDeleteFilter={handleDeleteFilter}
+              onClearAllFilters={handleClearAllFilters}
+              menuItems={menuItems}
+              selectedLocation={selectedLocation}
             />
 
             {showDevices ? (
@@ -292,8 +312,7 @@ function App() {
                 setWorkflowType={() => {}}
                 devices={devices}
                 searchValue={searchValue}
-                selectedMealPeriod={selectedMealPeriod}
-                selectedStation={selectedStation}
+                activeFilters={activeFilters}
               />
             )}
           </main>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertCircle, Clock, MapPin } from 'lucide-react';
 import { MenuItem as MenuItemComponent } from './MenuItem';
-import { MenuItem as MenuItemType, Device } from '../types';
+import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface GroupedItems {
@@ -29,8 +29,7 @@ interface MenuItemsProps {
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
   searchValue?: string;
-  selectedMealPeriod?: string;
-  selectedStation?: string;
+  activeFilters?: FilterConfig[];
 }
 
 export function MenuItems({
@@ -50,48 +49,48 @@ export function MenuItems({
   devices,
   onEdit,
   searchValue = '',
-  selectedMealPeriod = 'all',
-  selectedStation = 'all'
+  activeFilters = []
 }: MenuItemsProps) {
-  console.log('MenuItems Props:', {
-    loading,
-    error,
-    menuItemsCount: menuItems.length,
-    selectedChannel,
-    searchValue,
-    selectedMealPeriod,
-    selectedStation,
-    menuItems // Log full items for inspection
-  });
+  const applyFilters = (item: MenuItemType): boolean => {
+    if (activeFilters.length === 0) return true;
 
-  // Filter items based on search and filters
+    return activeFilters.every(filter => {
+      switch (filter.type) {
+        case 'daypart':
+          return filter.selectedValues.includes(item.mealPeriod);
+        case 'station':
+          return filter.selectedValues.includes(item.mealStation);
+        case 'menu_item_name':
+          return filter.selectedValues.includes(item.name);
+        case 'menu_item_mrn':
+          return filter.selectedValues.includes(item.mrn);
+        case 'date':
+          if (filter.singleDate) {
+            return item.date === filter.singleDate;
+          }
+          if (filter.dateRange) {
+            const itemDate = new Date(item.date);
+            const startDate = new Date(filter.dateRange.start);
+            const endDate = new Date(filter.dateRange.end);
+            return itemDate >= startDate && itemDate <= endDate;
+          }
+          return true;
+        default:
+          return true;
+      }
+    });
+  };
+
   const filteredItems = menuItems.filter(item => {
-    const matchesSearch = searchValue.trim() === '' || 
+    const matchesSearch = searchValue.trim() === '' ||
       item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
       (item.description?.toLowerCase().includes(searchValue.toLowerCase()) ?? false) ||
       (item.enticingDescription?.toLowerCase().includes(searchValue.toLowerCase()) ?? false);
 
-    const matchesMealPeriod = selectedMealPeriod === 'all' || 
-      item.mealPeriod === selectedMealPeriod;
+    const matchesFilters = applyFilters(item);
 
-    const matchesStation = selectedStation === 'all' || 
-      item.mealStation === selectedStation;
-
-    const matches = matchesSearch && matchesMealPeriod && matchesStation;
-    
-    // Log individual item filtering results for debugging
-    console.log('Item Filter:', {
-      itemName: item.name,
-      matchesSearch,
-      matchesMealPeriod,
-      matchesStation,
-      included: matches
-    });
-
-    return matches;
+    return matchesSearch && matchesFilters;
   });
-
-  console.log('Filtered Items:', filteredItems);
 
   if (loading) {
     return (
@@ -116,7 +115,7 @@ export function MenuItems({
       <div className="text-center py-12">
         <AlertCircle className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto" />
         <p className="mt-4 text-gray-600 dark:text-gray-400">
-          {searchValue || selectedMealPeriod !== 'all' || selectedStation !== 'all'
+          {searchValue || activeFilters.length > 0
             ? 'No items match your search criteria'
             : 'No menu items available at this time'}
         </p>

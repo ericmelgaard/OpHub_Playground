@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Clock,
-  MapPin,
   LayoutGrid,
   Rows,
-  ChevronRight,
   Search,
   Building2,
   Store,
@@ -13,19 +10,15 @@ import {
   Plus,
   Database,
   Filter,
+  ChevronDown,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Placement } from '../types';
+import { FilterCard } from './FilterCard';
+import { FilterModal } from './FilterModal';
+import { Placement, FilterConfig, FilterType, MenuItem } from '../types';
 
 interface MenuFiltersProps {
-  mealPeriods: string[];
-  selectedMealPeriod: string;
-  setSelectedMealPeriod: (period: string) => void;
-  stations: string[];
-  selectedStation: string;
-  setSelectedStation: (station: string) => void;
   viewMode: 'grid' | 'tiles';
   setViewMode: (mode: 'grid' | 'tiles') => void;
   searchValue: string;
@@ -41,15 +34,15 @@ interface MenuFiltersProps {
   placements?: Placement[];
   selectedPlacement: string | null;
   setSelectedPlacement: (id: string | null) => void;
+  activeFilters: FilterConfig[];
+  onAddFilter: (filter: FilterConfig) => void;
+  onEditFilter: (filter: FilterConfig) => void;
+  onDeleteFilter: (filterId: string) => void;
+  onClearAllFilters: () => void;
+  menuItems: MenuItem[];
 }
 
 export function MenuFilters({
-  mealPeriods,
-  selectedMealPeriod,
-  setSelectedMealPeriod,
-  stations,
-  selectedStation,
-  setSelectedStation,
   viewMode,
   setViewMode,
   searchValue,
@@ -61,33 +54,58 @@ export function MenuFilters({
   placements = [],
   selectedPlacement,
   setSelectedPlacement,
+  activeFilters,
+  onAddFilter,
+  onEditFilter,
+  onDeleteFilter,
+  onClearAllFilters,
+  menuItems,
 }: MenuFiltersProps) {
-  const [mealPeriodExpanded, setMealPeriodExpanded] = useState(false);
-  const [stationExpanded, setStationExpanded] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [showPlacementFilter, setShowPlacementFilter] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [selectedFilterType, setSelectedFilterType] = useState<FilterType | null>(null);
+  const [editingFilter, setEditingFilter] = useState<FilterConfig | null>(null);
+  const [showFilterTypeMenu, setShowFilterTypeMenu] = useState(false);
 
   const handleScanBarcode = () => {
-    // This will be implemented when the barcode scanning API is available
     console.log('Barcode scanning will be implemented when API is available');
   };
 
-  const getPlacementPath = (id: string | null): string => {
-    if (!id) return 'All Locations';
+  const extractUniqueValues = (type: FilterType): string[] => {
+    switch (type) {
+      case 'daypart':
+        return Array.from(new Set(menuItems.map((item) => item.mealPeriod).filter(Boolean)));
+      case 'station':
+        return Array.from(new Set(menuItems.map((item) => item.mealStation).filter(Boolean)));
+      case 'menu_item_name':
+        return Array.from(new Set(menuItems.map((item) => item.name).filter(Boolean)));
+      case 'menu_item_mrn':
+        return Array.from(new Set(menuItems.map((item) => item.mrn).filter(Boolean)));
+      default:
+        return [];
+    }
+  };
 
-    const findPath = (id: string, placements: Placement[], path: string[] = []): string[] | null => {
-      for (const placement of placements) {
-        if (placement.id === id) {
-          return [...path, placement.name];
-        }
-        const childPath = findPath(id, placement.children, [...path, placement.name]);
-        if (childPath) return childPath;
-      }
-      return null;
-    };
+  const handleFilterTypeSelect = (type: FilterType) => {
+    setSelectedFilterType(type);
+    setShowFilterTypeMenu(false);
+    setShowFilterModal(true);
+    setEditingFilter(null);
+  };
 
-    const path = findPath(id, placements);
-    return path ? path.join(' / ') : 'All Locations';
+  const handleEditFilter = (filter: FilterConfig) => {
+    setSelectedFilterType(filter.type);
+    setEditingFilter(filter);
+    setShowFilterModal(true);
+  };
+
+  const handleApplyFilter = (filter: FilterConfig) => {
+    if (editingFilter) {
+      onEditFilter(filter);
+    } else {
+      onAddFilter(filter);
+    }
+    setShowFilterModal(false);
+    setEditingFilter(null);
   };
 
   const renderLocationInfo = () => {
@@ -127,209 +145,88 @@ export function MenuFilters({
     </div>
   );
 
-  const renderPlacementFilter = () => {
-    const renderPlacement = (placement: Placement, level = 0) => (
-      <div key={placement.id} className="space-y-1">
-        <Button
-          variant={selectedPlacement === placement.id ? 'default' : 'ghost'}
-          onClick={() => {
-            setSelectedPlacement(selectedPlacement === placement.id ? null : placement.id);
-            setShowPlacementFilter(false);
-          }}
-          className={`w-full justify-start ${
-            selectedPlacement === placement.id
-              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
-              : 'text-gray-700 dark:text-gray-300'
-          }`}
-          style={{ paddingLeft: `${level * 1.5 + 0.5}rem` }}
-        >
-          <div className="flex items-center gap-2">
-            {placement.devices.length > 0 ? (
-              <Monitor className="h-4 w-4" />
-            ) : (
-              <Store className="h-4 w-4" />
-            )}
-            <span>{placement.name}</span>
-          </div>
-        </Button>
-
-        {placement.children.length > 0 && (
-          <div className="space-y-1">
-            {placement.children.map((child) => renderPlacement(child, level + 1))}
-          </div>
-        )}
-      </div>
-    );
-
-    return (
-      <Card className="mt-2 bg-white dark:bg-gray-800">
-        <CardContent className="p-3">
-          <div className="space-y-1">
-            <Button
-              variant={!selectedPlacement ? 'default' : 'ghost'}
-              onClick={() => {
-                setSelectedPlacement(null);
-                setShowPlacementFilter(false);
-              }}
-              className="w-full justify-start"
-            >
-              <Store className="h-4 w-4 mr-2" />
-              All Locations
-            </Button>
-            {placements.map((placement) => renderPlacement(placement))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
   return (
     <div className="mb-8 space-y-4">
-      <div>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (showDevices) {
-              setShowPlacementFilter(!showPlacementFilter);
-            } else {
-              setMealPeriodExpanded(!mealPeriodExpanded);
-            }
-          }}
-          className="w-full flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all hover:bg-white hover:dark:bg-gray-800"
-        >
-          <div className="flex items-center gap-2">
-            {showDevices ? (
-              <Store className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-            ) : (
-              <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-            )}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-              <span className="font-medium text-gray-900 dark:text-white">
-                {showDevices ? 'Location: ' : 'Menu Items: '}
-                <span className="text-indigo-600 dark:text-indigo-400">
-                  {showDevices
-                    ? getPlacementPath(selectedPlacement)
-                    : selectedMealPeriod === 'all'
-                    ? 'All Periods'
-                    : selectedMealPeriod}
-                </span>
-              </span>
-              {selectedLocation && (
-                <>
-                  <span className="hidden sm:inline text-gray-400 dark:text-gray-500">
-                    •
-                  </span>
-                  {renderLocationInfo()}
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {renderDataSourceIndicator()}
-            <ChevronRight
-              className={`h-4 w-4 text-gray-500 dark:text-gray-400 transition-transform ${
-                (showDevices ? showPlacementFilter : mealPeriodExpanded) ? 'transform rotate-90' : ''
-              }`}
-            />
-          </div>
-        </Button>
-
-        {showDevices ? (
-          showPlacementFilter && renderPlacementFilter()
-        ) : (
-          mealPeriodExpanded && (
-            <Card className="mt-2 bg-white dark:bg-gray-800">
-              <CardContent className="p-3">
-                <div className="flex flex-wrap gap-2">
-                  {mealPeriods.map((period) => (
-                    <Button
-                      key={period}
-                      variant={
-                        selectedMealPeriod === period ? 'default' : 'secondary'
-                      }
-                      onClick={() => setSelectedMealPeriod(period)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2
-                      ${
-                        selectedMealPeriod === period
-                          ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                      size="sm"
-                    >
-                      <Clock className="h-4 w-4" />
-                      {period === 'all' ? 'All Periods' : period}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )
-        )}
-      </div>
-
+      {/* Filter Row - Compact single row */}
       {!showDevices && (
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => setStationExpanded(!stationExpanded)}
-            className="w-full flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all hover:bg-white hover:dark:bg-gray-800"
-          >
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-                <span className="font-medium text-gray-900 dark:text-white">
-                  Station:{' '}
-                  <span className="text-indigo-600 dark:text-indigo-400">
-                    {selectedStation === 'all' ? 'All Stations' : selectedStation}
-                  </span>
-                </span>
-                {selectedLocation && (
-                  <>
-                    <span className="hidden sm:inline text-gray-400 dark:text-gray-500">
-                      •
-                    </span>
-                    {renderLocationInfo()}
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {renderDataSourceIndicator()}
-              <ChevronRight
-                className={`h-4 w-4 text-gray-500 dark:text-gray-400 transition-transform ${
-                  stationExpanded ? 'transform rotate-90' : ''
-                }`}
-              />
-            </div>
-          </Button>
+        <div className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-x-auto">
+          {/* Add Filter Button with Dropdown */}
+          <div className="relative flex-shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilterTypeMenu(!showFilterTypeMenu)}
+              className="flex items-center gap-2 whitespace-nowrap"
+            >
+              <Filter className="h-4 w-4" />
+              Add Filter
+              <ChevronDown className="h-3 w-3" />
+            </Button>
 
-          {stationExpanded && (
-            <Card className="mt-2 bg-white dark:bg-gray-800">
-              <CardContent className="p-3">
-                <div className="flex flex-wrap gap-2">
-                  {stations.map((station) => (
-                    <Button
-                      key={station}
-                      variant={
-                        selectedStation === station ? 'default' : 'secondary'
-                      }
-                      onClick={() => setSelectedStation(station)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2
-                      ${
-                        selectedStation === station
-                          ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                      size="sm"
-                    >
-                      <MapPin className="h-4 w-4" />
-                      {station === 'all' ? 'All Stations' : station}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {showFilterTypeMenu && (
+              <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-[180px]">
+                <button
+                  onClick={() => handleFilterTypeSelect('daypart')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                >
+                  Dayparts
+                </button>
+                <button
+                  onClick={() => handleFilterTypeSelect('station')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                >
+                  Stations
+                </button>
+                <button
+                  onClick={() => handleFilterTypeSelect('menu_item_name')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                >
+                  Menu Item Name
+                </button>
+                <button
+                  onClick={() => handleFilterTypeSelect('menu_item_mrn')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                >
+                  Menu Item MRN
+                </button>
+                <button
+                  onClick={() => handleFilterTypeSelect('date')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm rounded-b-lg"
+                >
+                  Date
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Filter Cards */}
+          <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+            {activeFilters.map((filter) => (
+              <FilterCard
+                key={filter.id}
+                filter={filter}
+                onEdit={() => handleEditFilter(filter)}
+                onDelete={() => onDeleteFilter(filter.id)}
+              />
+            ))}
+          </div>
+
+          {/* Clear All Button */}
+          {activeFilters.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearAllFilters}
+              className="flex-shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              Clear All
+            </Button>
           )}
+
+          {/* Data Source Indicator */}
+          <div className="flex-shrink-0 ml-auto">
+            {renderDataSourceIndicator()}
+          </div>
         </div>
       )}
 
@@ -401,6 +298,21 @@ export function MenuFilters({
           </Button>
         </div>
       </div>
+
+      {/* Filter Modal */}
+      {showFilterModal && selectedFilterType && (
+        <FilterModal
+          show={showFilterModal}
+          onClose={() => {
+            setShowFilterModal(false);
+            setEditingFilter(null);
+          }}
+          onApply={handleApplyFilter}
+          filterType={selectedFilterType}
+          availableOptions={extractUniqueValues(selectedFilterType)}
+          existingFilter={editingFilter || undefined}
+        />
+      )}
     </div>
   );
 }
