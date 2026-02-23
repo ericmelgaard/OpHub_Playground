@@ -5,9 +5,94 @@ export const mockMenuItems: MenuItem[] = [
   // ... existing menu items
 ];
 
-// Mock devices remain unchanged 
+// Mock devices
 export const mockDevices: Device[] = [
-  // ... existing devices
+  {
+    id: "device-1",
+    name: "ESL-DH-001",
+    location: "Main Campus - Dining Hall - Entry Display",
+    status: {
+      wifiStrength: 4,
+      batteryLevel: 87,
+      currentPage: "page-1-1",
+      forcedPage: null,
+      lastUpdated: new Date().toISOString()
+    },
+    placementId: "placement-1-1-1",
+    assignedItems: [],
+    pages: [
+      {
+        id: "page-1-1",
+        name: "Page 1",
+        daypart: "Breakfast",
+        displayCapacity: 8,
+        assignedItems: [],
+        itemOrder: [],
+        schedule: { startTime: "06:00", endTime: "10:30" }
+      },
+      {
+        id: "page-1-2",
+        name: "Page 2",
+        daypart: "Lunch",
+        displayCapacity: 8,
+        assignedItems: [],
+        itemOrder: [],
+        schedule: { startTime: "10:30", endTime: "14:30" }
+      },
+      {
+        id: "page-1-3",
+        name: "Page 3",
+        daypart: "Dinner",
+        displayCapacity: 8,
+        assignedItems: [],
+        itemOrder: [],
+        schedule: { startTime: "16:30", endTime: "20:00" }
+      }
+    ]
+  },
+  {
+    id: "device-2",
+    name: "ESL-SU-002",
+    location: "Main Campus - Student Union - Food Court",
+    status: {
+      wifiStrength: 3,
+      batteryLevel: 92,
+      currentPage: "page-2-1",
+      forcedPage: null,
+      lastUpdated: new Date().toISOString()
+    },
+    placementId: "placement-1-1-2",
+    assignedItems: [],
+    pages: [
+      {
+        id: "page-2-1",
+        name: "Page 1",
+        daypart: "Breakfast",
+        displayCapacity: 6,
+        assignedItems: [],
+        itemOrder: [],
+        schedule: { startTime: "07:00", endTime: "11:00" }
+      },
+      {
+        id: "page-2-2",
+        name: "Page 2",
+        daypart: "Lunch",
+        displayCapacity: 6,
+        assignedItems: [],
+        itemOrder: [],
+        schedule: { startTime: "11:00", endTime: "15:00" }
+      },
+      {
+        id: "page-2-3",
+        name: "Page 3",
+        daypart: "Dinner",
+        displayCapacity: 6,
+        assignedItems: [],
+        itemOrder: [],
+        schedule: { startTime: "17:00", endTime: "21:00" }
+      }
+    ]
+  }
 ];
 
 // Enhanced mock concepts data
@@ -204,6 +289,11 @@ export const mockStores: Store[] = [
   }
 ];
 
+// Helper function to get device references after devices are defined
+const getDeviceById = (id: string): Device | undefined => {
+  return mockDevices.find(d => d.id === id);
+};
+
 // Enhanced mock placements data with hierarchical structure
 export const mockPlacements: Placement[] = [
   {
@@ -219,13 +309,13 @@ export const mockPlacements: Placement[] = [
           {
             id: "placement-1-1-1",
             name: "Dining Hall",
-            devices: [mockDevices[0]],
+            devices: [getDeviceById("device-1")].filter(Boolean) as Device[],
             children: []
           },
           {
             id: "placement-1-1-2",
             name: "Student Union",
-            devices: [mockDevices[1]],
+            devices: [getDeviceById("device-2")].filter(Boolean) as Device[],
             children: []
           }
         ]

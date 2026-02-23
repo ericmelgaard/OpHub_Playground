@@ -20,8 +20,8 @@ export function QuickActionBar({
   menuItems,
   onCustomize
 }: QuickActionBarProps) {
-  const activeDevicesCount = devices.filter(d => d.status === 'online').length;
-  const activeProductsCount = menuItems.length;
+  const onlineDevicesCount = devices.filter(d => d.status.wifiStrength > 0).length;
+  const totalDevicesCount = devices.length;
 
   const actions = [
     {
@@ -44,8 +44,8 @@ export function QuickActionBar({
       id: 'products' as QuickActionType,
       icon: Package,
       title: 'Products',
-      count: 0,
-      subtitle: '0 active',
+      count: menuItems.length,
+      subtitle: `${menuItems.length} active`,
       iconColor: 'text-emerald-500'
     },
     {
@@ -60,8 +60,8 @@ export function QuickActionBar({
       id: 'smart-labels' as QuickActionType,
       icon: Tag,
       title: 'Smart Labels',
-      count: 0,
-      subtitle: '0 online',
+      count: totalDevicesCount,
+      subtitle: `${onlineDevicesCount} online`,
       iconColor: 'text-amber-500'
     },
     {
