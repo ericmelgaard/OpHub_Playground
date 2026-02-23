@@ -30,49 +30,55 @@ export function QuickActionBar({
       icon: Monitor,
       title: 'Smart Labels',
       count: devices.length,
-      subtitle: `${activeDevicesCount} online`
-    },
-    {
-      id: 'products' as QuickActionType,
-      icon: Package,
-      title: 'Products',
-      count: menuItems.length,
-      subtitle: `${activeProductsCount} active`
+      subtitle: `${activeDevicesCount} online`,
+      iconColor: 'bg-orange-500'
     },
     {
       id: 'groups' as QuickActionType,
       icon: Users,
       title: 'Groups',
-      count: 0,
-      subtitle: 'In progress'
+      count: 1,
+      subtitle: 'placement groups',
+      iconColor: 'bg-cyan-500'
     },
     {
       id: 'signage' as QuickActionType,
       icon: Image,
       title: 'Signage',
       count: 0,
-      subtitle: 'Coming soon'
+      subtitle: '0 online',
+      iconColor: 'bg-blue-500'
+    },
+    {
+      id: 'products' as QuickActionType,
+      icon: Package,
+      title: 'Products',
+      count: menuItems.length,
+      subtitle: `${activeProductsCount} active`,
+      iconColor: 'bg-emerald-500'
     },
     {
       id: 'webview' as QuickActionType,
       icon: Globe,
       title: 'Webview Kiosks',
       count: 0,
-      subtitle: 'Coming soon'
+      subtitle: '0 online',
+      iconColor: 'bg-purple-500'
     },
     {
       id: 'activity' as QuickActionType,
       icon: Activity,
       title: 'Activity',
       count: 0,
-      subtitle: 'Coming soon'
+      subtitle: 'recent actions',
+      iconColor: 'bg-pink-500'
     }
   ];
 
   return (
-    <div className="bg-gradient-to-b from-gray-900 to-gray-850 border-b border-gray-800 px-6 py-6">
-      <div className="flex items-center gap-4 max-w-7xl mx-auto">
-        <div className="flex-1 flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+    <div className="bg-slate-800 border-b border-slate-700 px-6 py-4">
+      <div className="flex items-center gap-3">
+        <div className="flex-1 flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
           {actions.map((action) => (
             <QuickActionCard
               key={action.id}
@@ -82,16 +88,17 @@ export function QuickActionBar({
               subtitle={action.subtitle}
               isActive={selectedAction === action.id}
               onClick={() => onActionSelect(action.id)}
+              iconColor={action.iconColor}
             />
           ))}
         </div>
-        <Button
+        <button
           onClick={onCustomize}
-          className="flex-shrink-0 bg-gray-800 hover:bg-gray-750 text-gray-300 border border-gray-700 px-4 py-2 rounded-lg transition-colors"
+          className="flex-shrink-0 bg-slate-700/50 hover:bg-slate-700/70 text-slate-300 px-4 py-3 rounded-lg transition-all duration-200 flex items-center gap-2"
         >
-          <Settings className="w-4 h-4 mr-2" />
-          Customize
-        </Button>
+          <Settings className="w-4 h-4" />
+          <span className="text-sm font-medium">Customize</span>
+        </button>
       </div>
     </div>
   );
