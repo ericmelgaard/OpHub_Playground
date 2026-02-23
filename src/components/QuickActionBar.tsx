@@ -76,28 +76,26 @@ export function QuickActionBar({
   ];
 
   return (
-    <div className="bg-slate-800 border-b border-slate-700 px-6 py-4">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-          {actions.map((action) => (
-            <QuickActionCard
-              key={action.id}
-              icon={action.icon}
-              title={action.title}
-              count={action.count}
-              subtitle={action.subtitle}
-              isActive={selectedAction === action.id}
-              onClick={() => onActionSelect(action.id)}
-              iconColor={action.iconColor}
-            />
-          ))}
-        </div>
+    <div className="bg-slate-800 border-b border-slate-700 px-6 py-3">
+      <div className="flex items-center gap-2">
+        {actions.map((action) => (
+          <QuickActionCard
+            key={action.id}
+            icon={action.icon}
+            title={action.title}
+            count={action.count}
+            subtitle={action.subtitle}
+            isActive={selectedAction === action.id}
+            onClick={() => onActionSelect(action.id)}
+            iconColor={action.iconColor}
+          />
+        ))}
         <button
           onClick={onCustomize}
-          className="flex-shrink-0 bg-slate-700/50 hover:bg-slate-700/70 text-slate-300 px-4 py-3 rounded-lg transition-all duration-200 flex items-center gap-2"
+          className="flex-shrink-0 bg-slate-700/50 hover:bg-slate-700/70 text-slate-300 px-3 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2"
         >
           <Settings className="w-4 h-4" />
-          <span className="text-sm font-medium">Customize</span>
+          <span className="text-xs font-semibold">Customize</span>
         </button>
       </div>
     </div>
