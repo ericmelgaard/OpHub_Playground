@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { FilterCard } from './FilterCard';
 import { FilterModal } from './FilterModal';
 import { Placement, FilterConfig, FilterType, MenuItem } from '../types';
+import { QuickActionType } from './QuickActionBar';
 
 interface MenuFiltersProps {
   viewMode: 'grid' | 'tiles';
@@ -28,8 +29,7 @@ interface MenuFiltersProps {
     company?: string;
     store?: string;
   };
-  showDevices: boolean;
-  setShowDevices: (show: boolean) => void;
+  selectedQuickAction: QuickActionType;
   onCreateItem: () => void;
   placements?: Placement[];
   selectedPlacement: string | null;
@@ -48,8 +48,7 @@ export function MenuFilters({
   searchValue,
   setSearchValue,
   selectedLocation,
-  showDevices,
-  setShowDevices,
+  selectedQuickAction,
   onCreateItem,
   placements = [],
   selectedPlacement,
@@ -145,10 +144,13 @@ export function MenuFilters({
     </div>
   );
 
+  const showProductFilters = selectedQuickAction === 'products';
+  const showDeviceFilters = selectedQuickAction === 'smart-labels' || selectedQuickAction === 'groups';
+
   return (
     <div className="mb-8 space-y-4">
       {/* Filter Row - Compact single row */}
-      {!showDevices && (
+      {showProductFilters && (
         <div className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-x-auto">
           {/* Add Filter Button with Dropdown */}
           <div className="relative flex-shrink-0">
@@ -236,7 +238,7 @@ export function MenuFilters({
         <div className="relative flex-1 order-2 sm:order-1">
           <Input
             type="text"
-            placeholder={showDevices ? "Search devices..." : "Search menu items..."}
+            placeholder={showDeviceFilters ? "Search devices..." : "Search menu items..."}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             className="w-full pl-10 pr-12 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
@@ -255,7 +257,7 @@ export function MenuFilters({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 order-1 sm:order-2">
-          {!showDevices && (
+          {showProductFilters && (
             <Button
               variant="secondary"
               onClick={onCreateItem}
@@ -265,21 +267,6 @@ export function MenuFilters({
               <span className="hidden sm:inline">Create Item</span>
             </Button>
           )}
-
-          <Button
-            variant="secondary"
-            onClick={() => setShowDevices(!showDevices)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              showDevices
-                ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-            }`}
-          >
-            <Monitor className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              {showDevices ? 'Show Menu' : 'Show Devices'}
-            </span>
-          </Button>
 
           <Button
             variant="secondary"

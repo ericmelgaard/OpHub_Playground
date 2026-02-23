@@ -46,7 +46,7 @@ const CHANNEL_INFO = {
 };
 
 const PAGE_INFO = {
-  products: { name: 'Products', icon: Package },
+  products: { name: 'Operator Hub', icon: Package },
   devices: { name: 'Devices', icon: Monitor },
   channels: { name: 'Channels', icon: Tag },
 };

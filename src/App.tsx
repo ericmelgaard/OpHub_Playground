@@ -8,6 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
+import { QuickActionBar, QuickActionType } from './components/QuickActionBar';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
 import { api } from './services/api';
 
@@ -55,7 +56,10 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'tiles'>('grid');
   const [searchValue, setSearchValue] = useState('');
-  const [showDevices, setShowDevices] = useState(false);
+  const [selectedQuickAction, setSelectedQuickAction] = useState<QuickActionType>(() => {
+    const saved = localStorage.getItem('selectedQuickAction');
+    return (saved as QuickActionType) || 'smart-labels';
+  });
 
   // Filter state
   const [activeFilters, setActiveFilters] = useState<FilterConfig[]>([]);
@@ -219,6 +223,17 @@ function App() {
     setActiveFilters([]);
   }, []);
 
+  const handleQuickActionSelect = useCallback((action: QuickActionType) => {
+    setSelectedQuickAction(action);
+    localStorage.setItem('selectedQuickAction', action);
+    setSearchValue('');
+    setActiveFilters([]);
+  }, []);
+
+  const handleCustomize = useCallback(() => {
+    alert('Customize quick action cards (coming soon)');
+  }, []);
+
   return (
     <div className={theme}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
@@ -257,64 +272,85 @@ function App() {
           setSelectedPage={setSelectedPage}
         />
 
-        <div className="w-full max-w-7xl mx-auto">
-          <main className="pt-24 px-4 sm:px-6 lg:px-8">
-            <MenuFilters
-              viewMode={viewMode}
-              setViewMode={setViewMode}
-              searchValue={searchValue}
-              setSearchValue={setSearchValue}
-              showDevices={showDevices}
-              setShowDevices={setShowDevices}
-              onCreateItem={() => setShowCreateItemModal(true)}
-              placements={placements}
-              selectedPlacement={selectedPlacement}
-              setSelectedPlacement={setSelectedPlacement}
-              activeFilters={activeFilters}
-              onAddFilter={handleAddFilter}
-              onEditFilter={handleEditFilter}
-              onDeleteFilter={handleDeleteFilter}
-              onClearAllFilters={handleClearAllFilters}
+        <div className="w-full mx-auto">
+          <main className="pt-24">
+            <QuickActionBar
+              selectedAction={selectedQuickAction}
+              onActionSelect={handleQuickActionSelect}
+              devices={devices}
               menuItems={menuItems}
-              selectedLocation={selectedLocation}
+              onCustomize={handleCustomize}
             />
 
-            {showDevices ? (
-              <DeviceGrid
-                loading={loadingDevices}
-                error={deviceError}
-                devices={devices}
-                onDeviceSelect={handleDeviceSelect}
-                searchValue={searchValue}
-                viewMode={viewMode === 'grid' ? 'grid' : 'list'}
-                placements={placements}
-              />
-            ) : (
-              <MenuItems
-                loading={loading}
-                error={error}
-                menuItems={menuItems}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <MenuFilters
                 viewMode={viewMode}
-                selectedChannel={selectedChannel}
-                expandedItem={null}
-                toggleItemExpansion={() => {}}
-                isItemInChannel={(itemId, channelId) => api.isItemInChannel(itemId, channelId)}
-                toggleItemInChannel={(item, channelId) => {
-                  if (api.isItemInChannel(item.id, channelId)) {
-                    api.removeItemFromChannel(item.id, channelId);
-                  } else {
-                    api.assignItemToChannel(item.id, channelId);
-                  }
-                }}
-                setSelectedItem={() => {}}
-                setShowDeviceModal={() => {}}
-                setShowPageSelectionModal={() => {}}
-                setWorkflowType={() => {}}
-                devices={devices}
+                setViewMode={setViewMode}
                 searchValue={searchValue}
+                setSearchValue={setSearchValue}
+                selectedQuickAction={selectedQuickAction}
+                onCreateItem={() => setShowCreateItemModal(true)}
+                placements={placements}
+                selectedPlacement={selectedPlacement}
+                setSelectedPlacement={setSelectedPlacement}
                 activeFilters={activeFilters}
+                onAddFilter={handleAddFilter}
+                onEditFilter={handleEditFilter}
+                onDeleteFilter={handleDeleteFilter}
+                onClearAllFilters={handleClearAllFilters}
+                menuItems={menuItems}
+                selectedLocation={selectedLocation}
               />
-            )}
+
+              {selectedQuickAction === 'smart-labels' ? (
+                <DeviceGrid
+                  loading={loadingDevices}
+                  error={deviceError}
+                  devices={devices}
+                  onDeviceSelect={handleDeviceSelect}
+                  searchValue={searchValue}
+                  viewMode={viewMode === 'grid' ? 'grid' : 'list'}
+                  placements={placements}
+                />
+              ) : selectedQuickAction === 'products' ? (
+                <MenuItems
+                  loading={loading}
+                  error={error}
+                  menuItems={menuItems}
+                  viewMode={viewMode}
+                  selectedChannel={selectedChannel}
+                  expandedItem={null}
+                  toggleItemExpansion={() => {}}
+                  isItemInChannel={(itemId, channelId) => api.isItemInChannel(itemId, channelId)}
+                  toggleItemInChannel={(item, channelId) => {
+                    if (api.isItemInChannel(item.id, channelId)) {
+                      api.removeItemFromChannel(item.id, channelId);
+                    } else {
+                      api.assignItemToChannel(item.id, channelId);
+                    }
+                  }}
+                  setSelectedItem={() => {}}
+                  setShowDeviceModal={() => {}}
+                  setShowPageSelectionModal={() => {}}
+                  setWorkflowType={() => {}}
+                  devices={devices}
+                  searchValue={searchValue}
+                  activeFilters={activeFilters}
+                />
+              ) : selectedQuickAction === 'groups' ? (
+                <div className="text-center py-20">
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Groups</h3>
+                  <p className="text-gray-500">Work in progress - coming soon</p>
+                </div>
+              ) : (
+                <div className="text-center py-20">
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                    {selectedQuickAction.charAt(0).toUpperCase() + selectedQuickAction.slice(1).replace('-', ' ')}
+                  </h3>
+                  <p className="text-gray-500">Coming soon</p>
+                </div>
+              )}
+            </div>
           </main>
         </div>
 

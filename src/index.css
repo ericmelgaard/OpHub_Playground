@@ -30,6 +30,15 @@
   .dark .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: rgba(75, 85, 99, 0.5);
   }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Modal styles */
