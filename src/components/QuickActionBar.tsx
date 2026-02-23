@@ -70,9 +70,9 @@ export function QuickActionBar({
   ];
 
   return (
-    <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center gap-4">
-        <div className="flex-1 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+    <div className="bg-gradient-to-b from-gray-900 to-gray-850 border-b border-gray-800 px-6 py-6">
+      <div className="flex items-center gap-4 max-w-7xl mx-auto">
+        <div className="flex-1 flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
           {actions.map((action) => (
             <QuickActionCard
               key={action.id}
@@ -86,10 +86,8 @@ export function QuickActionBar({
           ))}
         </div>
         <Button
-          variant="outline"
-          size="sm"
           onClick={onCustomize}
-          className="flex-shrink-0"
+          className="flex-shrink-0 bg-gray-800 hover:bg-gray-750 text-gray-300 border border-gray-700 px-4 py-2 rounded-lg transition-colors"
         >
           <Settings className="w-4 h-4 mr-2" />
           Customize

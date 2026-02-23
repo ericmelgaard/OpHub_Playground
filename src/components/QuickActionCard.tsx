@@ -1,6 +1,5 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
-import { Card } from './ui/card';
 
 interface QuickActionCardProps {
   icon: LucideIcon;
@@ -20,28 +19,28 @@ export function QuickActionCard({
   onClick
 }: QuickActionCardProps) {
   return (
-    <Card
-      className={`flex-shrink-0 w-[160px] p-4 cursor-pointer transition-all hover:shadow-md ${
-        isActive
-          ? 'bg-blue-50 border-blue-500 border-2'
-          : 'bg-white border-gray-200 hover:border-gray-300'
-      }`}
+    <button
       onClick={onClick}
+      className={`flex-shrink-0 w-[160px] p-5 rounded-xl cursor-pointer transition-all duration-200 ${
+        isActive
+          ? 'bg-gradient-to-br from-blue-600 to-blue-700 shadow-lg shadow-blue-500/50 scale-105'
+          : 'bg-gray-800 hover:bg-gray-750 shadow-md hover:shadow-lg'
+      }`}
     >
-      <div className="flex flex-col items-center text-center space-y-2">
-        <Icon className={`w-8 h-8 ${isActive ? 'text-blue-600' : 'text-gray-600'}`} />
-        <div>
-          <div className={`text-2xl font-bold ${isActive ? 'text-blue-600' : 'text-gray-900'}`}>
+      <div className="flex flex-col items-center text-center space-y-3">
+        <Icon className={`w-10 h-10 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+        <div className="space-y-1">
+          <div className={`text-3xl font-bold ${isActive ? 'text-white' : 'text-gray-200'}`}>
             {count}
           </div>
-          <div className={`text-sm font-medium ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>
+          <div className={`text-sm font-medium ${isActive ? 'text-blue-100' : 'text-gray-300'}`}>
             {title}
           </div>
-          <div className={`text-xs ${isActive ? 'text-blue-500' : 'text-gray-500'}`}>
+          <div className={`text-xs ${isActive ? 'text-blue-200' : 'text-gray-500'}`}>
             {subtitle}
           </div>
         </div>
       </div>
-    </Card>
+    </button>
   );
 }

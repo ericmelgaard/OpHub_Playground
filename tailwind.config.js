@@ -4,6 +4,12 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      colors: {
+        gray: {
+          750: '#2d3748',
+          850: '#1a202e',
+        },
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
