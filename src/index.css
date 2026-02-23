@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5);
+    border-radius: 20px;
+  }
+
+  /* Dark mode scrollbar */
+  .dark .scrollbar-thin {
+    scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+  }
+
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(75, 85, 99, 0.5);
+  }
+}
+
+/* Modal styles */
+@media (max-width: 767px) {
+  .modal-container {
+    @apply p-0;
+  }
+
+  .modal-content {
+    @apply h-screen max-h-screen w-full max-w-none rounded-none mx-0 !important;
+  }
+
+  .modal-header {
+    @apply sticky top-0 bg-white dark:bg-gray-800 z-10 border-b dark:border-gray-700 !important;
+  }
+
+  .modal-body {
+    @apply h-[calc(100vh-theme(spacing.32))] !important;
+  }
+}
+
+/* Full screen styles */
+:root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  height: 100%;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS-specific styles */
+@supports (-webkit-touch-callout: none) {
+  body {
+    /* Prevent overscroll bounce on iOS */
+    position: fixed;
+    width: 100%;
+  }
+  
+  /* Handle notch area */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

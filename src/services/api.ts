@@ -1,0 +1,208 @@
+import { MenuItem, Device, Concept, Company, Store, Rule } from '../types';
+import { mockMenuItems, mockDevices, mockConcepts, mockCompanies, mockStores, mockPlacements } from './mockData';
+
+export class NoContentError extends Error {
+  constructor(message: string = 'No content available') {
+    super(message);
+    this.name = 'NoContentError';
+  }
+}
+
+// Helper function to simulate API delay
+const mockDelay = (ms: number = 800) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to deep clone objects
+const clone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
+
+// Initialize mock channel items with some default data
+const mockChannelItems: Record<string, Set<number>> = {
+  'shelf-labels': new Set([1, 2, 3]), // Classic Breakfast, Belgian Waffle, Signature Burger
+  'digital-signage': new Set([4, 5]), // Mediterranean Salad, Grilled Salmon
+  'order-confirmation': new Set([6])   // Margherita Pizza
+};
+
+// Mock rules storage
+let mockRules: Rule[] = [];
+
+export const api = {
+  // Menu Items
+  getMenuItems: async (): Promise<MenuItem[]> => {
+    await mockDelay();
+    return clone(mockMenuItems);
+  },
+
+  // Devices
+  getDevices: async (): Promise<Device[]> => {
+    await mockDelay();
+    return clone(mockDevices);
+  },
+
+  // Location hierarchy
+  getConcepts: async (): Promise<Concept[]> => {
+    await mockDelay();
+    return clone(mockConcepts);
+  },
+
+  getCompanies: async (): Promise<Company[]> => {
+    await mockDelay();
+    return clone(mockCompanies);
+  },
+
+  getStores: async (): Promise<Store[]> => {
+    await mockDelay();
+    return clone(mockStores);
+  },
+
+  // Placements
+  getPlacements: async () => {
+    await mockDelay();
+    return clone(mockPlacements);
+  },
+
+  // Rules
+  getRules: async (): Promise<Rule[]> => {
+    await mockDelay();
+    return clone(mockRules);
+  },
+
+  createRule: async (rule: Rule): Promise<Rule> => {
+    await mockDelay();
+    const newRule = clone(rule);
+    mockRules.push(newRule);
+    return newRule;
+  },
+
+  updateRule: async (rule: Rule): Promise<Rule> => {
+    await mockDelay();
+    const index = mockRules.findIndex(r => r.id === rule.id);
+    if (index === -1) throw new Error('Rule not found');
+    mockRules[index] = clone(rule);
+    return rule;
+  },
+
+  deleteRule: async (ruleId: string): Promise<void> => {
+    await mockDelay();
+    mockRules = mockRules.filter(r => r.id !== ruleId);
+  },
+
+  // Channel operations
+  assignItemToChannel: async (itemId: number, channelId: string): Promise<void> => {
+    await mockDelay();
+    if (!mockChannelItems[channelId]) {
+      mockChannelItems[channelId] = new Set();
+    }
+    mockChannelItems[channelId].add(itemId);
+  },
+
+  removeItemFromChannel: async (itemId: number, channelId: string): Promise<void> => {
+    await mockDelay();
+    if (mockChannelItems[channelId]) {
+      mockChannelItems[channelId].delete(itemId);
+    }
+  },
+
+  isItemInChannel: (itemId: number, channelId: string): boolean => {
+    return mockChannelItems[channelId]?.has(itemId) ?? false;
+  },
+
+  // Device page operations
+  assignItemToPage: async (itemId: number, deviceId: string, pageId: string): Promise<void> => {
+    await mockDelay();
+    
+    // Find the device and make a copy to work with
+    const deviceIndex = mockDevices.findIndex(d => d.id === deviceId);
+    if (deviceIndex === -1) throw new Error('Device not found');
+    
+    const device = clone(mockDevices[deviceIndex]);
+    
+    // Find the page in the device
+    const page = device.pages.find(p => p.id === pageId);
+    if (!page) throw new Error('Page not found');
+    
+    // Find the item in the menu items
+    const item = mockMenuItems.find(i => i.id === itemId);
+    if (!item) throw new Error('Item not found');
+    
+    // Add the item to the page if not already present
+    if (!page.assignedItems.some(i => i.id === itemId)) {
+      page.assignedItems.push(clone(item));
+      page.itemOrder.push(itemId);
+    }
+    
+    // Update the device's assigned items if needed
+    if (!device.assignedItems.some(i => i.id === itemId)) {
+      device.assignedItems.push(clone(item));
+    }
+    
+    // Update the device in the mock data
+    mockDevices[deviceIndex] = device;
+  },
+
+  removeItemFromPage: async (itemId: number, deviceId: string, pageId: string): Promise<void> => {
+    await mockDelay();
+    
+    const deviceIndex = mockDevices.findIndex(d => d.id === deviceId);
+    if (deviceIndex === -1) throw new Error('Device not found');
+    
+    const device = clone(mockDevices[deviceIndex]);
+    const page = device.pages.find(p => p.id === pageId);
+    if (!page) throw new Error('Page not found');
+    
+    // Remove item from page
+    page.assignedItems = page.assignedItems.filter(item => item.id !== itemId);
+    page.itemOrder = page.itemOrder.filter(id => id !== itemId);
+    
+    // Check if item is used in any other pages
+    const isItemUsedInOtherPages = device.pages.some(p => 
+      p.id !== pageId && p.assignedItems.some(item => item.id === itemId)
+    );
+    
+    // If not used in other pages, remove from device's assignedItems
+    if (!isItemUsedInOtherPages) {
+      device.assignedItems = device.assignedItems.filter(item => item.id !== itemId);
+    }
+    
+    // Update the device in the mock data
+    mockDevices[deviceIndex] = device;
+  },
+
+  reorderPageItems: async (deviceId: string, pageId: string, itemOrder: number[]): Promise<void> => {
+    await mockDelay();
+    
+    const deviceIndex = mockDevices.findIndex(d => d.id === deviceId);
+    if (deviceIndex === -1) throw new Error('Device not found');
+    
+    const device = clone(mockDevices[deviceIndex]);
+    const page = device.pages.find(p => p.id === pageId);
+    if (!page) throw new Error('Page not found');
+    
+    // Update the page's itemOrder
+    page.itemOrder = [...itemOrder];
+    
+    // Update the device in the mock data
+    mockDevices[deviceIndex] = device;
+  },
+
+  // Device status operations
+  updateDeviceStatus: async (deviceId: string, updates: Partial<Device['status']>): Promise<Device> => {
+    await mockDelay();
+    
+    const deviceIndex = mockDevices.findIndex(d => d.id === deviceId);
+    if (deviceIndex === -1) throw new Error('Device not found');
+    
+    const device = clone(mockDevices[deviceIndex]);
+    device.status = {
+      ...device.status,
+      ...updates,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    // If forcing a page, update current page
+    if (updates.forcedPage !== undefined) {
+      device.status.currentPage = updates.forcedPage || device.status.currentPage;
+    }
+    
+    mockDevices[deviceIndex] = device;
+    return clone(device);
+  }
+};

@@ -1,0 +1,324 @@
+import React, { useState } from 'react';
+import {
+  Coffee,
+  MapPin,
+  MoreVertical,
+  Monitor,
+  Edit,
+  Plus,
+  Tag,
+  CheckCircle,
+  XCircle,
+  Clock,
+} from 'lucide-react';
+import { MenuItem as MenuItemType, Device } from '../types';
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardFooter,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+
+interface MenuItemProps {
+  item: MenuItemType;
+  selectedChannel: string | null;
+  expandedItem: string | null;
+  toggleItemExpansion: (itemId: number) => void;
+  isItemInChannel: (itemId: number, channelId: string) => boolean;
+  toggleItemInChannel: (item: MenuItemType, channelId: string) => void;
+  setSelectedItem: (item: MenuItemType) => void;
+  setShowDeviceModal: (show: boolean) => void;
+  setShowPageSelectionModal: (show: boolean) => void;
+  setWorkflowType: (type: 'manage' | 'assign' | null) => void;
+  viewMode: 'grid' | 'tiles';
+  devices: Device[];
+  onEdit?: (item: MenuItemType) => void;
+}
+
+export function MenuItem({
+  item,
+  selectedChannel,
+  expandedItem,
+  toggleItemExpansion,
+  isItemInChannel,
+  toggleItemInChannel,
+  setSelectedItem,
+  setShowDeviceModal,
+  setShowPageSelectionModal,
+  setWorkflowType,
+  viewMode,
+  devices,
+  onEdit,
+}: MenuItemProps) {
+  const [showOptions, setShowOptions] = useState(false);
+
+  const deviceCount = devices.filter((device) =>
+    device.pages.some((page) =>
+      page.assignedItems.some((assignedItem) => assignedItem.id === item.id)
+    )
+  ).length;
+
+  const isInSelectedChannel = selectedChannel
+    ? isItemInChannel(item.id, selectedChannel)
+    : false;
+  const isActive = item.isActive !== false;
+
+  const handleOptionClick = (action: 'manage' | 'edit' | 'add' | 'assign') => {
+    setShowOptions(false);
+
+    switch (action) {
+      case 'manage':
+        setSelectedItem(item);
+        setWorkflowType('manage');
+        setShowDeviceModal(true);
+        break;
+      case 'edit':
+        onEdit?.(item);
+        break;
+      case 'add':
+        if (selectedChannel) {
+          toggleItemInChannel(item, selectedChannel);
+        }
+        break;
+      case 'assign':
+        setSelectedItem(item);
+        setWorkflowType('assign');
+        setShowDeviceModal(true);
+        break;
+    }
+  };
+
+  const handleAssignClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedChannel) {
+      if (!isInSelectedChannel) {
+        // If not in channel, add to channel first
+        toggleItemInChannel(item, selectedChannel);
+      }
+      // Then show device assignment modal
+      setSelectedItem(item);
+      setWorkflowType('assign');
+      setShowDeviceModal(true);
+    }
+  };
+
+  const renderOptionsMenu = () => (
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowOptions(!showOptions);
+        }}
+        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        title="More options"
+      >
+        <MoreVertical className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+      </Button>
+      {showOptions && (
+        <Card className="absolute right-0 mt-1 w-48 z-10 bg-white dark:bg-gray-800">
+          <CardContent className="p-1">
+            {selectedChannel && (
+              <Button
+                variant="ghost"
+                onClick={() => handleOptionClick('add')}
+                className={`w-full justify-start ${
+                  isInSelectedChannel
+                    ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                    : 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                }`}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {isInSelectedChannel ? 'Remove from Channel' : 'Add to Channel'}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              onClick={() => handleOptionClick('assign')}
+              className="w-full justify-start text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+            >
+              <Monitor className="h-4 w-4 mr-2" />
+              Assign to Pages
+            </Button>
+            {deviceCount > 0 && (
+              <Button
+                variant="ghost"
+                onClick={() => handleOptionClick('manage')}
+                className="w-full justify-start text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+              >
+                <Monitor className="h-4 w-4 mr-2" />
+                Manage Devices ({deviceCount})
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              onClick={() => handleOptionClick('edit')}
+              className="w-full justify-start text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Item
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+
+  if (viewMode === 'tiles') {
+    return (
+      <div
+        className={`px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group ${
+          isInSelectedChannel
+            ? 'border-l-4 border-indigo-500 dark:border-indigo-400'
+            : 'border-l-4 border-transparent'
+        } ${!isActive ? 'opacity-50' : ''} relative`}
+      >
+        {/* Top row with status, MRN, price, calories, and action button */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            {isActive ? (
+              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+            ) : (
+              <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+            )}
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              MRN: {item.mrn}
+            </span>
+            {isInSelectedChannel && (
+              <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+            )}
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-gray-500 dark:text-gray-400">
+                {item.calories} cal
+              </span>
+              <span className="font-medium text-indigo-600 dark:text-indigo-400">
+                ${item.price}
+              </span>
+            </div>
+          </div>
+          {selectedChannel && (
+            <Button
+              variant={isInSelectedChannel ? 'secondary' : 'default'}
+              size="sm"
+              onClick={handleAssignClick}
+              className={`flex items-center gap-1 ${
+                isInSelectedChannel
+                  ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
+                  : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
+              }`}
+            >
+              {isInSelectedChannel ? (
+                <Monitor className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Content area with inline options menu */}
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="text-base font-medium text-gray-900 dark:text-white">
+              {item.name}
+            </h3>
+            {(item.description || item.enticingDescription) && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 pr-2">
+                {item.enticingDescription || item.description}
+              </p>
+            )}
+          </div>
+          <div className="flex-shrink-0 mt-1">{renderOptionsMenu()}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Card
+      className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${
+        isInSelectedChannel ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''
+      } ${!isActive ? 'opacity-50' : ''} relative`}
+    >
+      {/* Top row with status, MRN, and actions */}
+      <CardHeader className="p-0 mb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {isActive ? (
+              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+            ) : (
+              <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+            )}
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              MRN: {item.mrn}
+            </span>
+            {isInSelectedChannel && (
+              <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+            )}
+          </div>
+          {selectedChannel && (
+            <Button
+              variant={isInSelectedChannel ? 'secondary' : 'default'}
+              size="sm"
+              onClick={handleAssignClick}
+              className={`flex items-center gap-1 ${
+                isInSelectedChannel
+                  ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
+                  : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
+              }`}
+            >
+              {isInSelectedChannel ? (
+                <Monitor className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {/* Content area - flex-1 to push the bottom content down */}
+      <CardContent className="flex-1 p-0">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          {item.name}
+        </h3>
+        {(item.description || item.enticingDescription) && (
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-3">
+            {item.enticingDescription || item.description}
+          </p>
+        )}
+      </CardContent>
+
+      {/* Bottom content - always at the bottom */}
+      <CardFooter className="flex-col space-y-4 p-0 mt-4">
+        {/* Daypart and Station info */}
+        <div className="flex items-center gap-4">
+          <Badge variant="secondary" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            <span>{item.mealPeriod}</span>
+          </Badge>
+          <Badge variant="secondary" className="flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            <span>{item.mealStation}</span>
+          </Badge>
+        </div>
+
+        {/* Price and options */}
+        <div className="flex items-center justify-between pt-4 border-t dark:border-gray-700 w-full">
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-gray-500 dark:text-gray-400">
+              {item.calories} cal
+            </span>
+            <span className="font-medium text-indigo-600 dark:text-indigo-400">
+              ${item.price}
+            </span>
+          </div>
+          {renderOptionsMenu()}
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}
