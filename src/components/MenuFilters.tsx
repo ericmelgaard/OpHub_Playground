@@ -11,6 +11,7 @@ import {
   Database,
   Filter,
   ChevronDown,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,8 @@ interface MenuFiltersProps {
   onDeleteFilter: (filterId: string) => void;
   onClearAllFilters: () => void;
   menuItems: MenuItem[];
+  groupByMrn?: boolean;
+  onToggleGroupByMrn?: () => void;
 }
 
 export function MenuFilters({
@@ -53,6 +56,8 @@ export function MenuFilters({
   onDeleteFilter,
   onClearAllFilters,
   menuItems,
+  groupByMrn = false,
+  onToggleGroupByMrn,
 }: MenuFiltersProps) {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedFilterType, setSelectedFilterType] = useState<FilterType | null>(null);
@@ -187,15 +192,33 @@ export function MenuFilters({
         {/* Action Buttons */}
         <div className="flex items-center gap-2 order-3">
           {showProductFilters && (
-            <Button
-              variant="secondary"
-              onClick={onCreateItem}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
-              style={{ backgroundColor: 'rgb(0, 173, 240)' }}
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Create Item</span>
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                onClick={onCreateItem}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
+                style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Item</span>
+              </Button>
+
+              {onToggleGroupByMrn && (
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={onToggleGroupByMrn}
+                  className={`p-2 rounded-lg transition-colors ${
+                    groupByMrn
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                  title={groupByMrn ? 'Show all items' : 'Group by MRN'}
+                >
+                  <Layers className="h-5 w-5" />
+                </Button>
+              )}
+            </>
           )}
 
           <Button

@@ -90,6 +90,52 @@ export const api = {
     }));
   },
 
+  // Get menu items grouped by MRN
+  getGroupedMenuItems: async (): Promise<MenuItem[]> => {
+    const items = await api.getMenuItems();
+
+    // Group items by MRN
+    const groupedMap = new Map<string, MenuItem[]>();
+
+    items.forEach(item => {
+      const key = item.mrn || `no-mrn-${item.id}`;
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, []);
+      }
+      groupedMap.get(key)!.push(item);
+    });
+
+    // Convert grouped items to consolidated MenuItem objects
+    const consolidatedItems: MenuItem[] = [];
+
+    groupedMap.forEach((groupItems, mrn) => {
+      if (groupItems.length === 1) {
+        // Single item, return as-is
+        consolidatedItems.push(groupItems[0]);
+      } else {
+        // Multiple items with same MRN - consolidate
+        const firstItem = groupItems[0];
+        const mealPeriods = Array.from(new Set(groupItems.map(i => i.mealPeriod)));
+        const mealStations = Array.from(new Set(groupItems.map(i => i.mealStation)));
+        const originalItemIds = groupItems.map(i => i.id);
+
+        consolidatedItems.push({
+          ...firstItem,
+          isGrouped: true,
+          mealPeriods,
+          mealStations,
+          originalItemIds,
+          occurrenceCount: groupItems.length,
+          // Use first item's meal period and station for backward compatibility
+          mealPeriod: mealPeriods[0],
+          mealStation: mealStations[0],
+        });
+      }
+    });
+
+    return consolidatedItems.sort((a, b) => a.name.localeCompare(b.name));
+  },
+
   // Devices
   getDevices: async (): Promise<Device[]> => {
     await mockDelay();

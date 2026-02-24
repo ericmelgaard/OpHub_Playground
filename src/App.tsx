@@ -65,6 +65,12 @@ function App() {
   // Filter state
   const [activeFilters, setActiveFilters] = useState<FilterConfig[]>([]);
 
+  // MRN grouping state
+  const [groupByMrn, setGroupByMrn] = useState(() => {
+    const saved = localStorage.getItem('groupByMrn');
+    return saved ? JSON.parse(saved) : false;
+  });
+
   // Cycle Week state
   const [selectedCycleWeek, setSelectedCycleWeek] = useState<number>(1);
 
@@ -183,7 +189,9 @@ function App() {
       setLoading(true);
       setError(null);
       try {
-        const items = await api.getMenuItems();
+        const items = groupByMrn
+          ? await api.getGroupedMenuItems()
+          : await api.getMenuItems();
         setMenuItems(items);
       } catch (err) {
         console.error('Error loading menu items:', err);
@@ -194,7 +202,7 @@ function App() {
     };
 
     loadMenuItems();
-  }, []);
+  }, [groupByMrn]);
 
   // Load devices
   useEffect(() => {
@@ -302,6 +310,12 @@ function App() {
   const handleClearAllFilters = useCallback(() => {
     setActiveFilters([]);
   }, []);
+
+  const handleToggleGroupByMrn = useCallback(() => {
+    const newValue = !groupByMrn;
+    setGroupByMrn(newValue);
+    localStorage.setItem('groupByMrn', JSON.stringify(newValue));
+  }, [groupByMrn]);
 
   const handleQuickActionSelect = useCallback((action: QuickActionType) => {
     setSelectedQuickAction(action);
@@ -443,6 +457,8 @@ function App() {
                 onDeleteFilter={handleDeleteFilter}
                 onClearAllFilters={handleClearAllFilters}
                 menuItems={menuItems}
+                groupByMrn={groupByMrn}
+                onToggleGroupByMrn={handleToggleGroupByMrn}
               />
 
               {selectedQuickAction === 'smart-labels' ? (

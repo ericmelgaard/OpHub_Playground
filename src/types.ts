@@ -81,6 +81,12 @@ export interface MenuItem {
   sortOrder: number;
   isActive?: boolean;
   customAttributes?: CustomAttribute[];
+  // MRN grouping fields
+  isGrouped?: boolean;
+  mealPeriods?: string[];
+  mealStations?: string[];
+  originalItemIds?: number[];
+  occurrenceCount?: number;
 }
 
 export interface CustomAttribute {

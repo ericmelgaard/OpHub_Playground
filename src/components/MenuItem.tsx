@@ -178,7 +178,7 @@ export function MenuItem({
       >
         {/* Top row with status, MRN, price, calories, and action button */}
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {isActive ? (
               <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
             ) : (
@@ -187,6 +187,11 @@ export function MenuItem({
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               MRN: {item.mrn}
             </span>
+            {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
+              <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                {item.occurrenceCount}x
+              </Badge>
+            )}
             {isInSelectedChannel && (
               <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
             )}
@@ -246,7 +251,7 @@ export function MenuItem({
       {/* Top row with status, MRN, and actions */}
       <CardHeader className="p-0 mb-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {isActive ? (
               <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
             ) : (
@@ -255,6 +260,11 @@ export function MenuItem({
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               MRN: {item.mrn}
             </span>
+            {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
+              <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                {item.occurrenceCount}x
+              </Badge>
+            )}
             {isInSelectedChannel && (
               <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
             )}
@@ -295,15 +305,49 @@ export function MenuItem({
       {/* Bottom content - always at the bottom */}
       <CardFooter className="flex-col space-y-4 p-0 mt-4">
         {/* Daypart and Station info */}
-        <div className="flex items-center gap-4">
-          <Badge variant="secondary" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span>{item.mealPeriod}</span>
-          </Badge>
-          <Badge variant="secondary" className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            <span>{item.mealStation}</span>
-          </Badge>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+            {item.isGrouped && item.mealPeriods ? (
+              <>
+                {item.mealPeriods.slice(0, 2).map((period, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs">
+                    {period}
+                  </Badge>
+                ))}
+                {item.mealPeriods.length > 2 && (
+                  <Badge variant="secondary" className="text-xs">
+                    +{item.mealPeriods.length - 2} more
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <Badge variant="secondary" className="text-xs">
+                {item.mealPeriod}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+            {item.isGrouped && item.mealStations ? (
+              <>
+                {item.mealStations.slice(0, 2).map((station, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs max-w-[200px] truncate">
+                    {station}
+                  </Badge>
+                ))}
+                {item.mealStations.length > 2 && (
+                  <Badge variant="secondary" className="text-xs">
+                    +{item.mealStations.length - 2} more
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <Badge variant="secondary" className="text-xs max-w-[200px] truncate">
+                {item.mealStation}
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Price and options */}
