@@ -337,12 +337,40 @@ export function MenuItem({
   );
 
   const renderGroupedInfo = () => {
-    // Change this to switch between options:
-    // return renderExpandableInfo();     // Option 1
-    // return renderColorCodedGrid();     // Option 2
-    // return renderCompactWithTooltip(); // Option 3
-    return renderOrganizedGrid();      // Option 4 (default)
-    // return renderSummaryView();        // Option 5
+    return (
+      <div className="flex flex-col gap-3">
+        {/* Dayparts - color coded, no icon */}
+        <div className="flex flex-wrap gap-1.5">
+          {item.mealPeriods?.map((period, idx) => (
+            <Badge
+              key={idx}
+              variant="outline"
+              className={`text-xs border ${getDaypartColor(period)}`}
+            >
+              {period}
+            </Badge>
+          ))}
+        </div>
+
+        {/* Stations - scrollable without visible scrollbar */}
+        <div className="flex items-start gap-2">
+          <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 max-h-28 overflow-y-auto scrollbar-hide">
+            <div className="flex flex-wrap gap-1.5">
+              {item.mealStations?.map((station, idx) => (
+                <Badge
+                  key={idx}
+                  variant="secondary"
+                  className="text-xs"
+                >
+                  {station.length > 30 ? station.substring(0, 30) + '...' : station}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderOptionsMenu = () => (
@@ -428,11 +456,6 @@ export function MenuItem({
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               MRN: {item.mrn}
             </span>
-            {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
-              <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                {item.occurrenceCount}x
-              </Badge>
-            )}
             {isInSelectedChannel && (
               <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
             )}
@@ -445,24 +468,31 @@ export function MenuItem({
               </span>
             </div>
           </div>
-          {selectedChannel && (
-            <Button
-              variant={isInSelectedChannel ? 'secondary' : 'default'}
-              size="sm"
-              onClick={handleAssignClick}
-              className={`flex items-center gap-1 ${
-                isInSelectedChannel
-                  ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
-                  : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
-              }`}
-            >
-              {isInSelectedChannel ? (
-                <Monitor className="h-4 w-4" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
+              <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                {item.occurrenceCount}x
+              </Badge>
+            )}
+            {selectedChannel && (
+              <Button
+                variant={isInSelectedChannel ? 'secondary' : 'default'}
+                size="sm"
+                onClick={handleAssignClick}
+                className={`flex items-center gap-1 ${
+                  isInSelectedChannel
+                    ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
+                    : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
+                }`}
+              >
+                {isInSelectedChannel ? (
+                  <Monitor className="h-4 w-4" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Content area with inline options menu */}
@@ -501,33 +531,35 @@ export function MenuItem({
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               MRN: {item.mrn}
             </span>
+            {isInSelectedChannel && (
+              <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
               <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
                 {item.occurrenceCount}x
               </Badge>
             )}
-            {isInSelectedChannel && (
-              <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+            {selectedChannel && (
+              <Button
+                variant={isInSelectedChannel ? 'secondary' : 'default'}
+                size="sm"
+                onClick={handleAssignClick}
+                className={`flex items-center gap-1 ${
+                  isInSelectedChannel
+                    ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
+                    : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
+                }`}
+              >
+                {isInSelectedChannel ? (
+                  <Monitor className="h-4 w-4" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+              </Button>
             )}
           </div>
-          {selectedChannel && (
-            <Button
-              variant={isInSelectedChannel ? 'secondary' : 'default'}
-              size="sm"
-              onClick={handleAssignClick}
-              className={`flex items-center gap-1 ${
-                isInSelectedChannel
-                  ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
-                  : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
-              }`}
-            >
-              {isInSelectedChannel ? (
-                <Monitor className="h-4 w-4" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-            </Button>
-          )}
         </div>
       </CardHeader>
 
