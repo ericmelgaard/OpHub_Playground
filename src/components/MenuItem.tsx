@@ -336,39 +336,47 @@ export function MenuItem({
     </div>
   );
 
-  const renderGroupedInfo = () => {
+  const renderDaypartsAndStations = () => {
+    // Normalize data - handle both grouped (arrays) and single (string) values
+    const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
+    const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
+
     return (
       <div className="flex flex-col gap-3">
         {/* Dayparts - color coded, no icon */}
-        <div className="flex flex-wrap gap-1.5">
-          {item.mealPeriods?.map((period, idx) => (
-            <Badge
-              key={idx}
-              variant="outline"
-              className={`text-xs border ${getDaypartColor(period)}`}
-            >
-              {period}
-            </Badge>
-          ))}
-        </div>
+        {periods.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {periods.map((period, idx) => (
+              <Badge
+                key={idx}
+                variant="outline"
+                className={`text-xs border ${getDaypartColor(period)}`}
+              >
+                {period}
+              </Badge>
+            ))}
+          </div>
+        )}
 
-        {/* Stations - scrollable without visible scrollbar */}
-        <div className="flex items-start gap-2">
-          <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 max-h-28 overflow-y-auto scrollbar-hide">
-            <div className="flex flex-wrap gap-1.5">
-              {item.mealStations?.map((station, idx) => (
-                <Badge
-                  key={idx}
-                  variant="secondary"
-                  className="text-xs"
-                >
-                  {station.length > 30 ? station.substring(0, 30) + '...' : station}
-                </Badge>
-              ))}
+        {/* Stations - full width, scrollable without visible scrollbar */}
+        {stations.length > 0 && (
+          <div className="w-full">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Stations</div>
+            <div className="max-h-28 overflow-y-auto scrollbar-hide">
+              <div className="flex flex-wrap gap-1.5">
+                {stations.map((station, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    {station.length > 30 ? station.substring(0, 30) + '...' : station}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     );
   };
@@ -578,24 +586,7 @@ export function MenuItem({
       {/* Bottom content - always at the bottom */}
       <CardFooter className="flex-col space-y-4 p-0 mt-4">
         {/* Daypart and Station info */}
-        {item.isGrouped && item.mealPeriods && item.mealStations ? (
-          renderGroupedInfo()
-        ) : (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-              <Badge variant="secondary" className="text-xs">
-                {item.mealPeriod}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-              <Badge variant="secondary" className="text-xs max-w-[200px] truncate">
-                {item.mealStation}
-              </Badge>
-            </div>
-          </div>
-        )}
+        {renderDaypartsAndStations()}
 
         {/* Price and options */}
         <div className="flex items-center justify-between pt-4 border-t dark:border-gray-700 w-full">
