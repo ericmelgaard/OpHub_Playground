@@ -151,17 +151,80 @@ export function MenuFilters({
     <div className="mb-8 space-y-4">
       {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-        {/* Left side - Filters button */}
-        <div className="flex items-center gap-2 order-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-            <ChevronDown className="h-3 w-3" />
-          </Button>
+        {/* Left side - Filters button with dropdown and active filters */}
+        <div className="flex items-center gap-2 order-1 flex-1">
+          {/* Add Filter Button with Dropdown */}
+          {showProductFilters && (
+            <div className="relative flex-shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilterTypeMenu(!showFilterTypeMenu)}
+                className="flex items-center gap-2 whitespace-nowrap"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+
+              {showFilterTypeMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-[180px]">
+                  <button
+                    onClick={() => handleFilterTypeSelect('daypart')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                  >
+                    Dayparts
+                  </button>
+                  <button
+                    onClick={() => handleFilterTypeSelect('station')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                  >
+                    Stations
+                  </button>
+                  <button
+                    onClick={() => handleFilterTypeSelect('menu_item_name')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                  >
+                    Menu Item Name
+                  </button>
+                  <button
+                    onClick={() => handleFilterTypeSelect('menu_item_mrn')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                  >
+                    Menu Item MRN
+                  </button>
+                  <button
+                    onClick={() => handleFilterTypeSelect('date')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm rounded-b-lg"
+                  >
+                    Date
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Filter Cards - inline */}
+          {showProductFilters && activeFilters.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {activeFilters.map((filter) => (
+                <FilterCard
+                  key={filter.id}
+                  filter={filter}
+                  onEdit={() => handleEditFilter(filter)}
+                  onDelete={() => onDeleteFilter(filter.id)}
+                />
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearAllFilters}
+                className="flex-shrink-0 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                Clear All
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Search Bar */}
@@ -188,14 +251,20 @@ export function MenuFilters({
         {/* Action Buttons */}
         <div className="flex items-center gap-2 order-3">
           {showProductFilters && (
-            <Button
-              variant="secondary"
-              onClick={onCreateItem}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/70"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Create Item</span>
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                onClick={onCreateItem}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/70"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Item</span>
+              </Button>
+              {/* Data Source Indicator */}
+              <div className="hidden lg:flex flex-shrink-0">
+                {renderDataSourceIndicator()}
+              </div>
+            </>
           )}
 
           <Button
@@ -215,89 +284,6 @@ export function MenuFilters({
           </Button>
         </div>
       </div>
-
-      {/* Filter Row - Compact single row */}
-      {showProductFilters && (
-        <div className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-x-auto">
-          {/* Add Filter Button with Dropdown */}
-          <div className="relative flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilterTypeMenu(!showFilterTypeMenu)}
-              className="flex items-center gap-2 whitespace-nowrap"
-            >
-              <Filter className="h-4 w-4" />
-              Add Filter
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-
-            {showFilterTypeMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-[180px]">
-                <button
-                  onClick={() => handleFilterTypeSelect('daypart')}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                >
-                  Dayparts
-                </button>
-                <button
-                  onClick={() => handleFilterTypeSelect('station')}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                >
-                  Stations
-                </button>
-                <button
-                  onClick={() => handleFilterTypeSelect('menu_item_name')}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                >
-                  Menu Item Name
-                </button>
-                <button
-                  onClick={() => handleFilterTypeSelect('menu_item_mrn')}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                >
-                  Menu Item MRN
-                </button>
-                <button
-                  onClick={() => handleFilterTypeSelect('date')}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm rounded-b-lg"
-                >
-                  Date
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Filter Cards */}
-          <div className="flex items-center gap-2 flex-1 overflow-x-auto">
-            {activeFilters.map((filter) => (
-              <FilterCard
-                key={filter.id}
-                filter={filter}
-                onEdit={() => handleEditFilter(filter)}
-                onDelete={() => onDeleteFilter(filter.id)}
-              />
-            ))}
-          </div>
-
-          {/* Clear All Button */}
-          {activeFilters.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClearAllFilters}
-              className="flex-shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              Clear All
-            </Button>
-          )}
-
-          {/* Data Source Indicator */}
-          <div className="flex-shrink-0 ml-auto">
-            {renderDataSourceIndicator()}
-          </div>
-        </div>
-      )}
 
       {/* Filter Modal */}
       {showFilterModal && selectedFilterType && (
