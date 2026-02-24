@@ -363,16 +363,12 @@ export function MenuItem({
 
         {/* Stations - show first one with expand button */}
         {stations.length > 0 && (
-          <div className="w-full min-w-0">
+          <div className="w-full">
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Stations</div>
-            <div className="flex items-center gap-2 min-w-0">
-              <Badge
-                variant="secondary"
-                className="text-xs truncate shrink"
-                style={{ maxWidth: '150px' }}
-              >
+            <div className="flex items-start gap-2 w-full">
+              <div className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">
                 {stations[0]}
-              </Badge>
+              </div>
               {stations.length > 1 && (
                 <button
                   onClick={(e) => {
