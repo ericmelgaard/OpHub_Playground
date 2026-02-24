@@ -155,12 +155,6 @@ function App() {
     loadLocationData();
   }, []);
 
-  // Get selected location info for navigation
-  const selectedLocation = {
-    concept: concepts.find(c => c.id === selectedConcept)?.name,
-    company: companies.find(c => c.id === selectedCompany)?.name,
-    store: stores.find(s => s.id === selectedStore)?.name
-  };
 
   // Handlers
   const handleCreateRule = useCallback((rule: Rule) => {
@@ -250,7 +244,26 @@ function App() {
           onMenuClick={() => setIsSidebarOpen(true)}
           selectedPage={selectedPage}
           selectedChannel={selectedChannel}
-          selectedLocation={selectedLocation}
+          concepts={concepts}
+          companies={companies}
+          stores={stores}
+          selectedConcept={selectedConcept}
+          selectedCompany={selectedCompany}
+          selectedStore={selectedStore}
+          expandedConcept={expandedConcept}
+          expandedCompany={expandedCompany}
+          onSelectConcept={setSelectedConcept}
+          onSelectCompany={setSelectedCompany}
+          onSelectStore={setSelectedStore}
+          onExpandConcept={setExpandedConcept}
+          onExpandCompany={setExpandedCompany}
+          onResetLocation={() => {
+            setSelectedConcept(null);
+            setSelectedCompany(null);
+            setSelectedStore(null);
+            setExpandedConcept(null);
+            setExpandedCompany(null);
+          }}
         />
 
         <Sidebar
@@ -297,9 +310,9 @@ function App() {
                      selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
                   </h2>
                   {selectedQuickAction === 'products' && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
-                      <Database className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Webtrition</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border rounded-lg shadow-sm" style={{ borderColor: 'rgb(0, 173, 240)' }}>
+                      <Database className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
+                      <span className="text-sm font-medium" style={{ color: 'rgb(0, 173, 240)' }}>Webtrition</span>
                     </div>
                   )}
                 </div>
@@ -308,7 +321,12 @@ function App() {
                     <select
                       value={selectedCycleWeek}
                       onChange={(e) => setSelectedCycleWeek(Number(e.target.value))}
-                      className="px-5 py-2.5 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 text-white border-2 border-blue-700 dark:border-blue-400 rounded-lg hover:from-blue-700 hover:to-blue-800 dark:hover:from-blue-600 dark:hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-blue-400 dark:focus:ring-offset-gray-900 transition-all shadow-lg cursor-pointer"
+                      className="px-5 py-2.5 text-base font-semibold text-white rounded-lg hover:bg-[rgb(0,153,220)] focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg cursor-pointer"
+                      style={{
+                        backgroundColor: 'rgb(0, 173, 240)',
+                        borderColor: 'rgb(0, 173, 240)',
+                        boxShadow: '0 4px 6px -1px rgba(0, 173, 240, 0.3), 0 2px 4px -1px rgba(0, 173, 240, 0.2)'
+                      }}
                     >
                       <option value={1}>Week 1 (Current)</option>
                       <option value={2}>Week 2</option>
@@ -335,7 +353,6 @@ function App() {
                 onDeleteFilter={handleDeleteFilter}
                 onClearAllFilters={handleClearAllFilters}
                 menuItems={menuItems}
-                selectedLocation={selectedLocation}
               />
 
               {selectedQuickAction === 'smart-labels' ? (

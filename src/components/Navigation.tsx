@@ -16,11 +16,13 @@ import {
   Receipt,
   Wand2,
   MapPin,
+  ChevronDown,
 } from 'lucide-react';
 import { Theme } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { LocationSelectionModal } from './LocationSelectionModal';
 
 interface NavigationProps {
   notifications: number;
@@ -32,11 +34,20 @@ interface NavigationProps {
   onMenuClick: () => void;
   selectedPage?: 'products' | 'devices' | 'channels';
   selectedChannel?: string | null;
-  selectedLocation?: {
-    concept?: string;
-    company?: string;
-    store?: string;
-  };
+  concepts?: any[];
+  companies?: any[];
+  stores?: any[];
+  selectedConcept?: string | null;
+  selectedCompany?: string | null;
+  selectedStore?: string | null;
+  expandedConcept?: string | null;
+  expandedCompany?: string | null;
+  onSelectConcept?: (conceptId: string) => void;
+  onSelectCompany?: (companyId: string) => void;
+  onSelectStore?: (storeId: string) => void;
+  onExpandConcept?: (conceptId: string | null) => void;
+  onExpandCompany?: (companyId: string | null) => void;
+  onResetLocation?: () => void;
 }
 
 const CHANNEL_INFO = {
@@ -61,11 +72,26 @@ export function Navigation({
   onMenuClick,
   selectedPage,
   selectedChannel,
-  selectedLocation,
+  concepts = [],
+  companies = [],
+  stores = [],
+  selectedConcept,
+  selectedCompany,
+  selectedStore,
+  expandedConcept,
+  expandedCompany,
+  onSelectConcept,
+  onSelectCompany,
+  onSelectStore,
+  onExpandConcept,
+  onExpandCompany,
+  onResetLocation,
 }: NavigationProps) {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showDismissAllConfirm, setShowDismissAllConfirm] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showStoreDropdown, setShowStoreDropdown] = useState(false);
 
   const themeOptions = [
     { value: 'light', label: 'Light Mode', icon: Sun },
@@ -107,37 +133,77 @@ export function Navigation({
     );
   };
 
-  // Get the current location name (only the last selected level)
-  const getCurrentLocation = () => {
-    if (!selectedLocation) return null;
-    return selectedLocation.store || selectedLocation.company || selectedLocation.concept || null;
+  const getStoreName = () => {
+    if (!selectedStore) return 'Select Store';
+    const store = stores.find(s => s.id === selectedStore);
+    return store?.name || 'Select Store';
+  };
+
+  const getStoresByCompany = () => {
+    if (!selectedCompany) return stores;
+    return stores.filter(s => s.company_id === selectedCompany);
   };
 
   return (
-    <nav className="bg-white dark:bg-gray-800 shadow-sm fixed w-full z-10 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              onClick={onMenuClick}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Menu className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-            </Button>
-            
-            <div className="hidden sm:flex items-center gap-4">
-              {getCurrentContext()}
-              {getCurrentLocation() && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {getCurrentLocation()}
-                  </span>
+    <>
+      <nav className="bg-gray-900 dark:bg-gray-950 shadow-sm fixed w-full z-10 transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                onClick={onMenuClick}
+                className="p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-900 transition-colors"
+              >
+                <Menu className="h-6 w-6 text-gray-300 dark:text-gray-400" />
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowStoreDropdown(!showStoreDropdown)}
+                    className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                  >
+                    {getStoreName()}
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+
+                  {showStoreDropdown && (
+                    <Card className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
+                      <CardContent className="p-2">
+                        {getStoresByCompany().map((store) => (
+                          <Button
+                            key={store.id}
+                            variant={selectedStore === store.id ? 'secondary' : 'ghost'}
+                            onClick={() => {
+                              if (onSelectStore) onSelectStore(store.id);
+                              setShowStoreDropdown(false);
+                            }}
+                            className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
+                              selectedStore === store.id
+                                ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <MapPin className="h-4 w-4" />
+                            {store.name}
+                          </Button>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
-              )}
+
+                <button
+                  onClick={() => setShowLocationModal(true)}
+                  className="p-2 hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                  title="Full Location Selector"
+                  style={{ color: 'rgb(0, 173, 240)' }}
+                >
+                  <MapPin className="h-5 w-5" />
+                </button>
+              </div>
             </div>
-          </div>
 
           <div className="flex items-center space-x-2 sm:space-x-6">
             <div className="flex items-center gap-2 sm:gap-4">
@@ -145,7 +211,8 @@ export function Navigation({
                 <Button
                   variant="secondary"
                   onClick={onCreateRule}
-                  className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/70 transition-colors"
+                  className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
+                  style={{ backgroundColor: 'rgb(0, 173, 240)' }}
                 >
                   <Wand2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Manage Rules</span>
@@ -153,19 +220,19 @@ export function Navigation({
               )}
             </div>
 
-            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
+            <div className="h-6 w-px bg-gray-700 dark:bg-gray-800" />
 
             <div className="relative">
               <Button
                 variant="ghost"
-                className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="relative p-2 rounded-full hover:bg-gray-800 dark:hover:bg-gray-900 transition-colors"
                 onClick={() => setShowNotificationsMenu(!showNotificationsMenu)}
               >
                 <Bell
                   className={`h-6 w-6 ${
                     notifications > 0
                       ? 'text-amber-500 dark:text-amber-400'
-                      : 'text-gray-600 dark:text-gray-300'
+                      : 'text-gray-300 dark:text-gray-400'
                   }`}
                 />
                 {notifications > 0 && (
@@ -215,11 +282,11 @@ export function Navigation({
             <div className="relative">
               <Button
                 variant="ghost"
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-full hover:bg-gray-800 dark:hover:bg-gray-900 transition-colors"
                 onClick={() => setShowSettingsMenu(!showSettingsMenu)}
               >
                 {React.createElement(currentThemeIcon, {
-                  className: 'h-6 w-6 text-gray-600 dark:text-gray-300',
+                  className: 'h-6 w-6 text-gray-300 dark:text-gray-400',
                 })}
               </Button>
 
@@ -242,7 +309,7 @@ export function Navigation({
                           }}
                           className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
                             theme === value
-                              ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-50 hover:dark:bg-indigo-900/50'
+                              ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                           }`}
                         >
@@ -259,5 +326,25 @@ export function Navigation({
         </div>
       </div>
     </nav>
+
+      <LocationSelectionModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        concepts={concepts}
+        companies={companies}
+        stores={stores}
+        selectedConcept={selectedConcept || null}
+        selectedCompany={selectedCompany || null}
+        selectedStore={selectedStore || null}
+        expandedConcept={expandedConcept || null}
+        expandedCompany={expandedCompany || null}
+        onSelectConcept={onSelectConcept || (() => {})}
+        onSelectCompany={onSelectCompany || (() => {})}
+        onSelectStore={onSelectStore || (() => {})}
+        onExpandConcept={onExpandConcept || (() => {})}
+        onExpandCompany={onExpandCompany || (() => {})}
+        onReset={onResetLocation || (() => {})}
+      />
+    </>
   );
 }

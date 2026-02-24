@@ -24,11 +24,6 @@ interface MenuFiltersProps {
   setViewMode: (mode: 'grid' | 'tiles') => void;
   searchValue: string;
   setSearchValue: (value: string) => void;
-  selectedLocation?: {
-    concept?: string;
-    company?: string;
-    store?: string;
-  };
   selectedQuickAction: QuickActionType;
   onCreateItem: () => void;
   placements?: Placement[];
@@ -47,7 +42,6 @@ export function MenuFilters({
   setViewMode,
   searchValue,
   setSearchValue,
-  selectedLocation,
   selectedQuickAction,
   onCreateItem,
   placements = [],
@@ -107,42 +101,6 @@ export function MenuFilters({
     setEditingFilter(null);
   };
 
-  const renderLocationInfo = () => {
-    if (!selectedLocation) return null;
-
-    return (
-      <div className="flex flex-col sm:flex-row sm:items-center text-sm">
-        {selectedLocation.store && (
-          <div className="flex items-center gap-1">
-            <Store className="h-3 w-3 text-gray-400 dark:text-gray-500" />
-            <span className="text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
-              {selectedLocation.store}
-            </span>
-          </div>
-        )}
-        {selectedLocation.company && (
-          <>
-            <span className="hidden sm:inline text-gray-400 dark:text-gray-500 mx-2">
-              •
-            </span>
-            <div className="flex items-center gap-1 mt-1 sm:mt-0">
-              <Building2 className="h-3 w-3 text-gray-400 dark:text-gray-500" />
-              <span className="text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
-                {selectedLocation.company}
-              </span>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  const renderDataSourceIndicator = () => (
-    <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
-      <Database className="h-3 w-3" />
-      <span>Webtrition</span>
-    </div>
-  );
 
   const showProductFilters = selectedQuickAction === 'products';
   const showDeviceFilters = selectedQuickAction === 'smart-labels' || selectedQuickAction === 'groups';
@@ -232,7 +190,8 @@ export function MenuFilters({
             <Button
               variant="secondary"
               onClick={onCreateItem}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/50 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/70"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
+              style={{ backgroundColor: 'rgb(0, 173, 240)' }}
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Create Item</span>
