@@ -30,7 +30,11 @@ export const api = {
   getMenuItems: async (): Promise<MenuItem[]> => {
     const { data, error } = await supabase
       .from('menu_items')
-      .select('*')
+      .select(`
+        *,
+        meal_period:meal_periods(id, name),
+        station:stations(id, name)
+      `)
       .order('name');
 
     if (error) {
@@ -40,23 +44,49 @@ export const api = {
 
     return data.map((item: any) => ({
       id: item.id,
+      date: item.date || new Date().toISOString().split('T')[0],
       name: item.name,
-      description: item.description || '',
-      category: item.station_id?.toString() || 'Other',
-      price: parseFloat(item.price) || 0,
-      imageUrl: '',
-      tags: item.icons ? item.icons.map((icon: any) => icon.name) : [],
-      calories: parseInt(item.calories) || 0,
-      allergens: item.allergens ? item.allergens.split(', ') : [],
+      description: item.description || null,
+      enticingDescription: item.enticing_description || null,
+      ingredients: item.ingredients || '',
+      price: item.price || '0.00',
+      mrn: item.mrn || '',
       nutrition: {
-        protein: item.nutrition?.protein?.value || '0',
-        carbs: item.nutrition?.carbohydrates?.value || '0',
-        fat: item.nutrition?.fat?.value || '0',
-        fiber: item.nutrition?.fiber?.value || '0',
+        calories: {
+          value: item.nutrition?.calories?.value || item.calories || '0',
+          dailyValue: item.nutrition?.calories?.dailyValue || null,
+          displayValue: item.nutrition?.calories?.displayValue || item.calories || '0'
+        },
+        protein: {
+          value: item.nutrition?.protein?.value || '0',
+          dailyValue: item.nutrition?.protein?.dailyValue || null,
+          displayValue: item.nutrition?.protein?.displayValue || '0g'
+        },
+        carbohydrates: {
+          value: item.nutrition?.carbohydrates?.value || '0',
+          dailyValue: item.nutrition?.carbohydrates?.dailyValue || null,
+          displayValue: item.nutrition?.carbohydrates?.displayValue || '0g'
+        },
+        fat: {
+          value: item.nutrition?.fat?.value || '0',
+          dailyValue: item.nutrition?.fat?.dailyValue || null,
+          displayValue: item.nutrition?.fat?.displayValue || '0g'
+        },
+        sugar: {
+          value: item.nutrition?.sugar?.value || '0',
+          dailyValue: item.nutrition?.sugar?.dailyValue || null,
+          displayValue: item.nutrition?.sugar?.displayValue || '0g'
+        },
       },
-      ingredients: item.ingredients ? item.ingredients.split(', ') : [],
-      dayparts: [item.meal_period_id?.toString() || 'all-day'],
-      activeDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+      allergens: item.allergens || '',
+      portion: item.nutrition?.portion || '',
+      icons: item.icons ? (Array.isArray(item.icons) ? item.icons.map((i: any) => i.name || i) : []) : [],
+      calories: item.calories || '0',
+      mealPeriodId: item.meal_period_id || 0,
+      mealStation: item.station?.name || 'Uncategorized',
+      mealPeriod: item.meal_period?.name || 'All Day',
+      sortOrder: item.sort_order || 0,
+      isActive: true,
     }));
   },
 
