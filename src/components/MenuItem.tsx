@@ -98,6 +98,7 @@ export function MenuItem({
 
   const handleAssignClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    console.log('Add button clicked!', { item: item.name, selectedChannel, isInSelectedChannel });
     if (selectedChannel) {
       if (!isInSelectedChannel) {
         // If not in channel, add to channel first
