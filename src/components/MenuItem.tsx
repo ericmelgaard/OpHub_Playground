@@ -342,7 +342,7 @@ export function MenuItem({
     const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
 
     return (
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {/* Dayparts - color coded, no icon */}
         {periods.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -361,16 +361,16 @@ export function MenuItem({
         {/* Stations - full width, scrollable without visible scrollbar */}
         {stations.length > 0 && (
           <div className="w-full">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Stations</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Stations</div>
             <div className="max-h-28 overflow-y-auto scrollbar-hide">
               <div className="flex flex-wrap gap-1.5">
                 {stations.map((station, idx) => (
                   <Badge
                     key={idx}
                     variant="secondary"
-                    className="text-xs"
+                    className="text-xs truncate max-w-full block"
                   >
-                    {station.length > 30 ? station.substring(0, 30) + '...' : station}
+                    {station}
                   </Badge>
                 ))}
               </div>
