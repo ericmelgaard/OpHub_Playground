@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Tag, Tv, Receipt, Database } from 'lucide-react';
+import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
@@ -8,7 +8,8 @@ import { Sidebar } from './components/Sidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
-import { QuickActionBar, QuickActionType } from './components/QuickActionBar';
+import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
+import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
 import { api } from './services/api';
 
@@ -78,6 +79,88 @@ function App() {
   const [showCreateItemModal, setShowCreateItemModal] = useState(false);
   const [showCreateRuleModal, setShowCreateRuleModal] = useState(false);
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+
+  // Quick Action Configuration
+  const getDefaultQuickActionConfigs = (): QuickActionConfig[] => [
+    {
+      id: 'groups',
+      name: 'Groups',
+      description: 'Placement groups count',
+      icon: Layers,
+      bgColor: 'rgb(6, 182, 212)',
+      iconColor: 'text-cyan-500',
+      visible: true,
+      order: 0
+    },
+    {
+      id: 'signage',
+      name: 'Signage',
+      description: 'Signage players count',
+      icon: Tv,
+      bgColor: 'rgb(59, 130, 246)',
+      iconColor: 'text-blue-500',
+      visible: true,
+      order: 1
+    },
+    {
+      id: 'products',
+      name: 'Products',
+      description: 'Product count and status',
+      icon: Package,
+      bgColor: 'rgb(16, 185, 129)',
+      iconColor: 'text-emerald-500',
+      visible: true,
+      order: 2
+    },
+    {
+      id: 'webview',
+      name: 'Webview Kiosks',
+      description: 'Webview kiosk count',
+      icon: Globe,
+      bgColor: 'rgb(139, 92, 246)',
+      iconColor: 'text-violet-500',
+      visible: true,
+      order: 3
+    },
+    {
+      id: 'smart-labels',
+      name: 'Smart Labels',
+      description: 'Manage smart label devices',
+      icon: Tag,
+      bgColor: 'rgb(245, 158, 11)',
+      iconColor: 'text-amber-500',
+      visible: true,
+      order: 4
+    },
+    {
+      id: 'activity',
+      name: 'Activity',
+      description: 'Recent actions and updates',
+      icon: Activity,
+      bgColor: 'rgb(139, 92, 246)',
+      iconColor: 'text-violet-500',
+      visible: true,
+      order: 5
+    }
+  ];
+
+  const [quickActionConfigs, setQuickActionConfigs] = useState<QuickActionConfig[]>(() => {
+    const saved = localStorage.getItem('quickActionConfigs');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const defaults = getDefaultQuickActionConfigs();
+        return defaults.map(def => {
+          const savedConfig = parsed.find((p: any) => p.id === def.id);
+          return savedConfig ? { ...def, visible: savedConfig.visible, order: savedConfig.order } : def;
+        });
+      } catch {
+        return getDefaultQuickActionConfigs();
+      }
+    }
+    return getDefaultQuickActionConfigs();
+  });
 
   // Location state
   const [selectedConcept, setSelectedConcept] = useState<string | null>(null);
@@ -228,7 +311,13 @@ function App() {
   }, []);
 
   const handleCustomize = useCallback(() => {
-    alert('Customize quick action cards (coming soon)');
+    setShowCustomizeModal(true);
+  }, []);
+
+  const handleSaveQuickActionConfigs = useCallback((configs: QuickActionConfig[]) => {
+    setQuickActionConfigs(configs);
+    const toSave = configs.map(c => ({ id: c.id, visible: c.visible, order: c.order }));
+    localStorage.setItem('quickActionConfigs', JSON.stringify(toSave));
   }, []);
 
   return (
@@ -296,6 +385,7 @@ function App() {
               devices={devices}
               menuItems={menuItems}
               onCustomize={handleCustomize}
+              actionConfigs={quickActionConfigs}
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -434,6 +524,13 @@ function App() {
             }}
           />
         )}
+
+        <CustomizeQuickActionsModal
+          isOpen={showCustomizeModal}
+          onClose={() => setShowCustomizeModal(false)}
+          actions={quickActionConfigs}
+          onSave={handleSaveQuickActionConfigs}
+        />
 
         {showDeviceWorkflow && selectedDevice && (
           <DeviceFirstWorkflow

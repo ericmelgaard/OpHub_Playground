@@ -5,12 +5,24 @@ import { Device, MenuItem } from '../types';
 
 export type QuickActionType = 'smart-labels' | 'products' | 'groups' | 'signage' | 'webview' | 'activity';
 
+export interface QuickActionConfig {
+  id: QuickActionType;
+  name: string;
+  description: string;
+  icon: React.ComponentType<any>;
+  bgColor: string;
+  iconColor: string;
+  visible: boolean;
+  order: number;
+}
+
 interface QuickActionBarProps {
   selectedAction: QuickActionType;
   onActionSelect: (action: QuickActionType) => void;
   devices: Device[];
   menuItems: MenuItem[];
   onCustomize: () => void;
+  actionConfigs?: QuickActionConfig[];
 }
 
 export function QuickActionBar({
@@ -18,76 +30,50 @@ export function QuickActionBar({
   onActionSelect,
   devices,
   menuItems,
-  onCustomize
+  onCustomize,
+  actionConfigs
 }: QuickActionBarProps) {
   const onlineDevicesCount = devices.filter(d => d.status.wifiStrength > 0).length;
   const totalDevicesCount = devices.length;
 
-  const actions = [
-    {
-      id: 'groups' as QuickActionType,
-      icon: Layers,
-      title: 'Groups',
-      count: 2,
-      subtitle: 'placement groups',
-      iconColor: 'text-cyan-500'
-    },
-    {
-      id: 'signage' as QuickActionType,
-      icon: Tv,
-      title: 'Signage',
-      count: 9,
-      subtitle: '4 online',
-      iconColor: 'text-blue-500'
-    },
-    {
-      id: 'products' as QuickActionType,
-      icon: Package,
-      title: 'Products',
-      count: menuItems.length,
-      subtitle: `${menuItems.length} active`,
-      iconColor: 'text-emerald-500'
-    },
-    {
-      id: 'webview' as QuickActionType,
-      icon: Globe,
-      title: 'Webview Kiosks',
-      count: 0,
-      subtitle: '0 online',
-      iconColor: 'text-violet-500'
-    },
-    {
-      id: 'smart-labels' as QuickActionType,
-      icon: Tag,
-      title: 'Smart Labels',
-      count: totalDevicesCount,
-      subtitle: `${onlineDevicesCount} online`,
-      iconColor: 'text-amber-500'
-    },
-    {
-      id: 'activity' as QuickActionType,
-      icon: Activity,
-      title: 'Activity',
-      count: 0,
-      subtitle: 'recent actions',
-      iconColor: 'text-violet-500'
+  const getActionData = (id: QuickActionType) => {
+    switch (id) {
+      case 'groups':
+        return { count: 2, subtitle: 'placement groups' };
+      case 'signage':
+        return { count: 9, subtitle: '4 online' };
+      case 'products':
+        return { count: menuItems.length, subtitle: `${menuItems.length} active` };
+      case 'webview':
+        return { count: 0, subtitle: '0 online' };
+      case 'smart-labels':
+        return { count: totalDevicesCount, subtitle: `${onlineDevicesCount} online` };
+      case 'activity':
+        return { count: 0, subtitle: 'recent actions' };
     }
-  ];
+  };
+
+  const visibleActions = actionConfigs
+    ? actionConfigs.filter(a => a.visible).sort((a, b) => a.order - b.order)
+    : [];
 
   return (
     <div className="px-4 py-4 flex gap-3 overflow-x-auto no-scrollbar bg-white dark:bg-slate-800 max-h-[180px] md:max-h-none">
-      {actions.map((action) => (
-        <QuickActionCard
-          key={action.id}
-          icon={action.icon}
-          title={action.title}
-          count={action.count}
-          subtitle={action.subtitle}
-          isActive={selectedAction === action.id}
-          onClick={() => onActionSelect(action.id)}
-          iconColor={action.iconColor}
-        />
-      ))}
+      {visibleActions.map((action) => {
+        const data = getActionData(action.id);
+        return (
+          <QuickActionCard
+            key={action.id}
+            icon={action.icon}
+            title={action.name}
+            count={data.count}
+            subtitle={data.subtitle}
+            isActive={selectedAction === action.id}
+            onClick={() => onActionSelect(action.id)}
+            iconColor={action.iconColor}
+          />
+        );
+      })}
       <button
         onClick={onCustomize}
         className="flex-shrink-0 bg-slate-100 dark:bg-slate-700 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg px-4 py-3 min-w-[140px] hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 cursor-pointer group flex items-center justify-center"
