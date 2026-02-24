@@ -345,10 +345,10 @@ export function MenuItem({
     const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
 
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 w-full min-w-0">
         {/* Dayparts - color coded, no icon */}
         {periods.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 w-full">
             {periods.map((period, idx) => (
               <Badge
                 key={idx}
@@ -363,10 +363,10 @@ export function MenuItem({
 
         {/* Stations - show first one with expand button */}
         {stations.length > 0 && (
-          <div className="w-full">
+          <div className="w-full min-w-0">
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Stations</div>
-            <div className="flex items-start gap-2 w-full">
-              <div className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">
+            <div className="flex items-start gap-2 w-full min-w-0">
+              <div className="text-xs text-gray-700 dark:text-gray-300 truncate min-w-0" style={{ flexBasis: 0, flexGrow: 1 }}>
                 {stations[0]}
               </div>
               {stations.length > 1 && (
