@@ -562,6 +562,7 @@ function App() {
           <DeviceFirstWorkflow
             devices={devices}
             menuItems={menuItems}
+            preSelectedDevice={selectedDevice}
             onAddItems={async (device, items, pageId) => {
               for (const item of items) {
                 await api.assignItemToPage(item.id, device.id, pageId);

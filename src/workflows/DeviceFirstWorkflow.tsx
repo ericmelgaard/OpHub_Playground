@@ -10,6 +10,7 @@ import { useModalHistory } from '../hooks/useModalHistory';
 interface DeviceFirstWorkflowProps {
   devices: Device[];
   menuItems: MenuItem[];
+  preSelectedDevice?: Device;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
@@ -21,6 +22,7 @@ interface DeviceFirstWorkflowProps {
 export function DeviceFirstWorkflow({
   devices,
   menuItems,
+  preSelectedDevice,
   onAddItems,
   onRemoveItem,
   onReorderItems,
@@ -28,15 +30,17 @@ export function DeviceFirstWorkflow({
   onForcePage,
   setNotifications
 }: DeviceFirstWorkflowProps) {
-  const [showDeviceModal, setShowDeviceModal] = useState(true);
-  const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(false);
+  const [showDeviceModal, setShowDeviceModal] = useState(!preSelectedDevice);
+  const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(!!preSelectedDevice);
   const [showItemSelectionModal, setShowItemSelectionModal] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(preSelectedDevice || null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAddingToPage, setIsAddingToPage] = useState<string | null>(null);
   const [lastAssignedPageId, setLastAssignedPageId] = useState<string | null>(null);
   const [duplicateCount, setDuplicateCount] = useState<number>(0);
-  const [optimisticDevice, setOptimisticDevice] = useState<Device | null>(null);
+  const [optimisticDevice, setOptimisticDevice] = useState<Device | null>(
+    preSelectedDevice ? JSON.parse(JSON.stringify(preSelectedDevice)) : null
+  );
   const [deviceSearchValue, setDeviceSearchValue] = useState('');
   const [itemSearchValue, setItemSearchValue] = useState('');
   const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
