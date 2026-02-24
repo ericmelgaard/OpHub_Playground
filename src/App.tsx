@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Tag, Tv, Receipt } from 'lucide-react';
+import { Tag, Tv, Receipt, Database } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
@@ -287,25 +287,35 @@ function App() {
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {selectedQuickAction === 'smart-labels' ? 'Smart Labels' :
-                   selectedQuickAction === 'products' ? 'Products' :
-                   selectedQuickAction === 'groups' ? 'Groups' :
-                   selectedQuickAction === 'signage' ? 'Signage' :
-                   selectedQuickAction === 'webview' ? 'Webview Kiosks' :
-                   selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
-                </h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {selectedQuickAction === 'smart-labels' ? 'Smart Labels' :
+                     selectedQuickAction === 'products' ? 'Products' :
+                     selectedQuickAction === 'groups' ? 'Groups' :
+                     selectedQuickAction === 'signage' ? 'Signage' :
+                     selectedQuickAction === 'webview' ? 'Webview Kiosks' :
+                     selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
+                  </h2>
+                  {selectedQuickAction === 'products' && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
+                      <Database className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Webtrition</span>
+                    </div>
+                  )}
+                </div>
                 {selectedQuickAction === 'products' && (
-                  <select
-                    value={selectedCycleWeek}
-                    onChange={(e) => setSelectedCycleWeek(Number(e.target.value))}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                  >
-                    <option value={1}>Cycle Week 1</option>
-                    <option value={2}>Cycle Week 2</option>
-                    <option value={3}>Cycle Week 3</option>
-                    <option value={4}>Cycle Week 4</option>
-                  </select>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={selectedCycleWeek}
+                      onChange={(e) => setSelectedCycleWeek(Number(e.target.value))}
+                      className="px-5 py-2.5 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 text-white border-2 border-blue-700 dark:border-blue-400 rounded-lg hover:from-blue-700 hover:to-blue-800 dark:hover:from-blue-600 dark:hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-blue-400 dark:focus:ring-offset-gray-900 transition-all shadow-lg cursor-pointer"
+                    >
+                      <option value={1}>Week 1 (Current)</option>
+                      <option value={2}>Week 2</option>
+                      <option value={3}>Week 3</option>
+                      <option value={4}>Week 4</option>
+                    </select>
+                  </div>
                 )}
               </div>
 

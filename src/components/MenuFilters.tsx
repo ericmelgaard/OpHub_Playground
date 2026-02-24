@@ -258,38 +258,27 @@ export function MenuFilters({
       </div>
 
       {/* Filter Cards Row - Always visible with reserved space */}
-      {showProductFilters && (
+      {showProductFilters && activeFilters.length > 0 && (
         <div className="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-          {/* Webtrition Data Source - Permanent Filter */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-xs">
-            <Database className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-            <span className="text-gray-700 dark:text-gray-300 font-medium">Webtrition</span>
-          </div>
-
           {/* Active Filter Cards */}
-          {activeFilters.length > 0 && (
-            <>
-              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-              <div className="flex items-center gap-2 flex-1 overflow-x-auto">
-                {activeFilters.map((filter) => (
-                  <FilterCard
-                    key={filter.id}
-                    filter={filter}
-                    onEdit={() => handleEditFilter(filter)}
-                    onDelete={() => onDeleteFilter(filter.id)}
-                  />
-                ))}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClearAllFilters}
-                className="flex-shrink-0 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 h-7"
-              >
-                Clear All
-              </Button>
-            </>
-          )}
+          <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+            {activeFilters.map((filter) => (
+              <FilterCard
+                key={filter.id}
+                filter={filter}
+                onEdit={() => handleEditFilter(filter)}
+                onDelete={() => onDeleteFilter(filter.id)}
+              />
+            ))}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearAllFilters}
+            className="flex-shrink-0 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 h-7"
+          >
+            Clear All
+          </Button>
         </div>
       )}
 
