@@ -284,7 +284,14 @@ function App() {
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Displays</h2>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                  {selectedQuickAction === 'smart-labels' ? 'Smart Labels' :
+                   selectedQuickAction === 'products' ? 'Products' :
+                   selectedQuickAction === 'groups' ? 'Groups' :
+                   selectedQuickAction === 'signage' ? 'Signage' :
+                   selectedQuickAction === 'webview' ? 'Webview Kiosks' :
+                   selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
+                </h2>
                 <button className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                     <line x1="3" y1="6" x2="21" y2="6"></line>
