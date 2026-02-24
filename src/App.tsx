@@ -598,16 +598,13 @@ function App() {
 
         {showItemWorkflow && selectedItem && (
           <ItemFirstWorkflow
-            item={selectedItem}
-            workflowType={workflowType || 'assign'}
             devices={devices}
-            onAssignItem={async (itemId, deviceId, pageId) => {
-              await api.assignItemToPage(itemId, deviceId, pageId);
-              const updatedDevices = await api.getDevices();
-              setDevices(updatedDevices);
-            }}
-            onRemoveItem={async (itemId, deviceId, pageId) => {
-              await api.removeItemFromPage(itemId, deviceId, pageId);
+            menuItems={menuItems}
+            selectedItem={selectedItem}
+            onAssignToPage={async (device, items, pageId) => {
+              for (const item of items) {
+                await api.assignItemToPage(item.id, device.id, pageId);
+              }
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
             }}
@@ -616,7 +613,11 @@ function App() {
               setSelectedItem(null);
               setWorkflowType(null);
             }}
-            setNotifications={setNotifications}
+            onForcePage={async (deviceId, pageId) => {
+              await api.updateDeviceStatus(deviceId, { forcedPage: pageId });
+              const updatedDevices = await api.getDevices();
+              setDevices(updatedDevices);
+            }}
           />
         )}
       </div>
