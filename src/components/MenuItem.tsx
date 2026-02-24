@@ -12,6 +12,7 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
 } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { StationsModal } from './StationsModal';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -56,6 +58,7 @@ export function MenuItem({
 }: MenuItemProps) {
   const [showOptions, setShowOptions] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState(false);
+  const [showStationsModal, setShowStationsModal] = useState(false);
 
   const deviceCount = devices.filter((device) =>
     device.pages.some((page) =>
@@ -358,22 +361,29 @@ export function MenuItem({
           </div>
         )}
 
-        {/* Stations - full width, scrollable without visible scrollbar */}
+        {/* Stations - show first one with expand button */}
         {stations.length > 0 && (
           <div className="w-full">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Stations</div>
-            <div className="max-h-28 overflow-y-auto scrollbar-hide">
-              <div className="flex flex-wrap gap-1.5">
-                {stations.map((station, idx) => (
-                  <Badge
-                    key={idx}
-                    variant="secondary"
-                    className="text-xs truncate max-w-full block"
-                  >
-                    {station}
-                  </Badge>
-                ))}
-              </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Stations</div>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="secondary"
+                className="text-xs truncate max-w-[200px]"
+              >
+                {stations[0]}
+              </Badge>
+              {stations.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowStationsModal(true);
+                  }}
+                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                >
+                  +{stations.length - 1} more
+                  <ChevronRight className="h-3 w-3" />
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -522,11 +532,18 @@ export function MenuItem({
   }
 
   return (
-    <Card
-      className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${
-        isInSelectedChannel ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''
-      } ${!isActive ? 'opacity-50' : ''} relative`}
-    >
+    <>
+      <StationsModal
+        isOpen={showStationsModal}
+        onClose={() => setShowStationsModal(false)}
+        stations={item.mealStations || []}
+        itemName={item.name}
+      />
+      <Card
+        className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${
+          isInSelectedChannel ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''
+        } ${!isActive ? 'opacity-50' : ''} relative`}
+      >
       {/* Top row with status, MRN, and actions */}
       <CardHeader className="p-0 mb-4">
         <div className="flex items-center justify-between">
@@ -602,5 +619,6 @@ export function MenuItem({
         </div>
       </CardFooter>
     </Card>
+    </>
   );
 }
