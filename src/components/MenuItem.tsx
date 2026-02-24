@@ -10,6 +10,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
@@ -53,6 +55,7 @@ export function MenuItem({
   onEdit,
 }: MenuItemProps) {
   const [showOptions, setShowOptions] = useState(false);
+  const [expandedDetails, setExpandedDetails] = useState(false);
 
   const deviceCount = devices.filter((device) =>
     device.pages.some((page) =>
@@ -102,6 +105,244 @@ export function MenuItem({
       setWorkflowType('assign');
       setShowDeviceModal(true);
     }
+  };
+
+  const getDaypartColor = (daypart: string) => {
+    switch (daypart.toLowerCase()) {
+      case 'breakfast':
+        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+      case 'lunch':
+        return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+      case 'dinner':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+      default:
+        return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+    }
+  };
+
+  // Option 1: Expandable with all details
+  const renderExpandableInfo = () => (
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={() => setExpandedDetails(!expandedDetails)}
+        className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+      >
+        {expandedDetails ? (
+          <ChevronUp className="h-4 w-4" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
+        <span>
+          {item.mealPeriods?.length || 0} dayparts • {item.mealStations?.length || 0} stations
+        </span>
+      </button>
+
+      {expandedDetails && (
+        <div className="flex flex-col gap-3 pl-6 pt-2 border-l-2 border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <Clock className="h-3.5 w-3.5 text-gray-400" />
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Dayparts</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {item.mealPeriods?.map((period, idx) => (
+                <Badge
+                  key={idx}
+                  variant="outline"
+                  className={`text-xs border ${getDaypartColor(period)}`}
+                >
+                  {period}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 text-gray-400" />
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Stations</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {item.mealStations?.map((station, idx) => (
+                <Badge
+                  key={idx}
+                  variant="secondary"
+                  className="text-xs"
+                >
+                  {station}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Option 2: Color-coded compact grid
+  const renderColorCodedGrid = () => (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-1.5">
+        {item.mealPeriods?.map((period, idx) => (
+          <Badge
+            key={idx}
+            variant="outline"
+            className={`text-xs border ${getDaypartColor(period)}`}
+          >
+            {period}
+          </Badge>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+        {item.mealStations?.slice(0, 6).map((station, idx) => (
+          <Badge
+            key={idx}
+            variant="secondary"
+            className="text-xs"
+          >
+            {station.length > 25 ? station.substring(0, 25) + '...' : station}
+          </Badge>
+        ))}
+        {item.mealStations && item.mealStations.length > 6 && (
+          <Badge variant="secondary" className="text-xs bg-gray-200 dark:bg-gray-700">
+            +{item.mealStations.length - 6} more
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+
+  // Option 3: Compact with hover tooltip (using title attribute)
+  const renderCompactWithTooltip = () => (
+    <div className="flex flex-col gap-2">
+      <div
+        className="flex items-center gap-2 cursor-help"
+        title={item.mealPeriods?.join(', ')}
+      >
+        <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+        <div className="flex flex-wrap gap-1.5">
+          {item.mealPeriods?.slice(0, 3).map((period, idx) => (
+            <Badge
+              key={idx}
+              variant="outline"
+              className={`text-xs border ${getDaypartColor(period)}`}
+            >
+              {period}
+            </Badge>
+          ))}
+          {item.mealPeriods && item.mealPeriods.length > 3 && (
+            <Badge variant="secondary" className="text-xs">
+              +{item.mealPeriods.length - 3}
+            </Badge>
+          )}
+        </div>
+      </div>
+      <div
+        className="flex items-center gap-2 cursor-help"
+        title={item.mealStations?.join('\n')}
+      >
+        <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+        <span className="text-xs text-gray-600 dark:text-gray-400">
+          {item.mealStations?.length || 0} locations
+        </span>
+      </div>
+    </div>
+  );
+
+  // Option 4: Organized grid with sections
+  const renderOrganizedGrid = () => (
+    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 space-y-2.5">
+      <div className="flex items-start gap-2">
+        <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
+        <div className="flex flex-wrap gap-1.5 flex-1">
+          {item.mealPeriods?.map((period, idx) => (
+            <Badge
+              key={idx}
+              variant="outline"
+              className={`text-xs border ${getDaypartColor(period)}`}
+            >
+              {period}
+            </Badge>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-start gap-2">
+        <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 max-h-20 overflow-y-auto">
+          <div className="flex flex-wrap gap-1.5">
+            {item.mealStations?.map((station, idx) => (
+              <Badge
+                key={idx}
+                variant="secondary"
+                className="text-xs"
+              >
+                {station.length > 30 ? station.substring(0, 30) + '...' : station}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Option 5: Summary view with expand button
+  const renderSummaryView = () => (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {item.mealPeriods?.length || 0} dayparts
+          </span>
+        </div>
+        <button
+          onClick={() => setExpandedDetails(!expandedDetails)}
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+        >
+          {expandedDetails ? 'Hide' : 'Show all'}
+          {expandedDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+      </div>
+
+      {expandedDetails ? (
+        <div className="space-y-2 pt-2 border-t dark:border-gray-700">
+          <div className="flex flex-wrap gap-1.5">
+            {item.mealPeriods?.map((period, idx) => (
+              <Badge
+                key={idx}
+                variant="outline"
+                className={`text-xs border ${getDaypartColor(period)}`}
+              >
+                {period}
+              </Badge>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+            {item.mealStations?.map((station, idx) => (
+              <Badge key={idx} variant="secondary" className="text-xs">
+                {station}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {item.mealStations?.length || 0} stations
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderGroupedInfo = () => {
+    // Change this to switch between options:
+    // return renderExpandableInfo();     // Option 1
+    // return renderColorCodedGrid();     // Option 2
+    // return renderCompactWithTooltip(); // Option 3
+    return renderOrganizedGrid();      // Option 4 (default)
+    // return renderSummaryView();        // Option 5
   };
 
   const renderOptionsMenu = () => (
@@ -305,50 +546,24 @@ export function MenuItem({
       {/* Bottom content - always at the bottom */}
       <CardFooter className="flex-col space-y-4 p-0 mt-4">
         {/* Daypart and Station info */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            {item.isGrouped && item.mealPeriods ? (
-              <>
-                {item.mealPeriods.slice(0, 2).map((period, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs">
-                    {period}
-                  </Badge>
-                ))}
-                {item.mealPeriods.length > 2 && (
-                  <Badge variant="secondary" className="text-xs">
-                    +{item.mealPeriods.length - 2} more
-                  </Badge>
-                )}
-              </>
-            ) : (
+        {item.isGrouped && item.mealPeriods && item.mealStations ? (
+          renderGroupedInfo()
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
               <Badge variant="secondary" className="text-xs">
                 {item.mealPeriod}
               </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            {item.isGrouped && item.mealStations ? (
-              <>
-                {item.mealStations.slice(0, 2).map((station, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs max-w-[200px] truncate">
-                    {station}
-                  </Badge>
-                ))}
-                {item.mealStations.length > 2 && (
-                  <Badge variant="secondary" className="text-xs">
-                    +{item.mealStations.length - 2} more
-                  </Badge>
-                )}
-              </>
-            ) : (
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
               <Badge variant="secondary" className="text-xs max-w-[200px] truncate">
                 {item.mealStation}
               </Badge>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Price and options */}
         <div className="flex items-center justify-between pt-4 border-t dark:border-gray-700 w-full">
