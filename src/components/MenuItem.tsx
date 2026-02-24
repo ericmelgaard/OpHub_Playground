@@ -483,7 +483,7 @@ export function MenuItem({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 relative z-10">
             {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
               <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
                 {item.occurrenceCount}x
@@ -494,7 +494,7 @@ export function MenuItem({
                 variant={isInSelectedChannel ? 'secondary' : 'default'}
                 size="sm"
                 onClick={handleAssignClick}
-                className={`flex items-center gap-1 ${
+                className={`flex items-center gap-1 relative ${
                   isInSelectedChannel
                     ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
                     : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
@@ -557,7 +557,7 @@ export function MenuItem({
               <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 relative z-10">
             {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
               <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
                 {item.occurrenceCount}x
@@ -568,7 +568,7 @@ export function MenuItem({
                 variant={isInSelectedChannel ? 'secondary' : 'default'}
                 size="sm"
                 onClick={handleAssignClick}
-                className={`flex items-center gap-1 ${
+                className={`flex items-center gap-1 relative ${
                   isInSelectedChannel
                     ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
                     : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
