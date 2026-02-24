@@ -221,32 +221,33 @@ export const api = {
   // Device page operations
   assignItemToPage: async (itemId: number, deviceId: string, pageId: string): Promise<void> => {
     await mockDelay();
-    
+
     // Find the device and make a copy to work with
     const deviceIndex = mockDevices.findIndex(d => d.id === deviceId);
     if (deviceIndex === -1) throw new Error('Device not found');
-    
+
     const device = clone(mockDevices[deviceIndex]);
-    
+
     // Find the page in the device
     const page = device.pages.find(p => p.id === pageId);
     if (!page) throw new Error('Page not found');
-    
-    // Find the item in the menu items
-    const item = mockMenuItems.find(i => i.id === itemId);
+
+    // Fetch the item from Supabase
+    const allItems = await api.getMenuItems();
+    const item = allItems.find(i => i.id === itemId);
     if (!item) throw new Error('Item not found');
-    
+
     // Add the item to the page if not already present
     if (!page.assignedItems.some(i => i.id === itemId)) {
       page.assignedItems.push(clone(item));
       page.itemOrder.push(itemId);
     }
-    
+
     // Update the device's assigned items if needed
     if (!device.assignedItems.some(i => i.id === itemId)) {
       device.assignedItems.push(clone(item));
     }
-    
+
     // Update the device in the mock data
     mockDevices[deviceIndex] = device;
   },
