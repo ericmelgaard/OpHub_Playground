@@ -71,17 +71,21 @@ export function LocationSelectionModal({
     concept.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredCompanies = companies.filter(company => {
-    const matchesSearch = company.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesConcept = !selectedConcept || company.concept_id === selectedConcept;
-    return matchesSearch && matchesConcept;
-  });
+  const getFilteredCompaniesForConcept = (conceptId: string) => {
+    return companies.filter(company => {
+      const matchesSearch = company.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesConcept = company.concept_id === conceptId;
+      return matchesSearch && matchesConcept;
+    });
+  };
 
-  const filteredStores = stores.filter(store => {
-    const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompany = !selectedCompany || store.company_id === selectedCompany;
-    return matchesSearch && matchesCompany;
-  });
+  const getFilteredStoresForCompany = (companyId: string) => {
+    return stores.filter(store => {
+      const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCompany = store.company_id === companyId;
+      return matchesSearch && matchesCompany;
+    });
+  };
 
   const getConceptCompanyCount = (conceptId: string) => {
     return companies.filter(c => c.concept_id === conceptId).length;
@@ -152,14 +156,13 @@ export function LocationSelectionModal({
           {filteredConcepts.map((concept) => {
             const isExpanded = expandedConcept === concept.id;
             const companyCount = getConceptCompanyCount(concept.id);
-            const conceptCompanies = filteredCompanies.filter(c => c.concept_id === concept.id);
+            const conceptCompanies = getFilteredCompaniesForConcept(concept.id);
 
             return (
               <div key={concept.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                 <button
                   onClick={() => {
                     onExpandConcept(isExpanded ? null : concept.id);
-                    onSelectConcept(concept.id);
                   }}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
@@ -180,14 +183,13 @@ export function LocationSelectionModal({
                     {conceptCompanies.map((company) => {
                       const isCompanyExpanded = expandedCompany === company.id;
                       const storeCount = getCompanyStoreCount(company.id);
-                      const companyStores = filteredStores.filter(s => s.company_id === company.id);
+                      const companyStores = getFilteredStoresForCompany(company.id);
 
                       return (
                         <div key={company.id} className="mt-2">
                           <button
                             onClick={() => {
                               onExpandCompany(isCompanyExpanded ? null : company.id);
-                              onSelectCompany(company.id);
                             }}
                             className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors"
                           >
@@ -209,6 +211,8 @@ export function LocationSelectionModal({
                                 <button
                                   key={store.id}
                                   onClick={() => {
+                                    onSelectConcept(concept.id);
+                                    onSelectCompany(company.id);
                                     onSelectStore(store.id);
                                     onClose();
                                   }}
