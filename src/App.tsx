@@ -59,7 +59,7 @@ function App() {
   const [searchValue, setSearchValue] = useState('');
   const [selectedQuickAction, setSelectedQuickAction] = useState<QuickActionType>(() => {
     const saved = localStorage.getItem('selectedQuickAction');
-    return (saved as QuickActionType) || 'smart-labels';
+    return (saved as QuickActionType) || 'products';
   });
 
   // Filter state

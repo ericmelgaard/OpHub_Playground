@@ -93,6 +93,7 @@ export const api = {
   // Get menu items grouped by MRN
   getGroupedMenuItems: async (): Promise<MenuItem[]> => {
     const items = await api.getMenuItems();
+    console.log(`Total items fetched: ${items.length}`);
 
     // Group items by MRN
     const groupedMap = new Map<string, MenuItem[]>();
@@ -105,8 +106,11 @@ export const api = {
       groupedMap.get(key)!.push(item);
     });
 
+    console.log(`Unique MRNs: ${groupedMap.size}`);
+
     // Convert grouped items to consolidated MenuItem objects
     const consolidatedItems: MenuItem[] = [];
+    let groupedCount = 0;
 
     groupedMap.forEach((groupItems, mrn) => {
       if (groupItems.length === 1) {
@@ -114,6 +118,7 @@ export const api = {
         consolidatedItems.push(groupItems[0]);
       } else {
         // Multiple items with same MRN - consolidate
+        groupedCount++;
         const firstItem = groupItems[0];
         const mealPeriods = Array.from(new Set(groupItems.map(i => i.mealPeriod)));
         const mealStations = Array.from(new Set(groupItems.map(i => i.mealStation)));
@@ -132,6 +137,9 @@ export const api = {
         });
       }
     });
+
+    console.log(`Items with duplicates grouped: ${groupedCount}`);
+    console.log(`Total items after grouping: ${consolidatedItems.length}`);
 
     return consolidatedItems.sort((a, b) => a.name.localeCompare(b.name));
   },
