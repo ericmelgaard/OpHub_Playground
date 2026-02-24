@@ -363,12 +363,13 @@ export function MenuItem({
 
         {/* Stations - show first one with expand button */}
         {stations.length > 0 && (
-          <div className="w-full">
+          <div className="w-full min-w-0">
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Stations</div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <Badge
                 variant="secondary"
-                className="text-xs truncate max-w-[200px]"
+                className="text-xs truncate shrink"
+                style={{ maxWidth: '150px' }}
               >
                 {stations[0]}
               </Badge>
@@ -378,7 +379,7 @@ export function MenuItem({
                     e.stopPropagation();
                     setShowStationsModal(true);
                   }}
-                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap flex-shrink-0"
                 >
                   +{stations.length - 1} more
                   <ChevronRight className="h-3 w-3" />
@@ -542,7 +543,7 @@ export function MenuItem({
       <Card
         className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${
           isInSelectedChannel ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''
-        } ${!isActive ? 'opacity-50' : ''} relative`}
+        } ${!isActive ? 'opacity-50' : ''} relative overflow-hidden`}
       >
       {/* Top row with status, MRN, and actions */}
       <CardHeader className="p-0 mb-4">
@@ -589,7 +590,7 @@ export function MenuItem({
       </CardHeader>
 
       {/* Content area - flex-1 to push the bottom content down */}
-      <CardContent className="flex-1 p-0">
+      <CardContent className="flex-1 p-0 min-w-0">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           {item.name}
         </h3>
@@ -601,7 +602,7 @@ export function MenuItem({
       </CardContent>
 
       {/* Bottom content - always at the bottom */}
-      <CardFooter className="flex-col space-y-4 p-0 mt-4">
+      <CardFooter className="flex-col space-y-4 p-0 mt-4 min-w-0">
         {/* Daypart and Station info */}
         {renderDaypartsAndStations()}
 
