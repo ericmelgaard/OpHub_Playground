@@ -8,6 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
+import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
@@ -86,6 +87,9 @@ function App() {
   const [showCreateRuleModal, setShowCreateRuleModal] = useState(false);
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [showItemWorkflow, setShowItemWorkflow] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [workflowType, setWorkflowType] = useState<'manage' | 'assign' | null>(null);
 
   // Quick Action Configuration
   const getDefaultQuickActionConfigs = (): QuickActionConfig[] => [
@@ -488,10 +492,16 @@ function App() {
                       api.assignItemToChannel(item.id, channelId);
                     }
                   }}
-                  setSelectedItem={() => {}}
-                  setShowDeviceModal={() => {}}
+                  setSelectedItem={(item) => {
+                    setSelectedItem(item);
+                  }}
+                  setShowDeviceModal={(show) => {
+                    setShowItemWorkflow(show);
+                  }}
                   setShowPageSelectionModal={() => {}}
-                  setWorkflowType={() => {}}
+                  setWorkflowType={(type) => {
+                    setWorkflowType(type);
+                  }}
                   devices={devices}
                   searchValue={searchValue}
                   activeFilters={activeFilters}
@@ -581,6 +591,30 @@ function App() {
               await api.updateDeviceStatus(deviceId, { forcedPage: pageId });
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
+            }}
+            setNotifications={setNotifications}
+          />
+        )}
+
+        {showItemWorkflow && selectedItem && (
+          <ItemFirstWorkflow
+            item={selectedItem}
+            workflowType={workflowType || 'assign'}
+            devices={devices}
+            onAssignItem={async (itemId, deviceId, pageId) => {
+              await api.assignItemToPage(itemId, deviceId, pageId);
+              const updatedDevices = await api.getDevices();
+              setDevices(updatedDevices);
+            }}
+            onRemoveItem={async (itemId, deviceId, pageId) => {
+              await api.removeItemFromPage(itemId, deviceId, pageId);
+              const updatedDevices = await api.getDevices();
+              setDevices(updatedDevices);
+            }}
+            onClose={() => {
+              setShowItemWorkflow(false);
+              setSelectedItem(null);
+              setWorkflowType(null);
             }}
             setNotifications={setNotifications}
           />
