@@ -64,6 +64,9 @@ function App() {
   // Filter state
   const [activeFilters, setActiveFilters] = useState<FilterConfig[]>([]);
 
+  // Cycle Week state
+  const [selectedCycleWeek, setSelectedCycleWeek] = useState<number>(1);
+
   // Device state
   const [devices, setDevices] = useState<Device[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
@@ -292,13 +295,18 @@ function App() {
                    selectedQuickAction === 'webview' ? 'Webview Kiosks' :
                    selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
                 </h2>
-                <button className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                    <line x1="3" y1="6" x2="21" y2="6"></line>
-                    <line x1="3" y1="12" x2="21" y2="12"></line>
-                    <line x1="3" y1="18" x2="21" y2="18"></line>
-                  </svg>
-                </button>
+                {selectedQuickAction === 'products' && (
+                  <select
+                    value={selectedCycleWeek}
+                    onChange={(e) => setSelectedCycleWeek(Number(e.target.value))}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
+                  >
+                    <option value={1}>Cycle Week 1</option>
+                    <option value={2}>Cycle Week 2</option>
+                    <option value={3}>Cycle Week 3</option>
+                    <option value={4}>Cycle Week 4</option>
+                  </select>
+                )}
               </div>
 
               <MenuFilters

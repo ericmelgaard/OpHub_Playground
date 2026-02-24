@@ -148,11 +148,11 @@ export function MenuFilters({
   const showDeviceFilters = selectedQuickAction === 'smart-labels' || selectedQuickAction === 'groups';
 
   return (
-    <div className="mb-8 space-y-4">
+    <div className="mb-6 space-y-3">
       {/* Controls Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-        {/* Left side - Filters button with dropdown and active filters */}
-        <div className="flex items-center gap-2 order-1 flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        {/* Left side - Filters button */}
+        <div className="flex items-center gap-3 order-1">
           {/* Add Filter Button with Dropdown */}
           {showProductFilters && (
             <div className="relative flex-shrink-0">
@@ -203,28 +203,6 @@ export function MenuFilters({
               )}
             </div>
           )}
-
-          {/* Filter Cards - inline */}
-          {showProductFilters && activeFilters.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto">
-              {activeFilters.map((filter) => (
-                <FilterCard
-                  key={filter.id}
-                  filter={filter}
-                  onEdit={() => handleEditFilter(filter)}
-                  onDelete={() => onDeleteFilter(filter.id)}
-                />
-              ))}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClearAllFilters}
-                className="flex-shrink-0 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                Clear All
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Search Bar */}
@@ -234,7 +212,7 @@ export function MenuFilters({
             placeholder={showDeviceFilters ? "Search displays..." : "Search menu items..."}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            className="w-full pl-10 pr-12 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+            className="w-full pl-10 pr-12 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           />
           <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
           <Button
@@ -251,20 +229,14 @@ export function MenuFilters({
         {/* Action Buttons */}
         <div className="flex items-center gap-2 order-3">
           {showProductFilters && (
-            <>
-              <Button
-                variant="secondary"
-                onClick={onCreateItem}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/70"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create Item</span>
-              </Button>
-              {/* Data Source Indicator */}
-              <div className="hidden lg:flex flex-shrink-0">
-                {renderDataSourceIndicator()}
-              </div>
-            </>
+            <Button
+              variant="secondary"
+              onClick={onCreateItem}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/50 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/70"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Create Item</span>
+            </Button>
           )}
 
           <Button
@@ -284,6 +256,42 @@ export function MenuFilters({
           </Button>
         </div>
       </div>
+
+      {/* Filter Cards Row - Always visible with reserved space */}
+      {showProductFilters && (
+        <div className="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+          {/* Webtrition Data Source - Permanent Filter */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-xs">
+            <Database className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
+            <span className="text-gray-700 dark:text-gray-300 font-medium">Webtrition</span>
+          </div>
+
+          {/* Active Filter Cards */}
+          {activeFilters.length > 0 && (
+            <>
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+              <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+                {activeFilters.map((filter) => (
+                  <FilterCard
+                    key={filter.id}
+                    filter={filter}
+                    onEdit={() => handleEditFilter(filter)}
+                    onDelete={() => onDeleteFilter(filter.id)}
+                  />
+                ))}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearAllFilters}
+                className="flex-shrink-0 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 h-7"
+              >
+                Clear All
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Filter Modal */}
       {showFilterModal && selectedFilterType && (
