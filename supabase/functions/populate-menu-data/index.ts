@@ -74,10 +74,27 @@ Deno.serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const apiUrl = "https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=2026-02-19T00:00:00&SourceSystem=1&Days=7&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false";
+    const today = new Date().toISOString().split('T')[0];
+    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${today}T00:00:00&SourceSystem=1&Days=7&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
 
-    const response = await fetch(apiUrl);
-    const data: ApiResponse = await response.json();
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+
+    const text = await response.text();
+
+    if (!text || text.trim() === '') {
+      throw new Error('API returned empty response');
+    }
+
+    const data: ApiResponse = JSON.parse(text);
 
     if (data.hasError) {
       throw new Error(data.error || "API returned an error");
