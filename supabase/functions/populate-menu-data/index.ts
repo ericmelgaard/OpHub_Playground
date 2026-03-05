@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const today = new Date().toISOString().split('T')[0];
-    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${today}T00:00:00&SourceSystem=1&Days=1&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=false&IncludeIngredients=false&IncludeRecipe=false`;
+    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${today}T00:00:00&SourceSystem=1&Days=3&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
 
     const response = await fetch(apiUrl, {
       headers: {
