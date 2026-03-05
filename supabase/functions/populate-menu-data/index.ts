@@ -84,6 +84,26 @@ Deno.serve(async (req: Request) => {
       }
     });
 
+    if (response.status === 204) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'API returned 204 No Content - no menu data available for the requested date range',
+          stats: {
+            menuItems: 0,
+            mealPeriods: 0,
+            stations: 0,
+          },
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
     }
@@ -91,7 +111,7 @@ Deno.serve(async (req: Request) => {
     const text = await response.text();
 
     if (!text || text.trim() === '') {
-      throw new Error('API returned empty response');
+      throw new Error('API returned empty response with 200 status');
     }
 
     const data: ApiResponse = JSON.parse(text);
