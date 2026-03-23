@@ -87,6 +87,14 @@ export interface MenuItem {
   mealStations?: string[];
   originalItemIds?: number[];
   occurrenceCount?: number;
+  // Day-of-week availability tracking
+  activeDays?: number[];
+  activeMealPeriods?: string[];
+  availabilityData?: {
+    dayOfWeek: number;
+    mealPeriod: string;
+    lastSeen: string;
+  }[];
 }
 
 export interface CustomAttribute {

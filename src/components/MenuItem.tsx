@@ -1,19 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Coffee,
-  MapPin,
-  MoreVertical,
-  Monitor,
-  Edit,
-  Plus,
-  Tag,
-  CheckCircle,
-  XCircle,
-  Clock,
-  ChevronDown,
-  ChevronUp,
-  ChevronRight,
-} from 'lucide-react';
+import { Coffee, MapPin, MoreVertical, Monitor, CreditCard as Edit, Plus, Tag, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
   Card,
@@ -24,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StationsModal } from './StationsModal';
+import { getActiveDaysDisplay, DAY_ABBR } from '../lib/availability';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -344,9 +331,41 @@ export function MenuItem({
     // Normalize data - handle both grouped (arrays) and single (string) values
     const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
     const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
+    const activeDays = item.activeDays || [];
+    const activeDaysText = getActiveDaysDisplay(activeDays);
 
     return (
       <div className="flex flex-col gap-2 w-full min-w-0">
+        {/* Active Days */}
+        {activeDays.length > 0 && (
+          <div className="flex items-center gap-2 w-full">
+            <Calendar className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-gray-600 dark:text-gray-400">{activeDaysText}</span>
+              {activeDays.length < 7 && (
+                <div className="flex gap-0.5">
+                  {[0, 1, 2, 3, 4, 5, 6].map(day => {
+                    const isActive = activeDays.includes(day);
+                    return (
+                      <div
+                        key={day}
+                        className={`text-xs px-1 py-0.5 rounded ${
+                          isActive
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'
+                        }`}
+                        title={DAY_ABBR[day]}
+                      >
+                        {DAY_ABBR[day][0]}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Dayparts - color coded, no icon */}
         {periods.length > 0 && (
           <div className="flex flex-wrap gap-1.5 w-full">

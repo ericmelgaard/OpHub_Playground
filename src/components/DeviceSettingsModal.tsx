@@ -13,6 +13,7 @@ import { AddPageItemsButton } from './common/AddPageItemsButton';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { isItemActiveForDaypart } from '../lib/availability';
 
 interface DeviceSettingsModalProps {
   showDeviceSettingsModal: boolean;
@@ -74,12 +75,17 @@ const getDaypartBg = (daypart: string) => {
 };
 
 const getDisplayedItems = (page: DevicePage): MenuItem[] => {
-  // Get active items in order
+  // Get active items in order, checking both the isActive flag and daypart compatibility
   const activeItems = page.itemOrder
     .map((id) => page.assignedItems.find((item) => item.id === id))
-    .filter(
-      (item): item is MenuItem => item !== undefined && item.isActive !== false
-    );
+    .filter((item): item is MenuItem => {
+      if (!item) return false;
+      if (item.isActive === false) return false;
+
+      // Check if item is active for this daypart
+      const isActiveForDaypart = isItemActiveForDaypart(item, page.daypart);
+      return isActiveForDaypart;
+    });
 
   // Return only items within display capacity
   return activeItems.slice(0, page.displayCapacity);

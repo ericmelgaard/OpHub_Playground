@@ -209,14 +209,24 @@ Deno.serve(async (req: Request) => {
       insertedCount += batch.length;
     }
 
+    const { data: availabilityData } = await supabase
+      .from("product_availability")
+      .select("mrn, day_of_week, meal_period_id");
+
+    const availabilityStats = {
+      uniqueProducts: new Set(availabilityData?.map(a => a.mrn) || []).size,
+      totalCombinations: availabilityData?.length || 0,
+    };
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Successfully populated ${menuItems.length} menu items, ${mealPeriods.length} meal periods, and ${stations.length} stations`,
+        message: `Successfully populated ${menuItems.length} menu items, ${mealPeriods.length} meal periods, and ${stations.length} stations. Tracking ${availabilityStats.uniqueProducts} unique products across ${availabilityStats.totalCombinations} day/meal combinations.`,
         stats: {
           menuItems: menuItems.length,
           mealPeriods: mealPeriods.length,
           stations: stations.length,
+          productAvailability: availabilityStats,
         },
       }),
       {

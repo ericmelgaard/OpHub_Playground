@@ -42,52 +42,80 @@ export const api = {
       return [];
     }
 
-    return data.map((item: any) => ({
-      id: item.id,
-      date: item.date || new Date().toISOString().split('T')[0],
-      name: item.name,
-      description: item.description || null,
-      enticingDescription: item.enticing_description || null,
-      ingredients: item.ingredients || '',
-      price: item.price || '0.00',
-      mrn: item.mrn || '',
-      nutrition: {
-        calories: {
-          value: item.nutrition?.calories?.value || item.calories || '0',
-          dailyValue: item.nutrition?.calories?.dailyValue || null,
-          displayValue: item.nutrition?.calories?.displayValue || item.calories || '0'
+    const { data: availabilityData } = await supabase
+      .from('product_availability')
+      .select('mrn, day_of_week, meal_period_id, last_seen_date, meal_period:meal_periods(name)');
+
+    const availabilityByMrn = new Map<string, any[]>();
+    if (availabilityData) {
+      availabilityData.forEach((av: any) => {
+        if (!availabilityByMrn.has(av.mrn)) {
+          availabilityByMrn.set(av.mrn, []);
+        }
+        availabilityByMrn.get(av.mrn)!.push(av);
+      });
+    }
+
+    return data.map((item: any) => {
+      const availability = availabilityByMrn.get(item.mrn) || [];
+      const activeDays = [...new Set(availability.map((av: any) => av.day_of_week))].sort();
+      const activeMealPeriods = [...new Set(availability.map((av: any) => av.meal_period?.name).filter(Boolean))];
+      const availabilityDataFormatted = availability.map((av: any) => ({
+        dayOfWeek: av.day_of_week,
+        mealPeriod: av.meal_period?.name || '',
+        lastSeen: av.last_seen_date,
+      }));
+
+      return {
+        id: item.id,
+        date: item.date || new Date().toISOString().split('T')[0],
+        name: item.name,
+        description: item.description || null,
+        enticingDescription: item.enticing_description || null,
+        ingredients: item.ingredients || '',
+        price: item.price || '0.00',
+        mrn: item.mrn || '',
+        nutrition: {
+          calories: {
+            value: item.nutrition?.calories?.value || item.calories || '0',
+            dailyValue: item.nutrition?.calories?.dailyValue || null,
+            displayValue: item.nutrition?.calories?.displayValue || item.calories || '0'
+          },
+          protein: {
+            value: item.nutrition?.protein?.value || '0',
+            dailyValue: item.nutrition?.protein?.dailyValue || null,
+            displayValue: item.nutrition?.protein?.displayValue || '0g'
+          },
+          carbohydrates: {
+            value: item.nutrition?.carbohydrates?.value || '0',
+            dailyValue: item.nutrition?.carbohydrates?.dailyValue || null,
+            displayValue: item.nutrition?.carbohydrates?.displayValue || '0g'
+          },
+          fat: {
+            value: item.nutrition?.fat?.value || '0',
+            dailyValue: item.nutrition?.fat?.dailyValue || null,
+            displayValue: item.nutrition?.fat?.displayValue || '0g'
+          },
+          sugar: {
+            value: item.nutrition?.sugar?.value || '0',
+            dailyValue: item.nutrition?.sugar?.dailyValue || null,
+            displayValue: item.nutrition?.sugar?.displayValue || '0g'
+          },
         },
-        protein: {
-          value: item.nutrition?.protein?.value || '0',
-          dailyValue: item.nutrition?.protein?.dailyValue || null,
-          displayValue: item.nutrition?.protein?.displayValue || '0g'
-        },
-        carbohydrates: {
-          value: item.nutrition?.carbohydrates?.value || '0',
-          dailyValue: item.nutrition?.carbohydrates?.dailyValue || null,
-          displayValue: item.nutrition?.carbohydrates?.displayValue || '0g'
-        },
-        fat: {
-          value: item.nutrition?.fat?.value || '0',
-          dailyValue: item.nutrition?.fat?.dailyValue || null,
-          displayValue: item.nutrition?.fat?.displayValue || '0g'
-        },
-        sugar: {
-          value: item.nutrition?.sugar?.value || '0',
-          dailyValue: item.nutrition?.sugar?.dailyValue || null,
-          displayValue: item.nutrition?.sugar?.displayValue || '0g'
-        },
-      },
-      allergens: item.allergens || '',
-      portion: item.nutrition?.portion || '',
-      icons: item.icons ? (Array.isArray(item.icons) ? item.icons.map((i: any) => i.name || i) : []) : [],
-      calories: item.calories || '0',
-      mealPeriodId: item.meal_period_id || 0,
-      mealStation: item.station?.name || 'Uncategorized',
-      mealPeriod: item.meal_period?.name || 'All Day',
-      sortOrder: item.sort_order || 0,
-      isActive: true,
-    }));
+        allergens: item.allergens || '',
+        portion: item.nutrition?.portion || '',
+        icons: item.icons ? (Array.isArray(item.icons) ? item.icons.map((i: any) => i.name || i) : []) : [],
+        calories: item.calories || '0',
+        mealPeriodId: item.meal_period_id || 0,
+        mealStation: item.station?.name || 'Uncategorized',
+        mealPeriod: item.meal_period?.name || 'All Day',
+        sortOrder: item.sort_order || 0,
+        isActive: true,
+        activeDays,
+        activeMealPeriods,
+        availabilityData: availabilityDataFormatted,
+      };
+    });
   },
 
   // Get menu items grouped by MRN
@@ -134,6 +162,7 @@ export const api = {
           // Use first item's meal period and station for backward compatibility
           mealPeriod: mealPeriods[0],
           mealStation: mealStations[0],
+          // Availability data is already set from getMenuItems
         });
       }
     });
