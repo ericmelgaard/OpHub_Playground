@@ -76,63 +76,64 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     const targetDate = body?.date || '2024-03-24';
+    const days = body?.days || 7;
 
-    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${targetDate}T00:00:00&SourceSystem=1&Days=7&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
+    const allMenuItems: MenuItem[] = [];
+    const startDate = new Date(targetDate);
 
-    const response = await fetch(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
-      }
-    });
+    for (let i = 0; i < days; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+      const dateString = currentDate.toISOString().split('T')[0];
 
-    let data: ApiResponse;
+      const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${dateString}T00:00:00&SourceSystem=1&Days=1&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
 
-    if (response.status === 204 || !response.ok) {
-      const apiUrl2 = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=63100`;
-      const response2 = await fetch(apiUrl2, {
+      const response = await fetch(apiUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json'
         }
       });
 
-      if (response2.status === 204 || !response2.ok) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'API returned 204 No Content - no menu data available',
-            stats: {
-              menuItems: 0,
-              mealPeriods: 0,
-              stations: 0,
-            },
-          }),
-          {
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+      if (response.status === 204 || !response.ok) {
+        continue;
       }
 
-      const text2 = await response2.text();
-      if (!text2 || text2.trim() === '') {
-        throw new Error('Backup API also returned empty response');
-      }
-      data = JSON.parse(text2);
-    } else {
       const text = await response.text();
       if (!text || text.trim() === '') {
-        throw new Error('API returned empty response with 200 status');
+        continue;
       }
-      data = JSON.parse(text);
+
+      const data: ApiResponse = JSON.parse(text);
+
+      if (data.hasError || !data.menuItems || data.menuItems.length === 0) {
+        continue;
+      }
+
+      allMenuItems.push(...data.menuItems);
     }
 
-    if (data.hasError) {
-      throw new Error(data.error || "API returned an error");
+    if (allMenuItems.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'No menu data available for the requested date range',
+          stats: {
+            menuItems: 0,
+            mealPeriods: 0,
+            stations: 0,
+          },
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
     }
+
+    const data = { menuItems: allMenuItems, hasError: false, errorCode: null, error: null };
 
     const mealPeriodsMap = new Map<number, string>();
     const stationsMap = new Map<number, string>();
@@ -182,7 +183,8 @@ Deno.serve(async (req: Request) => {
 
     const uniqueItems = new Map();
     data.menuItems.forEach(item => {
-      uniqueItems.set(item.id, {
+      const uniqueKey = `${item.id}-${item.date.split("T")[0]}`;
+      uniqueItems.set(uniqueKey, {
         id: item.id,
         string_id: item.stringId,
         date: item.date.split("T")[0],
@@ -214,7 +216,7 @@ Deno.serve(async (req: Request) => {
       const batch = menuItems.slice(i, i + batchSize);
       const { error: itemsError } = await supabase
         .from("menu_items")
-        .upsert(batch, { onConflict: "id" });
+        .upsert(batch, { onConflict: "id,date" });
 
       if (itemsError) {
         console.error(`Error inserting batch ${i}-${i + batch.length}:`, itemsError);
