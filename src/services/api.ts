@@ -165,6 +165,23 @@ export const api = {
         const mealStations = Array.from(new Set(groupItems.map(i => i.mealStation)));
         const originalItemIds = groupItems.map(i => i.id);
 
+        // Merge availability data from all items in the group
+        const allAvailabilityData = groupItems.flatMap(i => i.availabilityData || []);
+        const uniqueAvailability = Array.from(
+          new Map(
+            allAvailabilityData.map(av => [
+              `${av.dayOfWeek}-${av.mealPeriod}`,
+              av
+            ])
+          ).values()
+        );
+        const mergedActiveDays = Array.from(
+          new Set(uniqueAvailability.map(av => av.dayOfWeek))
+        ).sort();
+        const mergedActiveMealPeriods = Array.from(
+          new Set(uniqueAvailability.map(av => av.mealPeriod).filter(Boolean))
+        );
+
         consolidatedItems.push({
           ...firstItem,
           isGrouped: true,
@@ -175,7 +192,10 @@ export const api = {
           // Use first item's meal period and station for backward compatibility
           mealPeriod: mealPeriods[0],
           mealStation: mealStations[0],
-          // Availability data is already set from getMenuItems
+          // Merged availability data from all items
+          activeDays: mergedActiveDays,
+          activeMealPeriods: mergedActiveMealPeriods,
+          availabilityData: uniqueAvailability,
         });
       }
     });
