@@ -75,49 +75,23 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json().catch(() => ({}));
-    const targetDate = body?.date || '2024-03-24';
+    const targetDate = body?.date || '2026-03-24';
     const days = body?.days || 7;
 
-    const allMenuItems: MenuItem[] = [];
-    const startDate = new Date(targetDate);
+    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${targetDate}T00:00:00&SourceSystem=1&Days=${days}&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
 
-    for (let i = 0; i < days; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + i);
-      const dateString = currentDate.toISOString().split('T')[0];
-
-      const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${dateString}T00:00:00&SourceSystem=1&Days=1&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
-
-      const response = await fetch(apiUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json'
-        }
-      });
-
-      if (response.status === 204 || !response.ok) {
-        continue;
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json'
       }
+    });
 
-      const text = await response.text();
-      if (!text || text.trim() === '') {
-        continue;
-      }
-
-      const data: ApiResponse = JSON.parse(text);
-
-      if (data.hasError || !data.menuItems || data.menuItems.length === 0) {
-        continue;
-      }
-
-      allMenuItems.push(...data.menuItems);
-    }
-
-    if (allMenuItems.length === 0) {
+    if (response.status === 204 || !response.ok) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'No menu data available for the requested date range',
+          message: 'API returned no content',
           stats: {
             menuItems: 0,
             mealPeriods: 0,
@@ -133,7 +107,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const data = { menuItems: allMenuItems, hasError: false, errorCode: null, error: null };
+    const text = await response.text();
+    if (!text || text.trim() === '') {
+      throw new Error('API returned empty response');
+    }
+
+    const data: ApiResponse = JSON.parse(text);
+
+    if (data.hasError) {
+      throw new Error(data.error || "API returned an error");
+    }
 
     const mealPeriodsMap = new Map<number, string>();
     const stationsMap = new Map<number, string>();
