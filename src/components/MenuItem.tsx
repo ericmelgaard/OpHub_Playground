@@ -334,6 +334,15 @@ export function MenuItem({
     const activeDays = item.activeDays || [];
     const activeDaysText = getActiveDaysDisplay(activeDays);
 
+    // Debug logging
+    if (item.mrn === '159668.2') {
+      console.log('MenuItem rendering Carrot Salad:', {
+        mrn: item.mrn,
+        activeDays,
+        activeDaysText
+      });
+    }
+
     return (
       <div className="flex flex-col gap-2 w-full min-w-0">
         {/* Active Days */}

@@ -66,6 +66,19 @@ export const api = {
         lastSeen: av.last_seen_date,
       }));
 
+      // Debug logging for Carrot Salad
+      if (item.mrn === '159668.2') {
+        console.log('Carrot Salad availability:', {
+          mrn: item.mrn,
+          name: item.name,
+          activeDays,
+          availability: availability.map((av: any) => ({
+            day_of_week: av.day_of_week,
+            meal_period: av.meal_period?.name
+          }))
+        });
+      }
+
       return {
         id: item.id,
         date: item.date || new Date().toISOString().split('T')[0],
