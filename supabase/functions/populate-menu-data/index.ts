@@ -74,8 +74,10 @@ Deno.serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const today = new Date().toISOString().split('T')[0];
-    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${today}T00:00:00&SourceSystem=1&Days=3&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
+    const body = await req.json().catch(() => ({}));
+    const targetDate = body?.date || '2024-03-24';
+
+    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${targetDate}T00:00:00&SourceSystem=1&Days=7&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
 
     const response = await fetch(apiUrl, {
       headers: {
@@ -84,37 +86,49 @@ Deno.serve(async (req: Request) => {
       }
     });
 
-    if (response.status === 204) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'API returned 204 No Content - no menu data available for the requested date range',
-          stats: {
-            menuItems: 0,
-            mealPeriods: 0,
-            stations: 0,
-          },
-        }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
+    let data: ApiResponse;
+
+    if (response.status === 204 || !response.ok) {
+      const apiUrl2 = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=63100`;
+      const response2 = await fetch(apiUrl2, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
         }
-      );
+      });
+
+      if (response2.status === 204 || !response2.ok) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'API returned 204 No Content - no menu data available',
+            stats: {
+              menuItems: 0,
+              mealPeriods: 0,
+              stations: 0,
+            },
+          }),
+          {
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+      }
+
+      const text2 = await response2.text();
+      if (!text2 || text2.trim() === '') {
+        throw new Error('Backup API also returned empty response');
+      }
+      data = JSON.parse(text2);
+    } else {
+      const text = await response.text();
+      if (!text || text.trim() === '') {
+        throw new Error('API returned empty response with 200 status');
+      }
+      data = JSON.parse(text);
     }
-
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-
-    const text = await response.text();
-
-    if (!text || text.trim() === '') {
-      throw new Error('API returned empty response with 200 status');
-    }
-
-    const data: ApiResponse = JSON.parse(text);
 
     if (data.hasError) {
       throw new Error(data.error || "API returned an error");
