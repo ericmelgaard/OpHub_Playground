@@ -1,8 +1,8 @@
 import React from 'react';
-import { LayoutGrid, Rows2 as Rows, Search, Camera, Plus, Layers, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
+import { LayoutGrid, Rows2 as Rows, Search, Camera, Plus, Layers, PanelLeftOpen, PanelLeftClose, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { FilterConfig, MenuItem } from '../types';
+import { FilterConfig, FilterType, MenuItem } from '../types';
 import { QuickActionType } from './QuickActionBar';
 
 interface MenuFiltersProps {
@@ -18,7 +18,18 @@ interface MenuFiltersProps {
   menuItems: MenuItem[];
   groupByMrn?: boolean;
   onToggleGroupByMrn?: () => void;
+  selectedCycleWeek?: number | null;
+  onClearAllFilters?: () => void;
 }
+
+const filterTypeLabels: Record<FilterType, string> = {
+  daypart: 'Daypart',
+  station: 'Station',
+  menu_item_name: 'Name',
+  menu_item_mrn: 'MRN',
+  date: 'Date',
+  week: 'Week',
+};
 
 export function MenuFilters({
   viewMode,
@@ -32,6 +43,8 @@ export function MenuFilters({
   isFilterSidebarOpen,
   groupByMrn = false,
   onToggleGroupByMrn,
+  selectedCycleWeek,
+  onClearAllFilters,
 }: MenuFiltersProps) {
   const handleScanBarcode = () => {
     console.log('Barcode scanning will be implemented when API is available');
@@ -40,34 +53,88 @@ export function MenuFilters({
   const showProductFilters = selectedQuickAction === 'products';
   const showDeviceFilters = selectedQuickAction === 'smart-labels' || selectedQuickAction === 'groups';
 
+  const totalActiveCount = activeFilters.length + (selectedCycleWeek ? 1 : 0);
+
+  const getActiveFilterSummary = (): string[] => {
+    const summaries: string[] = [];
+    if (selectedCycleWeek) {
+      summaries.push(`Week ${selectedCycleWeek}`);
+    }
+    for (const filter of activeFilters) {
+      if (filter.type === 'date') {
+        if (filter.singleDate) {
+          summaries.push(new Date(filter.singleDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+        } else if (filter.dateRange) {
+          summaries.push('Date range');
+        }
+      } else if (filter.selectedValues.length === 1) {
+        summaries.push(filter.selectedValues[0]);
+      } else {
+        summaries.push(`${filterTypeLabels[filter.type]} (${filter.selectedValues.length})`);
+      }
+    }
+    return summaries;
+  };
+
   return (
     <div className="mb-6">
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-        {/* Left side - Filters toggle button */}
-        <div className="flex items-center gap-3 order-1">
+        {/* Left side - Filters toggle button with active summary */}
+        <div className="flex items-center gap-2 order-1">
           {showProductFilters && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onToggleFilterSidebar}
-              className={`flex items-center gap-2 whitespace-nowrap transition-colors ${
-                isFilterSidebarOpen
-                  ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300'
-                  : ''
-              }`}
-            >
-              {isFilterSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onToggleFilterSidebar}
+                className={`flex items-center gap-2 whitespace-nowrap transition-colors ${
+                  isFilterSidebarOpen
+                    ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300'
+                    : totalActiveCount > 0
+                    ? 'border-sky-200 dark:border-sky-800'
+                    : ''
+                }`}
+              >
+                {isFilterSidebarOpen ? (
+                  <PanelLeftClose className="h-4 w-4" />
+                ) : (
+                  <PanelLeftOpen className="h-4 w-4" />
+                )}
+                Filters
+                {totalActiveCount > 0 && (
+                  <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 text-[10px] font-semibold text-white rounded-full bg-sky-500">
+                    {totalActiveCount}
+                  </span>
+                )}
+              </Button>
+
+              {totalActiveCount > 0 && !isFilterSidebarOpen && (
+                <div className="hidden sm:flex items-center gap-1.5 overflow-hidden">
+                  <div className="flex items-center gap-1 overflow-x-auto max-w-[320px] lg:max-w-[480px]">
+                    {getActiveFilterSummary().map((label, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 whitespace-nowrap"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  {onClearAllFilters && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onClearAllFilters();
+                      }}
+                      className="flex-shrink-0 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                      title="Clear all filters"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
-              Filters
-              {activeFilters.length > 0 && (
-                <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 text-[10px] font-semibold text-white rounded-full bg-sky-500">
-                  {activeFilters.length}
-                </span>
-              )}
-            </Button>
+            </>
           )}
         </div>
 
