@@ -745,6 +745,3 @@ export function FilterSidebar({
     </>
   );
 }
-
-
-export { FilterSidebar }
