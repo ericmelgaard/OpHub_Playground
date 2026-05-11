@@ -340,6 +340,61 @@ export function FilterSidebar({
             </div>
           </div>
 
+          {/* Active filter tags */}
+          {activeFilterCount > 0 && (
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <div className="flex flex-wrap gap-1.5">
+                {selectedCycleWeek && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                    Week {selectedCycleWeek}
+                    <button
+                      onClick={() => onCycleWeekChange(null)}
+                      className="ml-0.5 hover:text-sky-900 dark:hover:text-sky-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {activeFilters.map(filter => {
+                  let label = '';
+                  if (filter.type === 'daypart') {
+                    label = filter.selectedValues.length === 1
+                      ? filter.selectedValues[0]
+                      : `${filter.selectedValues.length} dayparts`;
+                  } else if (filter.type === 'station') {
+                    label = filter.selectedValues.length === 1
+                      ? filter.selectedValues[0]
+                      : `${filter.selectedValues.length} stations`;
+                  } else if (filter.type === 'menu_item_name') {
+                    label = `Name: ${filter.selectedValues[0]}`;
+                  } else if (filter.type === 'menu_item_mrn') {
+                    label = `MRN: ${filter.selectedValues[0]}`;
+                  } else if (filter.type === 'date') {
+                    if (filter.singleDate) {
+                      label = new Date(filter.singleDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    } else if (filter.dateRange) {
+                      label = 'Date range';
+                    }
+                  }
+                  return (
+                    <span
+                      key={filter.id}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                    >
+                      {label}
+                      <button
+                        onClick={() => clearSection(filter.type)}
+                        className="ml-0.5 hover:text-sky-900 dark:hover:text-sky-100"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Filter sections */}
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
             {/* Week Section */}
