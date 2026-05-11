@@ -500,30 +500,60 @@ export function FilterSidebar({
                   {filteredStations.length === 0 ? (
                     <p className="text-xs text-gray-400 py-2">No stations available</p>
                   ) : (
-                    <div className="max-h-48 overflow-y-auto space-y-0.5">
-                      {filteredStations.map(station => (
-                        <label
-                          key={station}
-                          className="flex items-center gap-2.5 py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={getFilterValues('station').includes(station)}
-                            onChange={(e) => updateCheckboxFilter('station', station, e.target.checked)}
-                            className="rounded border-gray-300 dark:border-gray-600 text-sky-500 focus:ring-sky-500 h-3.5 w-3.5"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{station}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {hasActiveFilter('station') && (
-                    <button
-                      onClick={() => clearSection('station')}
-                      className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mt-1 px-2"
-                    >
-                      Clear
-                    </button>
+                    <>
+                      <label
+                        className="flex items-center gap-2.5 py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-800 mb-0.5"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filteredStations.length > 0 && filteredStations.every(s => getFilterValues('station').includes(s))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const currentValues = getFilterValues('station');
+                              const newValues = Array.from(new Set([...currentValues, ...filteredStations]));
+                              const existing = activeFilters.find(f => f.type === 'station');
+                              const updatedFilter: FilterConfig = {
+                                id: existing?.id || `filter-station-${Date.now()}`,
+                                type: 'station',
+                                selectedValues: newValues,
+                              };
+                              if (existing) {
+                                onFiltersChange(activeFilters.map(f => f.type === 'station' ? updatedFilter : f));
+                              } else {
+                                onFiltersChange([...activeFilters, updatedFilter]);
+                              }
+                            } else {
+                              const currentValues = getFilterValues('station');
+                              const newValues = currentValues.filter(v => !filteredStations.includes(v));
+                              if (newValues.length === 0) {
+                                onFiltersChange(activeFilters.filter(f => f.type !== 'station'));
+                              } else {
+                                const existing = activeFilters.find(f => f.type === 'station')!;
+                                onFiltersChange(activeFilters.map(f => f.type === 'station' ? { ...existing, selectedValues: newValues } : f));
+                              }
+                            }
+                          }}
+                          className="rounded border-gray-300 dark:border-gray-600 text-sky-500 focus:ring-sky-500 h-3.5 w-3.5"
+                        />
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Select All</span>
+                      </label>
+                      <div className="max-h-48 overflow-y-auto space-y-0.5">
+                        {filteredStations.map(station => (
+                          <label
+                            key={station}
+                            className="flex items-center gap-2.5 py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={getFilterValues('station').includes(station)}
+                              onChange={(e) => updateCheckboxFilter('station', station, e.target.checked)}
+                              className="rounded border-gray-300 dark:border-gray-600 text-sky-500 focus:ring-sky-500 h-3.5 w-3.5"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">{station}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -715,3 +745,6 @@ export function FilterSidebar({
     </>
   );
 }
+
+
+export { FilterSidebar }
