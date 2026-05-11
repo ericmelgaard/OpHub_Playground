@@ -159,7 +159,7 @@ export interface Rule {
   active: boolean;
 }
 
-export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date';
+export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week';
 
 export interface DateRange {
   start: string;

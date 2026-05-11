@@ -57,21 +57,23 @@ export function MenuItems({
     return activeFilters.every(filter => {
       switch (filter.type) {
         case 'daypart':
-          // For grouped items, check if any of the meal periods match
           if (item.isGrouped && item.mealPeriods) {
             return filter.selectedValues.some(value => item.mealPeriods!.includes(value));
           }
           return filter.selectedValues.includes(item.mealPeriod);
         case 'station':
-          // For grouped items, check if any of the meal stations match
           if (item.isGrouped && item.mealStations) {
             return filter.selectedValues.some(value => item.mealStations!.includes(value));
           }
           return filter.selectedValues.includes(item.mealStation);
         case 'menu_item_name':
-          return filter.selectedValues.includes(item.name);
+          return filter.selectedValues.some(value =>
+            item.name.toLowerCase().includes(value.toLowerCase())
+          );
         case 'menu_item_mrn':
-          return filter.selectedValues.includes(item.mrn);
+          return filter.selectedValues.some(value =>
+            item.mrn.toLowerCase().startsWith(value.toLowerCase())
+          );
         case 'date':
           if (filter.singleDate) {
             return item.date === filter.singleDate;
@@ -82,6 +84,8 @@ export function MenuItems({
             const endDate = new Date(filter.dateRange.end);
             return itemDate >= startDate && itemDate <= endDate;
           }
+          return true;
+        case 'week':
           return true;
         default:
           return true;

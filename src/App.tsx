@@ -5,6 +5,7 @@ import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
 import { DeviceGrid } from './components/DeviceGrid';
 import { Sidebar } from './components/Sidebar';
+import { FilterSidebar } from './components/FilterSidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
@@ -73,7 +74,17 @@ function App() {
   });
 
   // Cycle Week state
-  const [selectedCycleWeek, setSelectedCycleWeek] = useState<number>(1);
+  const [selectedCycleWeek, setSelectedCycleWeek] = useState<number | null>(1);
+
+  // Filter sidebar state
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('filterSidebarOpen');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('filterSidebarOpen', JSON.stringify(isFilterSidebarOpen));
+  }, [isFilterSidebarOpen]);
 
   // Device state
   const [devices, setDevices] = useState<Device[]>([]);
@@ -297,22 +308,8 @@ function App() {
     setShowDeviceWorkflow(true);
   }, []);
 
-  const handleAddFilter = useCallback((filter: FilterConfig) => {
-    setActiveFilters(prev => [...prev, filter]);
-  }, []);
-
-  const handleEditFilter = useCallback((updatedFilter: FilterConfig) => {
-    setActiveFilters(prev =>
-      prev.map(filter => filter.id === updatedFilter.id ? updatedFilter : filter)
-    );
-  }, []);
-
-  const handleDeleteFilter = useCallback((filterId: string) => {
-    setActiveFilters(prev => prev.filter(filter => filter.id !== filterId));
-  }, []);
-
-  const handleClearAllFilters = useCallback(() => {
-    setActiveFilters([]);
+  const handleFiltersChange = useCallback((filters: FilterConfig[]) => {
+    setActiveFilters(filters);
   }, []);
 
   const handleToggleGroupByMrn = useCallback(() => {
@@ -424,25 +421,6 @@ function App() {
                     </div>
                   )}
                 </div>
-                {selectedQuickAction === 'products' && (
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={selectedCycleWeek}
-                      onChange={(e) => setSelectedCycleWeek(Number(e.target.value))}
-                      className="px-5 py-2.5 text-base font-semibold text-white rounded-lg hover:bg-[rgb(0,153,220)] focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg cursor-pointer"
-                      style={{
-                        backgroundColor: 'rgb(0, 173, 240)',
-                        borderColor: 'rgb(0, 173, 240)',
-                        boxShadow: '0 4px 6px -1px rgba(0, 173, 240, 0.3), 0 2px 4px -1px rgba(0, 173, 240, 0.2)'
-                      }}
-                    >
-                      <option value={1}>Week 1 (Current)</option>
-                      <option value={2}>Week 2</option>
-                      <option value={3}>Week 3</option>
-                      <option value={4}>Week 4</option>
-                    </select>
-                  </div>
-                )}
               </div>
 
               <MenuFilters
@@ -452,73 +430,84 @@ function App() {
                 setSearchValue={setSearchValue}
                 selectedQuickAction={selectedQuickAction}
                 onCreateItem={() => setShowCreateItemModal(true)}
-                placements={placements}
-                selectedPlacement={selectedPlacement}
-                setSelectedPlacement={setSelectedPlacement}
                 activeFilters={activeFilters}
-                onAddFilter={handleAddFilter}
-                onEditFilter={handleEditFilter}
-                onDeleteFilter={handleDeleteFilter}
-                onClearAllFilters={handleClearAllFilters}
+                onToggleFilterSidebar={() => setIsFilterSidebarOpen(!isFilterSidebarOpen)}
+                isFilterSidebarOpen={isFilterSidebarOpen}
                 menuItems={menuItems}
                 groupByMrn={groupByMrn}
                 onToggleGroupByMrn={handleToggleGroupByMrn}
               />
 
-              {selectedQuickAction === 'smart-labels' ? (
-                <DeviceGrid
-                  loading={loadingDevices}
-                  error={deviceError}
-                  devices={devices}
-                  onDeviceSelect={handleDeviceSelect}
-                  searchValue={searchValue}
-                  viewMode={viewMode === 'grid' ? 'grid' : 'list'}
-                  placements={placements}
-                />
-              ) : selectedQuickAction === 'products' ? (
-                <MenuItems
-                  loading={loading}
-                  error={error}
-                  menuItems={menuItems}
-                  viewMode={viewMode}
-                  selectedChannel={selectedChannel}
-                  expandedItem={null}
-                  toggleItemExpansion={() => {}}
-                  isItemInChannel={(itemId, channelId) => api.isItemInChannel(itemId, channelId)}
-                  toggleItemInChannel={(item, channelId) => {
-                    if (api.isItemInChannel(item.id, channelId)) {
-                      api.removeItemFromChannel(item.id, channelId);
-                    } else {
-                      api.assignItemToChannel(item.id, channelId);
-                    }
-                  }}
-                  setSelectedItem={(item) => {
-                    setSelectedItem(item);
-                  }}
-                  setShowDeviceModal={(show) => {
-                    setShowItemWorkflow(show);
-                  }}
-                  setShowPageSelectionModal={() => {}}
-                  setWorkflowType={(type) => {
-                    setWorkflowType(type);
-                  }}
-                  devices={devices}
-                  searchValue={searchValue}
-                  activeFilters={activeFilters}
-                />
-              ) : selectedQuickAction === 'groups' ? (
-                <div className="text-center py-20">
-                  <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">Groups</h3>
-                  <p className="text-gray-500 dark:text-gray-500">Work in progress - coming soon</p>
+              <div className="flex gap-6 min-h-[calc(100vh-280px)]">
+                {selectedQuickAction === 'products' && (
+                  <FilterSidebar
+                    isOpen={isFilterSidebarOpen}
+                    onClose={() => setIsFilterSidebarOpen(false)}
+                    activeFilters={activeFilters}
+                    onFiltersChange={handleFiltersChange}
+                    menuItems={menuItems}
+                    selectedCycleWeek={selectedCycleWeek}
+                    onCycleWeekChange={setSelectedCycleWeek}
+                  />
+                )}
+
+                <div className="flex-1 min-w-0">
+                  {selectedQuickAction === 'smart-labels' ? (
+                    <DeviceGrid
+                      loading={loadingDevices}
+                      error={deviceError}
+                      devices={devices}
+                      onDeviceSelect={handleDeviceSelect}
+                      searchValue={searchValue}
+                      viewMode={viewMode === 'grid' ? 'grid' : 'list'}
+                      placements={placements}
+                    />
+                  ) : selectedQuickAction === 'products' ? (
+                    <MenuItems
+                      loading={loading}
+                      error={error}
+                      menuItems={menuItems}
+                      viewMode={viewMode}
+                      selectedChannel={selectedChannel}
+                      expandedItem={null}
+                      toggleItemExpansion={() => {}}
+                      isItemInChannel={(itemId, channelId) => api.isItemInChannel(itemId, channelId)}
+                      toggleItemInChannel={(item, channelId) => {
+                        if (api.isItemInChannel(item.id, channelId)) {
+                          api.removeItemFromChannel(item.id, channelId);
+                        } else {
+                          api.assignItemToChannel(item.id, channelId);
+                        }
+                      }}
+                      setSelectedItem={(item) => {
+                        setSelectedItem(item);
+                      }}
+                      setShowDeviceModal={(show) => {
+                        setShowItemWorkflow(show);
+                      }}
+                      setShowPageSelectionModal={() => {}}
+                      setWorkflowType={(type) => {
+                        setWorkflowType(type);
+                      }}
+                      devices={devices}
+                      searchValue={searchValue}
+                      activeFilters={activeFilters}
+                    />
+                  ) : selectedQuickAction === 'groups' ? (
+                    <div className="text-center py-20">
+                      <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">Groups</h3>
+                      <p className="text-gray-500 dark:text-gray-500">Work in progress - coming soon</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-20">
+                      <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">
+                        {selectedQuickAction.charAt(0).toUpperCase() + selectedQuickAction.slice(1).replace('-', ' ')}
+                      </h3>
+                      <p className="text-gray-500 dark:text-gray-500">Coming soon</p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="text-center py-20">
-                  <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">
-                    {selectedQuickAction.charAt(0).toUpperCase() + selectedQuickAction.slice(1).replace('-', ' ')}
-                  </h3>
-                  <p className="text-gray-500 dark:text-gray-500">Coming soon</p>
-                </div>
-              )}
+              </div>
             </div>
           </main>
         </div>
