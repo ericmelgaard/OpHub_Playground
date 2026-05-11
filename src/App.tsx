@@ -437,10 +437,6 @@ function App() {
                 groupByMrn={groupByMrn}
                 onToggleGroupByMrn={handleToggleGroupByMrn}
                 selectedCycleWeek={selectedCycleWeek}
-                onClearAllFilters={() => {
-                  setActiveFilters([]);
-                  setSelectedCycleWeek(null);
-                }}
               />
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">
