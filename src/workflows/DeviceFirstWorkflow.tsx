@@ -48,6 +48,7 @@ export function DeviceFirstWorkflow({
   const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
   const [selectedStation, setSelectedStation] = useState('all');
   const [selectedDaypart, setSelectedDaypart] = useState<string | null>(preSelectedDaypart);
+  const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
 
   // Get unique meal periods and stations from menu items
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
@@ -141,6 +142,44 @@ export function DeviceFirstWorkflow({
         setLastAssignedPageId(null);
         setDuplicateCount(0);
       }, 2000);
+    }
+  };
+
+  const handleInlineAddItems = async (device: Device, items: MenuItem[], pageId: string) => {
+    if (!optimisticDevice || items.length === 0) return;
+
+    const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
+    const page = updatedDevice.pages.find(p => p.id === pageId);
+    if (!page) return;
+
+    const newItems = items.filter(item =>
+      !page.assignedItems.some(existing => existing.id === item.id)
+    );
+
+    newItems.forEach(item => {
+      page.assignedItems.push(item);
+      page.itemOrder.push(item.id);
+      if (!updatedDevice.assignedItems.some(i => i.id === item.id)) {
+        updatedDevice.assignedItems.push(item);
+      }
+    });
+
+    setOptimisticDevice(updatedDevice);
+    setRecentlyAddedItemIds(new Set(newItems.map(i => i.id)));
+
+    try {
+      await onAddItems(selectedDevice!, items, pageId);
+      setSelectedDevice(updatedDevice);
+    } catch (err) {
+      console.error('Error adding items inline:', err);
+      const currentDevice = devices.find(d => d.id === selectedDevice!.id);
+      if (currentDevice) {
+        const clone = JSON.parse(JSON.stringify(currentDevice));
+        setOptimisticDevice(clone);
+        setSelectedDevice(clone);
+      }
+    } finally {
+      setTimeout(() => setRecentlyAddedItemIds(new Set()), 2000);
     }
   };
 
@@ -249,6 +288,9 @@ export function DeviceFirstWorkflow({
         setNotifications={setNotifications}
         selectedDaypart={selectedDaypart}
         onSelectedDaypartChange={setSelectedDaypart}
+        menuItems={menuItems}
+        onInlineAddItems={handleInlineAddItems}
+        recentlyAddedItemIds={recentlyAddedItemIds}
       />
 
       <ItemSelectionModal

@@ -10,6 +10,7 @@ import {
 import { Device, MenuItem, DevicePage } from '../types';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { AddPageItemsButton } from './common/AddPageItemsButton';
+import { InlineItemPicker } from './InlineItemPicker';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +41,9 @@ interface DeviceSettingsModalProps {
   setNotifications: (count: number) => void;
   selectedDaypart?: string | null;
   onSelectedDaypartChange?: (daypart: string | null) => void;
+  menuItems?: MenuItem[];
+  onInlineAddItems?: (device: Device, items: MenuItem[], pageId: string) => void;
+  recentlyAddedItemIds?: Set<number>;
 }
 
 const getDaypartColor = (daypart: string) => {
@@ -114,6 +118,9 @@ export function DeviceSettingsModal({
   setNotifications,
   selectedDaypart = null,
   onSelectedDaypartChange,
+  menuItems = [],
+  onInlineAddItems,
+  recentlyAddedItemIds,
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
 
@@ -187,6 +194,22 @@ export function DeviceSettingsModal({
             ))}
           </div>
 
+          {activeDaypart !== null && menuItems.length > 0 && onInlineAddItems ? (
+            <SplitPaneView
+              device={selectedDeviceSettings}
+              daypart={activeDaypart}
+              menuItems={menuItems}
+              onInlineAddItems={onInlineAddItems}
+              removeItemFromDevice={removeItemFromDevice}
+              reorderItems={reorderItems}
+              handleDragEnd={handleDragEnd}
+              recentlyAddedItemIds={recentlyAddedItemIds}
+              isAddingToPage={isAddingToPage}
+              lastAssignedPageId={lastAssignedPageId}
+              duplicateCount={duplicateCount}
+              onAddItems={onAddItems}
+            />
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <DragDropContext onDragEnd={handleDragEnd}>
               {selectedDeviceSettings.pages.filter(page => activeDaypart === null || page.daypart === activeDaypart).map((page) => {
@@ -399,8 +422,176 @@ export function DeviceSettingsModal({
               })}
             </DragDropContext>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+interface SplitPaneViewProps {
+  device: Device;
+  daypart: string;
+  menuItems: MenuItem[];
+  onInlineAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
+  removeItemFromDevice: (itemId: number, deviceId: string, pageId: string) => void;
+  reorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
+  handleDragEnd: (result: any) => void;
+  recentlyAddedItemIds?: Set<number>;
+  isAddingToPage?: string | null;
+  lastAssignedPageId?: string | null;
+  duplicateCount?: number;
+  onAddItems: (device: Device, pageId: string) => void;
+}
+
+function SplitPaneView({
+  device,
+  daypart,
+  menuItems,
+  onInlineAddItems,
+  removeItemFromDevice,
+  reorderItems,
+  handleDragEnd,
+  recentlyAddedItemIds,
+  isAddingToPage,
+  lastAssignedPageId,
+  duplicateCount,
+  onAddItems,
+}: SplitPaneViewProps) {
+  const page = device.pages.find(p => p.daypart === daypart);
+  if (!page) return null;
+
+  const displayedItems = getDisplayedItems(page);
+  const isRecentlyUpdated = lastAssignedPageId === page.id;
+  const showWarning = hasWarning(page);
+  const warningMessage = page.assignedItems.length === 0 ? 'No items assigned' : 'No active items in display range';
+
+  return (
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[400px]">
+        {/* Left: assigned items */}
+        <div className="flex flex-col">
+          <div className={`px-4 py-3 rounded-t-lg border-b dark:border-gray-700 ${getDaypartBg(page.daypart)}`}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <Clock className={`h-4 w-4 ${getDaypartColor(page.daypart)}`} />
+                <h4 className={`text-sm font-medium ${getDaypartColor(page.daypart)}`}>{page.daypart}</h4>
+              </div>
+              <Badge variant="secondary">Page {page.name.split(' ')[1]}</Badge>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {displayedItems.length} of {page.displayCapacity} showing
+              </span>
+              {page.schedule && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {page.schedule.startTime} - {page.schedule.endTime}
+                </div>
+              )}
+            </div>
+            {showWarning && (
+              <div className="mt-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs">{warningMessage}</span>
+              </div>
+            )}
+          </div>
+
+          <Droppable droppableId={page.id}>
+            {(provided, snapshot) => (
+              <CardContent
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className={`flex-1 p-3 min-h-[300px] transition-colors duration-200 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-b-lg ${
+                  snapshot.isDraggingOver
+                    ? 'bg-sky-50 dark:bg-sky-900/30 ring-2 ring-sky-500 dark:ring-sky-400 ring-inset'
+                    : ''
+                }`}
+              >
+                <div className="space-y-2">
+                  {page.itemOrder.map((itemId, index) => {
+                    const item = page.assignedItems.find(i => i.id === itemId);
+                    if (!item) return null;
+                    const isDisplayed = displayedItems.some(d => d.id === item.id);
+                    const isRecentlyAdded = recentlyAddedItemIds?.has(item.id);
+
+                    return (
+                      <Draggable key={`${item.id}`} draggableId={`${item.id}`} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`relative select-none transition-all duration-200 ${
+                              snapshot.isDragging ? 'shadow-lg z-10' : ''
+                            } ${isRecentlyAdded ? 'animate-in fade-in slide-in-from-right-4 duration-300' : ''}`}
+                          >
+                            <Card
+                              className={`flex items-center justify-between p-3 border dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 group ${
+                                snapshot.isDragging ? 'ring-2 ring-sky-500 dark:ring-sky-400 shadow-xl' : ''
+                              } ${
+                                isRecentlyAdded
+                                  ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
+                                  : isDisplayed
+                                    ? 'border-sky-300 dark:border-sky-500 bg-sky-50 dark:bg-sky-900/30'
+                                    : ''
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div {...provided.dragHandleProps} className="touch-none p-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0">
+                                  <GripVertical className="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-move" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                    ${item.price}
+                                    {isDisplayed && (
+                                      <Badge variant={item.isActive !== false ? 'info' : 'destructive'} className="ml-1">
+                                        {item.isActive !== false ? 'Showing' : 'Inactive'}
+                                      </Badge>
+                                    )}
+                                    {isRecentlyAdded && (
+                                      <span className="text-green-600 dark:text-green-400 text-[10px] font-medium">New</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItemFromDevice(item.id, device.id, page.id)}
+                                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </Card>
+                          </div>
+                        )}
+                      </Draggable>
+                    );
+                  })}
+                </div>
+                {provided.placeholder}
+
+                {page.assignedItems.length === 0 && (
+                  <div className="flex items-center justify-center h-[200px] border-2 border-dashed dark:border-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No items assigned yet</p>
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Droppable>
+        </div>
+
+        {/* Right: inline item picker */}
+        <div className="flex flex-col min-h-[400px]">
+          <InlineItemPicker
+            menuItems={menuItems}
+            page={page}
+            onAddItems={(items) => onInlineAddItems(device, items, page.id)}
+            recentlyAddedIds={recentlyAddedItemIds}
+          />
+        </div>
+      </div>
+    </DragDropContext>
   );
 }
