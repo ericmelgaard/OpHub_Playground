@@ -706,9 +706,9 @@ function ThreeStageToggle({
   onChange: (state: DisplayToggle) => void;
 }) {
   const states: { value: DisplayToggle; label: string; activeClass: string }[] = [
-    { value: 'on', label: 'On', activeClass: 'bg-green-500 text-white' },
-    { value: 'auto', label: 'Auto', activeClass: 'bg-sky-500 text-white' },
     { value: 'off', label: 'Off', activeClass: 'bg-gray-400 text-white' },
+    { value: 'auto', label: 'Auto', activeClass: 'bg-sky-500 text-white' },
+    { value: 'on', label: 'On', activeClass: 'bg-green-500 text-white' },
   ];
 
   return (
