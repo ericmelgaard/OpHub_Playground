@@ -8,6 +8,7 @@ import {
   BatteryFull,
   Check,
   Clock,
+  X,
 } from 'lucide-react';
 import { Device } from '../types';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 interface DeviceHeaderProps {
   device: Device;
   onClose: () => void;
+  hasChanges?: boolean;
 }
 
 const getBatteryIcon = (level: number) => {
@@ -37,7 +39,7 @@ const formatLastUpdated = (iso: string) => {
   return date.toLocaleDateString();
 };
 
-export function DeviceHeader({ device, onClose }: DeviceHeaderProps) {
+export function DeviceHeader({ device, onClose, hasChanges = false }: DeviceHeaderProps) {
   const currentPage = device.pages.find(
     (p) => p.id === (device.status.forcedPage || device.status.currentPage)
   );
@@ -90,15 +92,26 @@ export function DeviceHeader({ device, onClose }: DeviceHeaderProps) {
         </div>
       </div>
 
-      {/* Right: Done button */}
-      <Button
-        variant="outline"
-        onClick={onClose}
-        className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/40 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors flex-shrink-0"
-      >
-        <Check className="h-4 w-4" />
-        Done
-      </Button>
+      {/* Right: Done button — only prominent when changes exist */}
+      {hasChanges ? (
+        <Button
+          variant="outline"
+          onClick={onClose}
+          className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/40 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors flex-shrink-0"
+        >
+          <Check className="h-4 w-4" />
+          Done
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex-shrink-0"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      )}
     </div>
   );
 }
