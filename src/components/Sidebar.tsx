@@ -337,23 +337,47 @@ export function Sidebar({
                 className="w-full pl-10 pr-10 bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400"
               />
               <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-              {nfc.supported && (
+              {nfc.supported && !nfc.scanning && (
                 <button
-                  onClick={() => (nfc.scanning ? nfc.stopScan() : nfc.startScan())}
-                  title={nfc.scanning ? 'Stop NFC scan' : 'Scan NFC tag'}
-                  className={`absolute right-2 top-1.5 p-1.5 rounded-md transition-all ${
-                    nfc.scanning
-                      ? 'bg-emerald-500 text-white animate-pulse'
-                      : 'text-gray-400 hover:text-indigo-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                  onClick={() => nfc.startScan()}
+                  title="Scan NFC tag"
+                  className="absolute right-2 top-1.5 p-1.5 rounded-md transition-all text-gray-400 hover:text-emerald-500 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <Nfc className="h-5 w-5" />
                 </button>
               )}
               {nfc.scanning && (
-                <div className="absolute -bottom-5 left-0 right-0 text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  Tap an NFC tag...
+                <>
+                  <button
+                    onClick={() => nfc.stopScan()}
+                    title="Stop NFC scan"
+                    className="absolute right-2 top-1.5 p-1.5 rounded-md transition-all bg-emerald-500 text-white nfc-pulse-glow z-10"
+                  >
+                    <Nfc className="h-5 w-5" />
+                  </button>
+                  <div className="absolute right-2 top-1.5 pointer-events-none">
+                    <span className="absolute inset-0 rounded-md bg-emerald-400 nfc-wave-ring" />
+                    <span className="absolute inset-0 rounded-md bg-emerald-400 nfc-wave-ring-delayed" />
+                  </div>
+                </>
+              )}
+              {nfc.scanning && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                    </span>
+                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                      Scanning... tap a tag
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => nfc.stopScan()}
+                    className="text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-100 underline-offset-2 hover:underline"
+                  >
+                    Stop
+                  </button>
                 </div>
               )}
               {nfc.error && (
