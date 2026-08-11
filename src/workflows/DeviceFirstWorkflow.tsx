@@ -11,6 +11,7 @@ interface DeviceFirstWorkflowProps {
   devices: Device[];
   menuItems: MenuItem[];
   preSelectedDevice?: Device;
+  preSelectedDaypart?: string | null;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
@@ -23,6 +24,7 @@ export function DeviceFirstWorkflow({
   devices,
   menuItems,
   preSelectedDevice,
+  preSelectedDaypart = null,
   onAddItems,
   onRemoveItem,
   onReorderItems,
@@ -45,6 +47,7 @@ export function DeviceFirstWorkflow({
   const [itemSearchValue, setItemSearchValue] = useState('');
   const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
   const [selectedStation, setSelectedStation] = useState('all');
+  const [selectedDaypart, setSelectedDaypart] = useState<string | null>(preSelectedDaypart);
 
   // Get unique meal periods and stations from menu items
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
@@ -244,6 +247,8 @@ export function DeviceFirstWorkflow({
           />
         )}
         setNotifications={setNotifications}
+        selectedDaypart={selectedDaypart}
+        onSelectedDaypartChange={setSelectedDaypart}
       />
 
       <ItemSelectionModal

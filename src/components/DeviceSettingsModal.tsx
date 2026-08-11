@@ -38,6 +38,8 @@ interface DeviceSettingsModalProps {
   duplicateCount?: number;
   header?: ReactNode;
   setNotifications: (count: number) => void;
+  selectedDaypart?: string | null;
+  onSelectedDaypartChange?: (daypart: string | null) => void;
 }
 
 const getDaypartColor = (daypart: string) => {
@@ -110,7 +112,16 @@ export function DeviceSettingsModal({
   duplicateCount,
   header,
   setNotifications,
+  selectedDaypart = null,
+  onSelectedDaypartChange,
 }: DeviceSettingsModalProps) {
+  const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
+
+  useEffect(() => {
+    setInternalDaypart(selectedDaypart);
+  }, [selectedDaypart]);
+
+  const activeDaypart = internalDaypart ?? selectedDaypart;
   useEffect(() => {
     if (selectedDeviceSettings) {
       const pagesWithWarnings = selectedDeviceSettings.pages.filter((page) =>
@@ -151,9 +162,34 @@ export function DeviceSettingsModal({
         <CardHeader className="flex-shrink-0 modal-header">{header}</CardHeader>
 
         <CardContent className="flex-1 overflow-y-auto scrollbar-thin modal-body">
+          {/* Daypart selector */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-2 border-b border-gray-100 dark:border-gray-700">
+            <button
+              onClick={() => { setInternalDaypart(null); onSelectedDaypartChange?.(null); }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors flex-shrink-0 ${
+                activeDaypart === null
+                  ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >All</button>
+            {selectedDeviceSettings.pages.map(page => (
+              <button
+                key={page.id}
+                onClick={() => { setInternalDaypart(page.daypart); onSelectedDaypartChange?.(page.daypart); }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors flex-shrink-0 ${
+                  activeDaypart === page.daypart
+                    ? `${getDaypartBg(page.daypart)} ${getDaypartColor(page.daypart)} border-current`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5 inline mr-1" />{page.daypart}
+              </button>
+            ))}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <DragDropContext onDragEnd={handleDragEnd}>
-              {selectedDeviceSettings.pages.map((page) => {
+              {selectedDeviceSettings.pages.filter(page => activeDaypart === null || page.daypart === activeDaypart).map((page) => {
                 const displayedItems = getDisplayedItems(page);
                 const isRecentlyUpdated = lastAssignedPageId === page.id;
                 const showWarning = hasWarning(page);

@@ -4,6 +4,9 @@ import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
 import { DeviceGrid } from './components/DeviceGrid';
+import { SmartLabelGrid } from './components/SmartLabelGrid';
+import { DaypartSelector } from './components/DaypartSelector';
+import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
 import { CreateItemModal } from './components/CreateItemModal';
@@ -92,6 +95,17 @@ function App() {
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [showDeviceWorkflow, setShowDeviceWorkflow] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [selectedDaypart, setSelectedDaypart] = useState<string>('Breakfast');
+  const [workflowDaypart, setWorkflowDaypart] = useState<string | null>(null);
+
+  // Default daypart based on current time
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 10) setSelectedDaypart('Breakfast');
+    else if (hour >= 10 && hour < 15) setSelectedDaypart('Lunch');
+    else if (hour >= 15 && hour < 20) setSelectedDaypart('Dinner');
+    else setSelectedDaypart('Late Night');
+  }, []);
 
   // Modal state
   const [showCreateItemModal, setShowCreateItemModal] = useState(false);
@@ -303,10 +317,11 @@ function App() {
     setSelectedStore(storeId);
   }, []);
 
-  const handleDeviceSelect = useCallback((device: Device) => {
+  const handleDeviceSelect = useCallback((device: Device, daypart?: string) => {
     setSelectedDevice(device);
+    setWorkflowDaypart(daypart || selectedDaypart);
     setShowDeviceWorkflow(true);
-  }, []);
+  }, [selectedDaypart]);
 
   const handleFiltersChange = useCallback((filters: FilterConfig[]) => {
     setActiveFilters(filters);
@@ -452,17 +467,35 @@ function App() {
                   />
                 )}
 
+                {selectedQuickAction === 'smart-labels' && (
+                  <SmartLabelFilters
+                    isOpen={isFilterSidebarOpen}
+                    onClose={() => setIsFilterSidebarOpen(false)}
+                    activeFilters={activeFilters}
+                    onFiltersChange={handleFiltersChange}
+                    placements={placements}
+                  />
+                )}
+
                 <div className="flex-1 min-w-0">
                   {selectedQuickAction === 'smart-labels' ? (
-                    <DeviceGrid
-                      loading={loadingDevices}
-                      error={deviceError}
-                      devices={devices}
-                      onDeviceSelect={handleDeviceSelect}
-                      searchValue={searchValue}
-                      viewMode={viewMode === 'grid' ? 'grid' : 'list'}
-                      placements={placements}
-                    />
+                    <div className="space-y-4">
+                      <DaypartSelector
+                        devices={devices}
+                        selectedDaypart={selectedDaypart}
+                        onSelectDaypart={setSelectedDaypart}
+                      />
+                      <SmartLabelGrid
+                        loading={loadingDevices}
+                        error={deviceError}
+                        devices={devices}
+                        onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
+                        searchValue={searchValue}
+                        placements={placements}
+                        selectedDaypart={selectedDaypart}
+                        selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
+                      />
+                    </div>
                   ) : selectedQuickAction === 'products' ? (
                     <MenuItems
                       loading={loading}
@@ -553,6 +586,7 @@ function App() {
             devices={devices}
             menuItems={menuItems}
             preSelectedDevice={selectedDevice}
+            preSelectedDaypart={workflowDaypart}
             onAddItems={async (device, items, pageId) => {
               for (const item of items) {
                 await api.assignItemToPage(item.id, device.id, pageId);

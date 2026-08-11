@@ -41,6 +41,7 @@ export function MenuFilters({
 
   const showProductFilters = selectedQuickAction === 'products';
   const showDeviceFilters = selectedQuickAction === 'smart-labels' || selectedQuickAction === 'groups';
+  const showFilterToggle = selectedQuickAction === 'products' || selectedQuickAction === 'smart-labels';
 
   const totalActiveCount = activeFilters.length + (selectedCycleWeek ? 1 : 0);
 
@@ -49,7 +50,7 @@ export function MenuFilters({
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
         {/* Left side - Filters toggle button */}
         <div className="flex items-center gap-3 order-1">
-          {showProductFilters && (
+          {showFilterToggle && (
             <Button
               variant="outline"
               size="sm"
@@ -81,7 +82,7 @@ export function MenuFilters({
         <div className="relative flex-1 order-2">
           <Input
             type="text"
-            placeholder={showDeviceFilters ? "Search displays..." : "Search menu items..."}
+            placeholder={selectedQuickAction === 'smart-labels' ? "Search by product name, tag ID, or location..." : showDeviceFilters ? "Search displays..." : "Search menu items..."}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             className="w-full pl-10 pr-12 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"

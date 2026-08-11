@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { FilterConfig, FilterType, MenuItem } from '../types';
+import { FilterConfig, FilterType, MenuItem, Placement } from '../types';
 
 interface FilterSidebarProps {
   isOpen: boolean;
@@ -23,6 +23,8 @@ interface FilterSidebarProps {
   menuItems: MenuItem[];
   selectedCycleWeek: number | null;
   onCycleWeekChange: (week: number | null) => void;
+  mode?: 'products' | 'smart-labels';
+  placements?: Placement[];
 }
 
 interface SectionState {

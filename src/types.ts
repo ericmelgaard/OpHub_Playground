@@ -39,10 +39,13 @@ export interface DevicePage {
   };
 }
 
+export type LabelSize = '2-inch' | '3-inch' | '4-inch' | '7-inch' | '11-inch';
+
 export interface Device {
   id: string;
   name: string;
   location: string;
+  labelSize: LabelSize;
   status: {
     wifiStrength: number;
     batteryLevel: number;
@@ -159,7 +162,7 @@ export interface Rule {
   active: boolean;
 }
 
-export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week';
+export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement';
 
 export interface DateRange {
   start: string;
