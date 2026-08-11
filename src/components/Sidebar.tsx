@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Building2,
@@ -13,11 +13,13 @@ import {
   MapPin,
   Expand,
   Minimize2,
+  Nfc,
 } from 'lucide-react';
 import { Channel, Concept, Company, Store, Placement } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { useNfc } from '../hooks/useNfc';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -66,6 +68,14 @@ export function Sidebar({
   const [showLocationPanel, setShowLocationPanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedPlacements, setExpandedPlacements] = useState<Set<string>>(new Set());
+  const nfc = useNfc();
+
+  // Auto-fill search bar when an NFC tag is read
+  useEffect(() => {
+    if (nfc.lastReading) {
+      setQuickSearchQuery(nfc.lastReading.text);
+    }
+  }, [nfc.lastReading]);
 
   // Get current location details
   const currentLocationDetails = useMemo(() => {
@@ -324,9 +334,33 @@ export function Sidebar({
                 placeholder="Quick search locations..."
                 value={quickSearchQuery}
                 onChange={(e) => setQuickSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400"
+                className="w-full pl-10 pr-10 bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400"
               />
               <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              {nfc.supported && (
+                <button
+                  onClick={() => (nfc.scanning ? nfc.stopScan() : nfc.startScan())}
+                  title={nfc.scanning ? 'Stop NFC scan' : 'Scan NFC tag'}
+                  className={`absolute right-2 top-1.5 p-1.5 rounded-md transition-all ${
+                    nfc.scanning
+                      ? 'bg-emerald-500 text-white animate-pulse'
+                      : 'text-gray-400 hover:text-indigo-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Nfc className="h-5 w-5" />
+                </button>
+              )}
+              {nfc.scanning && (
+                <div className="absolute -bottom-5 left-0 right-0 text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  Tap an NFC tag...
+                </div>
+              )}
+              {nfc.error && (
+                <div className="absolute -bottom-5 left-0 right-0 text-xs text-red-500 truncate">
+                  {nfc.error}
+                </div>
+              )}
 
               {quickSearchQuery && quickSearchResults.length > 0 && (
                 <Card className="absolute z-10 w-full mt-1 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg overflow-hidden">
