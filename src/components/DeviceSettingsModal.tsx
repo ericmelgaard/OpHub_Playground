@@ -216,6 +216,13 @@ export function DeviceSettingsModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-container">
+      <button
+        onClick={onClose}
+        className="modal-close-mobile hidden"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5" />
+      </button>
       <Card className="bg-white dark:bg-gray-800 max-w-6xl w-full h-[90vh] flex flex-col modal-content">
         <CardHeader className="flex-shrink-0 modal-header">{header}</CardHeader>
 

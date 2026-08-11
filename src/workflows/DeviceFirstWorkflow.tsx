@@ -51,7 +51,6 @@ export function DeviceFirstWorkflow({
   const [selectedDaypart, setSelectedDaypart] = useState<string | null>(preSelectedDaypart);
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
   const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>({});
-  const [hasChanges, setHasChanges] = useState(false);
 
   // Get unique meal periods and stations from menu items
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
@@ -67,7 +66,6 @@ export function DeviceFirstWorkflow({
     setIsAddingToPage(null);
     setLastAssignedPageId(null);
     setDuplicateCount(0);
-    setHasChanges(false);
     onClose();
   };
 
@@ -122,7 +120,6 @@ export function DeviceFirstWorkflow({
     setIsAddingToPage(selectedPageId);
     setShowItemSelectionModal(false);
     setShowDeviceSettingsModal(true);
-    setHasChanges(true);
 
     try {
       // Make API call
@@ -171,7 +168,6 @@ export function DeviceFirstWorkflow({
 
     setOptimisticDevice(updatedDevice);
     setRecentlyAddedItemIds(new Set(newItems.map(i => i.id)));
-    setHasChanges(true);
 
     try {
       await onAddItems(selectedDevice!, items, pageId);
@@ -211,7 +207,6 @@ export function DeviceFirstWorkflow({
     });
 
     setOptimisticDevice(updatedDevice);
-    setHasChanges(true);
 
     try {
       for (const itemId of itemIds) {
@@ -239,7 +234,6 @@ export function DeviceFirstWorkflow({
       }
       return { ...prev, [pageId]: pageToggles };
     });
-    setHasChanges(true);
   };
 
   const handleForcePage = (pageId: string | null) => {
@@ -254,7 +248,6 @@ export function DeviceFirstWorkflow({
     
     // Update UI immediately
     setOptimisticDevice(updatedDevice);
-    setHasChanges(true);
     
     // Make API call
     onForcePage(selectedDevice.id, pageId);
@@ -274,7 +267,6 @@ export function DeviceFirstWorkflow({
 
     // Update UI immediately
     setOptimisticDevice(updatedDevice);
-    setHasChanges(true);
 
     try {
       // Make API call
@@ -344,7 +336,6 @@ export function DeviceFirstWorkflow({
             device={optimisticDevice}
             onClose={handleCloseModals}
             onForcePage={handleForcePage}
-            hasChanges={hasChanges}
           />
         )}
         setNotifications={setNotifications}
