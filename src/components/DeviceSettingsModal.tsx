@@ -10,7 +10,7 @@ import {
 import { Device, MenuItem, DevicePage } from '../types';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { AddPageItemsButton } from './common/AddPageItemsButton';
-import { InlineItemPicker } from './InlineItemPicker';
+import { InlineItemPicker, DisplayToggle } from './InlineItemPicker';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +43,10 @@ interface DeviceSettingsModalProps {
   onSelectedDaypartChange?: (daypart: string | null) => void;
   menuItems?: MenuItem[];
   onInlineAddItems?: (device: Device, items: MenuItem[], pageId: string) => void;
+  onInlineRemoveItems?: (device: Device, itemIds: number[], pageId: string) => void;
+  onToggleItemDisplay?: (device: Device, pageId: string, itemId: number, toggle: DisplayToggle) => void;
   recentlyAddedItemIds?: Set<number>;
+  itemDisplayToggles?: Record<string, Record<number, DisplayToggle>>;
 }
 
 const getDaypartColor = (daypart: string) => {
@@ -120,7 +123,10 @@ export function DeviceSettingsModal({
   onSelectedDaypartChange,
   menuItems = [],
   onInlineAddItems,
+  onInlineRemoveItems,
+  onToggleItemDisplay,
   recentlyAddedItemIds,
+  itemDisplayToggles = {},
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
 
@@ -151,6 +157,51 @@ export function DeviceSettingsModal({
         return;
       }
 
+      // Drop onto trash zone → remove item
+      if (destination.droppableId === 'trash-zone') {
+        const sourceParts = source.droppableId.split('|');
+        const pageId = sourceParts.length > 1 ? sourceParts[1] : source.droppableId;
+        const itemId = parseInt(source.droppableId.startsWith('avail-') ? '' : result.draggableId, 10);
+        if (onInlineRemoveItems && itemId) {
+          onInlineRemoveItems(selectedDeviceSettings, [itemId], pageId);
+        } else if (!source.droppableId.startsWith('avail-')) {
+          removeItemFromDevice(itemId, selectedDeviceSettings.id, pageId);
+        }
+        return;
+      }
+
+      // Cross-list: available → assigned (add)
+      if (source.droppableId === 'available-items' && destination.droppableId.startsWith('page|')) {
+        const pageId = destination.droppableId.split('|')[1];
+        const draggableId = result.draggableId.replace('avail-', '');
+        const itemId = parseInt(draggableId, 10);
+        const item = menuItems.find(i => i.id === itemId);
+        if (item && onInlineAddItems) {
+          onInlineAddItems(selectedDeviceSettings, [item], pageId);
+        }
+        return;
+      }
+
+      // Cross-list: assigned → available (remove)
+      if (source.droppableId.startsWith('page|') && destination.droppableId === 'available-items') {
+        const pageId = source.droppableId.split('|')[1];
+        const itemId = parseInt(result.draggableId, 10);
+        if (onInlineRemoveItems) {
+          onInlineRemoveItems(selectedDeviceSettings, [itemId], pageId);
+        } else {
+          removeItemFromDevice(itemId, selectedDeviceSettings.id, pageId);
+        }
+        return;
+      }
+
+      // Same-list reorder within a page
+      if (source.droppableId === destination.droppableId && source.droppableId.startsWith('page|')) {
+        const pageId = source.droppableId.split('|')[1];
+        reorderItems(selectedDeviceSettings.id, pageId, source.index, destination.index);
+        return;
+      }
+
+      // Fallback: same-list reorder (legacy page IDs)
       reorderItems(
         selectedDeviceSettings.id,
         source.droppableId,
@@ -158,7 +209,7 @@ export function DeviceSettingsModal({
         destination.index
       );
     },
-    [selectedDeviceSettings, reorderItems]
+    [selectedDeviceSettings, reorderItems, menuItems, onInlineAddItems, onInlineRemoveItems, removeItemFromDevice]
   );
 
   if (!showDeviceSettingsModal || !selectedDeviceSettings) return null;
@@ -208,6 +259,8 @@ export function DeviceSettingsModal({
               lastAssignedPageId={lastAssignedPageId}
               duplicateCount={duplicateCount}
               onAddItems={onAddItems}
+              onToggleItemDisplay={onToggleItemDisplay}
+              itemDisplayToggles={itemDisplayToggles}
             />
           ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -442,6 +495,8 @@ interface SplitPaneViewProps {
   lastAssignedPageId?: string | null;
   duplicateCount?: number;
   onAddItems: (device: Device, pageId: string) => void;
+  onToggleItemDisplay?: (device: Device, pageId: string, itemId: number, toggle: DisplayToggle) => void;
+  itemDisplayToggles?: Record<string, Record<number, DisplayToggle>>;
 }
 
 function SplitPaneView({
@@ -450,21 +505,28 @@ function SplitPaneView({
   menuItems,
   onInlineAddItems,
   removeItemFromDevice,
-  reorderItems,
   handleDragEnd,
   recentlyAddedItemIds,
-  isAddingToPage,
   lastAssignedPageId,
-  duplicateCount,
-  onAddItems,
+  onToggleItemDisplay,
+  itemDisplayToggles = {},
 }: SplitPaneViewProps) {
   const page = device.pages.find(p => p.daypart === daypart);
   if (!page) return null;
 
+  const pageDroppableId = `page|${page.id}`;
   const displayedItems = getDisplayedItems(page);
-  const isRecentlyUpdated = lastAssignedPageId === page.id;
   const showWarning = hasWarning(page);
   const warningMessage = page.assignedItems.length === 0 ? 'No items assigned' : 'No active items in display range';
+
+  const getToggleState = (itemId: number): DisplayToggle => {
+    return itemDisplayToggles[page.id]?.[itemId] ?? 'auto';
+  };
+
+  const showingCount = page.assignedItems.filter(item => {
+    const t = getToggleState(item.id);
+    return t === 'on' || (t === 'auto' && displayedItems.some(d => d.id === item.id));
+  }).length;
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -481,7 +543,7 @@ function SplitPaneView({
             </div>
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                {displayedItems.length} of {page.displayCapacity} showing
+                {showingCount} of {page.displayCapacity} showing · {page.assignedItems.length} assigned
               </span>
               {page.schedule && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -497,7 +559,7 @@ function SplitPaneView({
             )}
           </div>
 
-          <Droppable droppableId={page.id}>
+          <Droppable droppableId={pageDroppableId}>
             {(provided, snapshot) => (
               <CardContent
                 ref={provided.innerRef}
@@ -514,6 +576,7 @@ function SplitPaneView({
                     if (!item) return null;
                     const isDisplayed = displayedItems.some(d => d.id === item.id);
                     const isRecentlyAdded = recentlyAddedItemIds?.has(item.id);
+                    const toggleState = getToggleState(item.id);
 
                     return (
                       <Draggable key={`${item.id}`} draggableId={`${item.id}`} index={index}>
@@ -531,38 +594,43 @@ function SplitPaneView({
                               } ${
                                 isRecentlyAdded
                                   ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
-                                  : isDisplayed
-                                    ? 'border-sky-300 dark:border-sky-500 bg-sky-50 dark:bg-sky-900/30'
-                                    : ''
+                                  : toggleState === 'on'
+                                    ? 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
+                                    : toggleState === 'off'
+                                      ? 'border-gray-200 dark:border-gray-700 opacity-60'
+                                      : isDisplayed
+                                        ? 'border-sky-300 dark:border-sky-500 bg-sky-50 dark:bg-sky-900/30'
+                                        : ''
                               }`}
                             >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div {...provided.dragHandleProps} className="touch-none p-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <div {...provided.dragHandleProps} className="touch-none p-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0 cursor-grab active:cursor-grabbing">
                                   <GripVertical className="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-move" />
                                 </div>
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className={`text-sm font-medium truncate ${
+                                    toggleState === 'off'
+                                      ? 'text-gray-400 dark:text-gray-500 line-through'
+                                      : 'text-gray-900 dark:text-white'
+                                  }`}>
+                                    {item.name}
+                                  </div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                     ${item.price}
-                                    {isDisplayed && (
-                                      <Badge variant={item.isActive !== false ? 'info' : 'destructive'} className="ml-1">
-                                        {item.isActive !== false ? 'Showing' : 'Inactive'}
-                                      </Badge>
-                                    )}
                                     {isRecentlyAdded && (
                                       <span className="text-green-600 dark:text-green-400 text-[10px] font-medium">New</span>
                                     )}
                                   </div>
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeItemFromDevice(item.id, device.id, page.id)}
-                                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+
+                              {/* Three-stage toggle: On / Auto / Off */}
+                              {onToggleItemDisplay && (
+                                <ThreeStageToggle
+                                  state={toggleState}
+                                  onChange={(newState) => onToggleItemDisplay(device, page.id, item.id, newState)}
+                                />
+                              )}
                             </Card>
                           </div>
                         )}
@@ -573,8 +641,9 @@ function SplitPaneView({
                 {provided.placeholder}
 
                 {page.assignedItems.length === 0 && (
-                  <div className="flex items-center justify-center h-[200px] border-2 border-dashed dark:border-gray-700 rounded-lg">
+                  <div className="flex flex-col items-center justify-center h-[200px] border-2 border-dashed dark:border-gray-700 rounded-lg gap-1">
                     <p className="text-sm text-gray-500 dark:text-gray-400">No items assigned yet</p>
+                    <p className="text-xs text-gray-400">Drag items from the right panel</p>
                   </div>
                 )}
               </CardContent>
@@ -591,7 +660,75 @@ function SplitPaneView({
             recentlyAddedIds={recentlyAddedItemIds}
           />
         </div>
+
+        {/* Global trash drop zone */}
+        <Droppable droppableId="trash-zone">
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className={`col-span-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed transition-all duration-200 ${
+                snapshot.isDraggingOver
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/30 scale-[1.01]'
+                  : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50'
+              }`}
+            >
+              <Trash2
+                className={`h-5 w-5 transition-colors ${
+                  snapshot.isDraggingOver
+                    ? 'text-red-500'
+                    : 'text-gray-400 dark:text-gray-500'
+                }`}
+              />
+              <span
+                className={`text-sm font-medium transition-colors ${
+                  snapshot.isDraggingOver
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {snapshot.isDraggingOver ? 'Drop to remove' : 'Drag here to remove'}
+              </span>
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
       </div>
     </DragDropContext>
+  );
+}
+
+function ThreeStageToggle({
+  state,
+  onChange,
+}: {
+  state: DisplayToggle;
+  onChange: (state: DisplayToggle) => void;
+}) {
+  const states: { value: DisplayToggle; label: string; activeClass: string }[] = [
+    { value: 'on', label: 'On', activeClass: 'bg-green-500 text-white' },
+    { value: 'auto', label: 'Auto', activeClass: 'bg-sky-500 text-white' },
+    { value: 'off', label: 'Off', activeClass: 'bg-gray-400 text-white' },
+  ];
+
+  return (
+    <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-md p-0.5 flex-shrink-0">
+      {states.map((s) => (
+        <button
+          key={s.value}
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange(s.value);
+          }}
+          className={`px-2 py-1 text-[10px] font-semibold rounded transition-all ${
+            state === s.value
+              ? s.activeClass
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
   );
 }

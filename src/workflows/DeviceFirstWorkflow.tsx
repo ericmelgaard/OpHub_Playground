@@ -4,6 +4,7 @@ import { DeviceModal } from '../components/DeviceModal';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
 import { ItemSelectionModal } from '../components/ItemSelectionModal';
 import { DeviceHeader } from '../components/DeviceHeader';
+import { DisplayToggle } from '../components/InlineItemPicker';
 import { mockPlacements } from '../services/mockData';
 import { useModalHistory } from '../hooks/useModalHistory';
 
@@ -49,6 +50,7 @@ export function DeviceFirstWorkflow({
   const [selectedStation, setSelectedStation] = useState('all');
   const [selectedDaypart, setSelectedDaypart] = useState<string | null>(preSelectedDaypart);
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
+  const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>({});
 
   // Get unique meal periods and stations from menu items
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
@@ -183,6 +185,57 @@ export function DeviceFirstWorkflow({
     }
   };
 
+  const handleInlineRemoveItems = async (device: Device, itemIds: number[], pageId: string) => {
+    if (!optimisticDevice || itemIds.length === 0) return;
+
+    const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
+    const page = updatedDevice.pages.find(p => p.id === pageId);
+    if (!page) return;
+
+    itemIds.forEach(itemId => {
+      page.assignedItems = page.assignedItems.filter((i: MenuItem) => i.id !== itemId);
+      page.itemOrder = page.itemOrder.filter((id: number) => id !== itemId);
+    });
+
+    const isItemUsedInOtherPages = (itemId: number) =>
+      updatedDevice.pages.some(p => p.id !== pageId && p.assignedItems.some((i: MenuItem) => i.id === itemId));
+
+    itemIds.forEach(itemId => {
+      if (!isItemUsedInOtherPages(itemId)) {
+        updatedDevice.assignedItems = updatedDevice.assignedItems.filter((i: MenuItem) => i.id !== itemId);
+      }
+    });
+
+    setOptimisticDevice(updatedDevice);
+
+    try {
+      for (const itemId of itemIds) {
+        await onRemoveItem(itemId, device.id, pageId);
+      }
+      setSelectedDevice(updatedDevice);
+    } catch (err) {
+      console.error('Error removing items inline:', err);
+      const currentDevice = devices.find(d => d.id === device.id);
+      if (currentDevice) {
+        const clone = JSON.parse(JSON.stringify(currentDevice));
+        setOptimisticDevice(clone);
+        setSelectedDevice(clone);
+      }
+    }
+  };
+
+  const handleToggleItemDisplay = (device: Device, pageId: string, itemId: number, toggle: DisplayToggle) => {
+    setItemDisplayToggles(prev => {
+      const pageToggles = { ...(prev[pageId] || {}) };
+      if (toggle === 'auto') {
+        delete pageToggles[itemId];
+      } else {
+        pageToggles[itemId] = toggle;
+      }
+      return { ...prev, [pageId]: pageToggles };
+    });
+  };
+
   const handleForcePage = (pageId: string | null) => {
     if (!selectedDevice || !onForcePage) return;
     
@@ -290,6 +343,9 @@ export function DeviceFirstWorkflow({
         onSelectedDaypartChange={setSelectedDaypart}
         menuItems={menuItems}
         onInlineAddItems={handleInlineAddItems}
+        onInlineRemoveItems={handleInlineRemoveItems}
+        onToggleItemDisplay={handleToggleItemDisplay}
+        itemDisplayToggles={itemDisplayToggles}
         recentlyAddedItemIds={recentlyAddedItemIds}
       />
 
