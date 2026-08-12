@@ -18,6 +18,7 @@ import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsMo
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
 import { api } from './services/api';
+import { useNfc } from './hooks/useNfc';
 
 function App() {
   // Theme state
@@ -324,6 +325,8 @@ function App() {
     setShowDeviceWorkflow(true);
   }, [selectedDaypart]);
 
+  const nfc = useNfc();
+
   const handleScanLookup = useCallback((query: string): boolean => {
     const q = query.trim().toLowerCase();
     if (!q) return false;
@@ -341,6 +344,16 @@ function App() {
     }
     return false;
   }, [devices, selectedDaypart, handleDeviceSelect]);
+
+  useEffect(() => {
+    if (nfc.lastReading) {
+      const found = handleScanLookup(nfc.lastReading.text);
+      if (found) {
+        nfc.stopScan();
+      }
+      nfc.clearReading();
+    }
+  }, [nfc.lastReading, handleScanLookup, nfc]);
 
   const handleFiltersChange = useCallback((filters: FilterConfig[]) => {
     setActiveFilters(filters);
@@ -472,6 +485,11 @@ function App() {
                 onToggleGroupByMrn={handleToggleGroupByMrn}
                 selectedCycleWeek={selectedCycleWeek}
                 onScanLookup={selectedQuickAction === 'smart-labels' ? handleScanLookup : undefined}
+                nfcSupported={selectedQuickAction === 'smart-labels' && nfc.supported}
+                nfcScanning={nfc.scanning}
+                nfcError={nfc.error}
+                onNfcStart={nfc.startScan}
+                onNfcStop={nfc.stopScan}
               />
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">
@@ -510,7 +528,6 @@ function App() {
                         error={deviceError}
                         devices={devices}
                         onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
-                        onScanLookup={handleScanLookup}
                         searchValue={searchValue}
                         placements={placements}
                         selectedDaypart={selectedDaypart}

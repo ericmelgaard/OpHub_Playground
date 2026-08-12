@@ -1,16 +1,13 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Device, LabelSize, Placement } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, BatteryLow } from 'lucide-react';
-import { useNfc } from '../hooks/useNfc';
-import { NfcScanPanel } from './NfcScanPanel';
 
 interface SmartLabelGridProps {
   loading: boolean;
   error: string | null;
   devices: Device[];
   onDeviceSelect: (device: Device, daypart: string) => void;
-  onScanLookup: (query: string) => boolean;
   searchValue: string;
   placements: Placement[];
   selectedDaypart: string;
@@ -65,23 +62,11 @@ export function SmartLabelGrid({
   error,
   devices,
   onDeviceSelect,
-  onScanLookup,
   searchValue,
   placements,
   selectedDaypart,
   selectedPlacements,
 }: SmartLabelGridProps) {
-  const nfc = useNfc();
-
-  useEffect(() => {
-    if (nfc.lastReading) {
-      const found = onScanLookup(nfc.lastReading.text);
-      if (found) {
-        nfc.stopScan();
-      }
-      nfc.clearReading();
-    }
-  }, [nfc.lastReading, onScanLookup, nfc]);
   const filteredDevices = useMemo(() => {
     let result = devices;
 
@@ -131,15 +116,6 @@ export function SmartLabelGrid({
 
   return (
     <div className="space-y-4">
-      {/* NFC scan panel */}
-      <NfcScanPanel
-        supported={nfc.supported}
-        scanning={nfc.scanning}
-        error={nfc.error}
-        onStartScan={nfc.startScan}
-        onStopScan={nfc.stopScan}
-      />
-
       {/* Label grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredDevices.map(device => (
