@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Rows2 as Rows, Search, Camera, Plus, Layers, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
+import { LayoutGrid, Rows2 as Rows, Search, Camera, Plus, Layers, PanelLeftOpen, PanelLeftClose, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
@@ -19,6 +19,7 @@ interface MenuFiltersProps {
   groupByMrn?: boolean;
   onToggleGroupByMrn?: () => void;
   selectedCycleWeek?: number | null;
+  onScanLookup?: (query: string) => boolean;
 }
 
 export function MenuFilters({
@@ -34,6 +35,7 @@ export function MenuFilters({
   groupByMrn = false,
   onToggleGroupByMrn,
   selectedCycleWeek,
+  onScanLookup,
 }: MenuFiltersProps) {
   const handleScanBarcode = () => {
     console.log('Barcode scanning will be implemented when API is available');
@@ -82,21 +84,38 @@ export function MenuFilters({
         <div className="relative flex-1 order-2">
           <Input
             type="text"
-            placeholder={selectedQuickAction === 'smart-labels' ? "Search by product name, tag ID, or location..." : showDeviceFilters ? "Search displays..." : "Search menu items..."}
+            placeholder={selectedQuickAction === 'smart-labels' ? "Search or scan tag ID / product MRN..." : showDeviceFilters ? "Search displays..." : "Search menu items..."}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            className="w-full pl-10 pr-12 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && onScanLookup && searchValue.trim()) {
+                onScanLookup(searchValue);
+              }
+            }}
+            className={`w-full pl-10 ${onScanLookup ? 'pr-20' : 'pr-12'} py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400`}
           />
           <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleScanBarcode}
-            className="md:hidden absolute right-2 top-1.5 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Scan barcode"
-          >
-            <Camera className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-          </Button>
+          {onScanLookup ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onScanLookup(searchValue)}
+              className="absolute right-2 top-1.5 p-1 rounded-md hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors group/scan"
+              title="Scan or look up tag"
+            >
+              <ScanLine className="h-5 w-5 text-sky-500 dark:text-sky-400 group-hover/scan:scale-110 transition-transform" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleScanBarcode}
+              className="md:hidden absolute right-2 top-1.5 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title="Scan barcode"
+            >
+              <Camera className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+            </Button>
+          )}
         </div>
 
         {/* Action Buttons */}

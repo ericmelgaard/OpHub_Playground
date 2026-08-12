@@ -324,6 +324,24 @@ function App() {
     setShowDeviceWorkflow(true);
   }, [selectedDaypart]);
 
+  const handleScanLookup = useCallback((query: string): boolean => {
+    const q = query.trim().toLowerCase();
+    if (!q) return false;
+    const device = devices.find(d => d.id.toLowerCase() === q || d.name.toLowerCase() === q);
+    if (device) {
+      handleDeviceSelect(device, selectedDaypart);
+      setSearchValue('');
+      return true;
+    }
+    const byMrn = devices.find(d => d.pages.some(p => p.assignedItems.some(i => i.mrn.toLowerCase() === q)));
+    if (byMrn) {
+      handleDeviceSelect(byMrn, selectedDaypart);
+      setSearchValue('');
+      return true;
+    }
+    return false;
+  }, [devices, selectedDaypart, handleDeviceSelect]);
+
   const handleFiltersChange = useCallback((filters: FilterConfig[]) => {
     setActiveFilters(filters);
   }, []);
@@ -453,6 +471,7 @@ function App() {
                 groupByMrn={groupByMrn}
                 onToggleGroupByMrn={handleToggleGroupByMrn}
                 selectedCycleWeek={selectedCycleWeek}
+                onScanLookup={selectedQuickAction === 'smart-labels' ? handleScanLookup : undefined}
               />
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Device, LabelSize, Placement } from '../types';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, BatteryLow, ScanLine, Search } from 'lucide-react';
+import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, BatteryLow } from 'lucide-react';
 
 interface SmartLabelGridProps {
   loading: boolean;
@@ -67,9 +67,6 @@ export function SmartLabelGrid({
   selectedDaypart,
   selectedPlacements,
 }: SmartLabelGridProps) {
-  const [scanInput, setScanInput] = useState('');
-  const [showScan, setShowScan] = useState(false);
-
   const filteredDevices = useMemo(() => {
     let result = devices;
 
@@ -87,24 +84,6 @@ export function SmartLabelGrid({
 
     return result;
   }, [devices, searchValue, selectedPlacements]);
-
-  const handleScan = () => {
-    if (!scanInput.trim()) return;
-    const q = scanInput.trim().toLowerCase();
-    const device = devices.find(d => d.id.toLowerCase() === q || d.name.toLowerCase() === q);
-    if (device) {
-      onDeviceSelect(device, selectedDaypart);
-      setScanInput('');
-      setShowScan(false);
-      return;
-    }
-    const byMrn = devices.find(d => d.pages.some(p => p.assignedItems.some(i => i.mrn.toLowerCase() === q)));
-    if (byMrn) {
-      onDeviceSelect(byMrn, selectedDaypart);
-      setScanInput('');
-      setShowScan(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -137,43 +116,6 @@ export function SmartLabelGrid({
 
   return (
     <div className="space-y-4">
-      {/* Scan bar */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setShowScan(!showScan)}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors flex-shrink-0 ${
-            showScan
-              ? 'bg-sky-50 dark:bg-sky-900/30 border-sky-300 dark:border-sky-700 text-sky-600 dark:text-sky-400'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-        >
-          <ScanLine className="h-4 w-4" />
-          Scan
-        </button>
-        {showScan && (
-          <div className="flex items-center gap-2 flex-1">
-            <div className="relative flex-1 max-w-md">
-              <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={scanInput}
-                onChange={e => setScanInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleScan(); }}
-                placeholder="Scan or enter tag ID / product MRN..."
-                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                autoFocus
-              />
-            </div>
-            <button
-              onClick={handleScan}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition-colors"
-            >
-              Go
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Label grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredDevices.map(device => (
