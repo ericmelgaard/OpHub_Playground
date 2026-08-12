@@ -485,7 +485,7 @@ function App() {
                 onToggleGroupByMrn={handleToggleGroupByMrn}
                 selectedCycleWeek={selectedCycleWeek}
                 onScanLookup={selectedQuickAction === 'smart-labels' ? handleScanLookup : undefined}
-                nfcSupported={selectedQuickAction === 'smart-labels' && nfc.supported}
+                nfcSupported={selectedQuickAction === 'smart-labels'}
                 nfcScanning={nfc.scanning}
                 nfcError={nfc.error}
                 onNfcStart={nfc.startScan}
