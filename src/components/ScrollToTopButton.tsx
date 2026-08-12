@@ -4,29 +4,25 @@ import { ChevronUp } from 'lucide-react';
 export function ScrollToTopButton() {
   const [visible, setVisible] = useState(false);
   const lastScrollY = useRef(0);
-  const lastDirection = useRef<'up' | 'down'>('down');
   const ticking = useRef(false);
 
   useEffect(() => {
+    const root = document.getElementById('root');
+    if (!root) return;
+
     const onScroll = () => {
       if (ticking.current) return;
       ticking.current = true;
 
       requestAnimationFrame(() => {
-        const currentY = window.scrollY;
-        const nearTop = currentY < 200;
+        const currentY = root.scrollTop;
+        const nearTop = currentY < 100;
 
         if (nearTop) {
           setVisible(false);
-          lastDirection.current = 'down';
         } else {
           const direction = currentY < lastScrollY.current ? 'up' : 'down';
-          if (direction === 'up') {
-            setVisible(true);
-          } else {
-            setVisible(false);
-          }
-          lastDirection.current = direction;
+          setVisible(direction === 'up');
         }
 
         lastScrollY.current = currentY;
@@ -34,12 +30,13 @@ export function ScrollToTopButton() {
       });
     };
 
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    root.addEventListener('scroll', onScroll, { passive: true });
+    return () => root.removeEventListener('scroll', onScroll);
   }, []);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const root = document.getElementById('root');
+    if (root) root.scrollTo({ top: 0, behavior: 'smooth' });
     setVisible(false);
   };
 
