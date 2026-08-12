@@ -15,6 +15,7 @@ import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
 import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
+import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
 import { api } from './services/api';
 
@@ -646,6 +647,7 @@ function App() {
           />
         )}
       </div>
+      <ScrollToTopButton />
     </div>
   );
 }
