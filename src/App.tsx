@@ -510,6 +510,7 @@ function App() {
                         error={deviceError}
                         devices={devices}
                         onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
+                        onScanLookup={handleScanLookup}
                         searchValue={searchValue}
                         placements={placements}
                         selectedDaypart={selectedDaypart}
