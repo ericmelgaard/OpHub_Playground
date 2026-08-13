@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Rows2 as Rows, Search, Camera, Plus, Layers, PanelLeftOpen, PanelLeftClose, Nfc, X } from 'lucide-react';
+import { LayoutGrid, Rows2 as Rows, Search, Camera, Plus, Layers, PanelLeftOpen, PanelLeftClose, Nfc } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
@@ -90,11 +90,18 @@ export function MenuFilters({
 
         {/* Search Bar */}
         <div className={`relative flex-1 order-2 transition-all ${nfcSupported && nfcScanning ? 'nfc-listening-ring' : ''}`}>
+          {nfcSupported && nfcScanning && (
+            <span className="absolute -top-5 right-0 flex items-center gap-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+              </span>
+              Scanning...
+            </span>
+          )}
           <Input
             type="text"
-            placeholder={nfcSupported && nfcScanning
-              ? "Listening for NFC tap..."
-              : selectedQuickAction === 'smart-labels' ? "Search by product name, tag ID, or location..." : showDeviceFilters ? "Search displays..." : "Search menu items..."}
+            placeholder={selectedQuickAction === 'smart-labels' ? "Search by product name, tag ID, or location..." : showDeviceFilters ? "Search displays..." : "Search menu items..."}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             onKeyDown={(e) => {
@@ -102,9 +109,9 @@ export function MenuFilters({
                 onScanLookup(searchValue);
               }
             }}
-            className={`w-full pl-10 ${nfcSupported ? 'pr-12' : 'pr-12'} py-2 rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
+            className={`w-full pl-10 pr-12 py-2 rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
               nfcSupported && nfcScanning
-                ? 'border-blue-400 dark:border-blue-500 ring-2 ring-blue-400/40 dark:ring-blue-500/40 placeholder-blue-400 dark:placeholder-blue-500'
+                ? 'border-blue-400 dark:border-blue-500 ring-2 ring-blue-400/40 dark:ring-blue-500/40'
                 : 'border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400'
             }`}
           />
@@ -136,28 +143,6 @@ export function MenuFilters({
             </Button>
           )}
         </div>
-
-        {/* NFC scanning banner */}
-        {nfcSupported && nfcScanning && (
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 px-3 py-2 order-4 animate-in fade-in slide-in-from-top-1 duration-300">
-            <div className="flex items-center gap-2.5">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
-              </span>
-              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                Scanning — tap an NFC tag or type to search manually
-              </span>
-            </div>
-            <button
-              onClick={() => onNfcStop?.()}
-              className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors whitespace-nowrap"
-            >
-              <X className="h-3.5 w-3.5" />
-              Stop
-            </button>
-          </div>
-        )}
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 order-3">
