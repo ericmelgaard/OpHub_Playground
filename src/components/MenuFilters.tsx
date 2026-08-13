@@ -90,15 +90,6 @@ export function MenuFilters({
 
         {/* Search Bar */}
         <div className={`relative flex-1 order-2 transition-all ${nfcSupported && nfcScanning ? 'nfc-listening-ring' : ''}`}>
-          {nfcSupported && nfcScanning && (
-            <span className="absolute -top-5 right-0 flex items-center gap-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-              </span>
-              Scanning...
-            </span>
-          )}
           <Input
             type="text"
             placeholder={selectedQuickAction === 'smart-labels' ? "Search by product name, tag ID, or location..." : showDeviceFilters ? "Search displays..." : "Search menu items..."}
@@ -109,7 +100,7 @@ export function MenuFilters({
                 onScanLookup(searchValue);
               }
             }}
-            className={`w-full pl-10 pr-12 py-2 rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
+            className={`w-full pl-10 ${nfcSupported ? 'pr-28' : 'pr-12'} py-2 rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
               nfcSupported && nfcScanning
                 ? 'border-blue-400 dark:border-blue-500 ring-2 ring-blue-400/40 dark:ring-blue-500/40'
                 : 'border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400'
@@ -122,13 +113,14 @@ export function MenuFilters({
             <button
               onClick={() => nfcScanning ? onNfcStop?.() : onNfcStart?.()}
               title={nfcScanning ? "Stop NFC scan" : "Scan NFC tag"}
-              className={`absolute right-2 top-1.5 p-1.5 rounded-md transition-all ${
+              className={`absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                 nfcScanning
                   ? 'bg-blue-500 text-white nfc-pulse-glow'
-                  : 'text-gray-400 dark:text-gray-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
               }`}
             >
-              <Nfc className="h-5 w-5" />
+              <Nfc className="h-4 w-4" />
+              <span>{nfcScanning ? 'Scanning' : 'Scan'}</span>
             </button>
           )}
           {!nfcSupported && (
