@@ -1,10 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-
-interface NfcState {
-  supported: boolean;
-  scanning: boolean;
-  error: string | null;
-}
+import { useState, useRef, useCallback } from 'react';
 
 interface NfcReading {
   text: string;
@@ -12,84 +6,61 @@ interface NfcReading {
 }
 
 export function useNfc() {
-  const [state, setState] = useState<NfcState>({
-    supported: false,
-    scanning: false,
-    error: null,
-  });
+  const [scanning, setScanning] = useState(false);
   const [lastReading, setLastReading] = useState<NfcReading | null>(null);
   const readerRef = useRef<any>(null);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('NDEFReader' in window)) {
-      setState((s) => ({ ...s, supported: false }));
-      return;
-    }
-    setState((s) => ({ ...s, supported: true }));
-  }, []);
-
   const startScan = useCallback(async () => {
-    if (!('NDEFReader' in window)) {
-      setState((s) => ({ ...s, error: 'NFC is not supported on this device or browser' }));
-      return;
-    }
+    setScanning(true);
+    setLastReading(null);
 
-    try {
-      const reader = new (window as any).NDEFReader();
-      readerRef.current = reader;
+    if (typeof window !== 'undefined' && 'NDEFReader' in window) {
+      try {
+        const reader = new (window as any).NDEFReader();
+        readerRef.current = reader;
+        await reader.scan();
 
-      await reader.scan();
-      setState((s) => ({ ...s, scanning: true, error: null }));
-
-      reader.addEventListener('reading', (event: any) => {
-        let text = '';
-        if (event.message && event.message.records) {
-          for (const record of event.message.records) {
-            if (record.recordType === 'text') {
-              const decoder = new TextDecoder(record.encoding || 'utf-8');
-              text += decoder.decode(record.data);
-            } else if (record.recordType === 'url') {
-              const decoder = new TextDecoder();
-              text += decoder.decode(record.data);
+        reader.addEventListener('reading', (event: any) => {
+          let text = '';
+          if (event.message?.records) {
+            for (const record of event.message.records) {
+              if (record.recordType === 'text') {
+                const decoder = new TextDecoder(record.encoding || 'utf-8');
+                text += decoder.decode(record.data);
+              } else if (record.recordType === 'url') {
+                text += new TextDecoder().decode(record.data);
+              }
             }
           }
-        }
-        if (text) {
-          setLastReading({ text, timestamp: Date.now() });
-        }
-      });
-
-      reader.addEventListener('error', () => {
-        setState((s) => ({ ...s, scanning: false, error: 'NFC scan was interrupted' }));
-      });
-    } catch (err: any) {
-      setState((s) => ({
-        ...s,
-        scanning: false,
-        error: err?.message || 'Failed to start NFC scan. Make sure NFC is enabled and the page is served over HTTPS.',
-      }));
+          if (text) {
+            setLastReading({ text, timestamp: Date.now() });
+          }
+        });
+      } catch {
+        // Real NFC unavailable — stay in scanning mode for demo
+      }
     }
   }, []);
 
   const stopScan = useCallback(() => {
-    if (readerRef.current) {
-      readerRef.current = null;
-    }
-    setState((s) => ({ ...s, scanning: false }));
+    readerRef.current = null;
+    setScanning(false);
   }, []);
 
   const clearReading = useCallback(() => {
     setLastReading(null);
-    setState((s) => ({ ...s, error: null }));
+  }, []);
+
+  const simulateReading = useCallback((text: string) => {
+    setLastReading({ text, timestamp: Date.now() });
   }, []);
 
   return {
-    supported: state.supported,
-    scanning: state.scanning,
-    error: state.error,
+    scanning,
     lastReading,
     startScan,
     stopScan,
     clearReading,
+    simulateReading,
   };
 }

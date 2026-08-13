@@ -355,6 +355,19 @@ function App() {
     }
   }, [nfc.lastReading, handleScanLookup, nfc]);
 
+  useEffect(() => {
+    if (nfc.scanning && devices.length > 0) {
+      const hasRealNfc = typeof window !== 'undefined' && 'NDEFReader' in window;
+      if (!hasRealNfc) {
+        const demoTimer = setTimeout(() => {
+          const demoDevice = devices[0];
+          nfc.simulateReading(demoDevice.id);
+        }, 3500);
+        return () => clearTimeout(demoTimer);
+      }
+    }
+  }, [nfc.scanning, devices, nfc]);
+
   const handleFiltersChange = useCallback((filters: FilterConfig[]) => {
     setActiveFilters(filters);
   }, []);
@@ -487,7 +500,6 @@ function App() {
                 onScanLookup={selectedQuickAction === 'smart-labels' ? handleScanLookup : undefined}
                 nfcSupported={selectedQuickAction === 'smart-labels'}
                 nfcScanning={nfc.scanning}
-                nfcError={nfc.error}
                 onNfcStart={nfc.startScan}
                 onNfcStop={nfc.stopScan}
               />
