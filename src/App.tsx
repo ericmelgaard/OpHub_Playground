@@ -16,6 +16,7 @@ import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
+import { LocationChangeOverlay } from './components/LocationChangeOverlay';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
 import { api } from './services/api';
 import { useNfc } from './hooks/useNfc';
@@ -211,6 +212,8 @@ function App() {
   const [placements, setPlacements] = useState<any[]>([]);
   const [selectedPlacement, setSelectedPlacement] = useState<string | null>(null);
   const [loadingLocations, setLoadingLocations] = useState(false);
+  const [locationChangeTrigger, setLocationChangeTrigger] = useState(0);
+  const [locationChangeInfo, setLocationChangeInfo] = useState<{ label: string; path: string[] }>({ label: 'WAND', path: [] });
 
   // Rules state
   const [rules, setRules] = useState<Rule[]>([]);
@@ -428,6 +431,8 @@ function App() {
             setSelectedStore(null);
             setExpandedConcept(null);
             setExpandedCompany(null);
+            setLocationChangeInfo({ label: 'WAND', path: [] });
+            setLocationChangeTrigger(t => t + 1);
           }}
           loadingLocations={loadingLocations}
           onSelectConcept={(id) => {
@@ -436,14 +441,26 @@ function App() {
             setSelectedStore(null);
             setExpandedConcept(id);
             setExpandedCompany(null);
+            const c = concepts.find(c => c.id === id);
+            setLocationChangeInfo({ label: c?.name || 'Concept', path: ['WAND', c?.name || ''] });
+            setLocationChangeTrigger(t => t + 1);
           }}
           onSelectCompany={(id) => {
             setSelectedCompany(id);
             setSelectedStore(null);
             setExpandedCompany(id);
+            const co = companies.find(c => c.id === id);
+            const cName = concepts.find(c => c.id === selectedConcept)?.name || '';
+            setLocationChangeInfo({ label: co?.name || 'Company', path: ['WAND', cName, co?.name || ''] });
+            setLocationChangeTrigger(t => t + 1);
           }}
           onSelectStore={(id) => {
             setSelectedStore(id);
+            const s = stores.find(s => s.id === id);
+            const cName = concepts.find(c => c.id === selectedConcept)?.name || '';
+            const coName = companies.find(c => c.id === selectedCompany)?.name || '';
+            setLocationChangeInfo({ label: s?.name || 'Store', path: ['WAND', cName, coName, s?.name || ''] });
+            setLocationChangeTrigger(t => t + 1);
           }}
         />
 
@@ -713,6 +730,11 @@ function App() {
           />
         )}
       </div>
+      <LocationChangeOverlay
+        locationLabel={locationChangeInfo.label}
+        locationPath={locationChangeInfo.path}
+        trigger={locationChangeTrigger}
+      />
       <ScrollToTopButton />
     </div>
   );

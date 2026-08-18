@@ -363,6 +363,7 @@ export function LocationSelectionModal({
                       onClick={() => {
                         onSelectConcept(concept.id);
                         onExpandConcept(isExpanded ? null : concept.id);
+                        onClose();
                       }}
                       className="px-4 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                       style={{ color: 'rgb(0, 173, 240)' }}
@@ -424,6 +425,7 @@ export function LocationSelectionModal({
                                     onExpandCompany(
                                       isCompanyExpanded ? null : company.id,
                                     );
+                                    onClose();
                                   }}
                                   className="px-3 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800 transition-colors"
                                   style={{ color: 'rgb(0, 173, 240)' }}
