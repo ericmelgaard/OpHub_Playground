@@ -1,5 +1,5 @@
 import { MenuItem, Device, Concept, Company, Store, Rule } from '../types';
-import { mockDevices, mockConcepts, mockCompanies, mockStores, mockPlacements } from './mockData';
+import { mockDevices, mockPlacements } from './mockData';
 import { supabase } from '../lib/supabase';
 
 export class NoContentError extends Error {
@@ -212,20 +212,53 @@ export const api = {
     return clone(mockDevices);
   },
 
-  // Location hierarchy
+  // Location hierarchy — fetched from Supabase
   getConcepts: async (): Promise<Concept[]> => {
-    await mockDelay();
-    return clone(mockConcepts);
+    const { data, error } = await supabase
+      .from('concepts')
+      .select('id, name')
+      .order('name');
+    if (error) {
+      console.error('Error fetching concepts:', error);
+      return [];
+    }
+    return (data || []).map((c: any) => ({
+      id: String(c.id),
+      name: c.name,
+      children: [],
+    }));
   },
 
   getCompanies: async (): Promise<Company[]> => {
-    await mockDelay();
-    return clone(mockCompanies);
+    const { data, error } = await supabase
+      .from('companies')
+      .select('id, name, concept_id')
+      .order('name');
+    if (error) {
+      console.error('Error fetching companies:', error);
+      return [];
+    }
+    return (data || []).map((c: any) => ({
+      id: String(c.id),
+      name: c.name,
+      conceptId: String(c.concept_id),
+    }));
   },
 
   getStores: async (): Promise<Store[]> => {
-    await mockDelay();
-    return clone(mockStores);
+    const { data, error } = await supabase
+      .from('stores')
+      .select('id, name, company_id')
+      .order('name');
+    if (error) {
+      console.error('Error fetching stores:', error);
+      return [];
+    }
+    return (data || []).map((s: any) => ({
+      id: String(s.id),
+      name: s.name,
+      companyId: String(s.company_id),
+    }));
   },
 
   // Placements

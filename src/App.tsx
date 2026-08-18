@@ -210,6 +210,7 @@ function App() {
   const [stores, setStores] = useState<any[]>([]);
   const [placements, setPlacements] = useState<any[]>([]);
   const [selectedPlacement, setSelectedPlacement] = useState<string | null>(null);
+  const [loadingLocations, setLoadingLocations] = useState(false);
 
   // Rules state
   const [rules, setRules] = useState<Rule[]>([]);
@@ -257,6 +258,7 @@ function App() {
   // Load location data
   useEffect(() => {
     const loadLocationData = async () => {
+      setLoadingLocations(true);
       try {
         const [conceptsData, companiesData, storesData, placementsData] = await Promise.all([
           api.getConcepts(),
@@ -271,6 +273,8 @@ function App() {
         setPlacements(placementsData);
       } catch (error) {
         console.error('Error loading location data:', error);
+      } finally {
+        setLoadingLocations(false);
       }
     };
 
@@ -416,9 +420,6 @@ function App() {
           selectedStore={selectedStore}
           expandedConcept={expandedConcept}
           expandedCompany={expandedCompany}
-          onSelectConcept={setSelectedConcept}
-          onSelectCompany={setSelectedCompany}
-          onSelectStore={setSelectedStore}
           onExpandConcept={setExpandedConcept}
           onExpandCompany={setExpandedCompany}
           onResetLocation={() => {
@@ -427,6 +428,22 @@ function App() {
             setSelectedStore(null);
             setExpandedConcept(null);
             setExpandedCompany(null);
+          }}
+          loadingLocations={loadingLocations}
+          onSelectConcept={(id) => {
+            setSelectedConcept(id);
+            setSelectedCompany(null);
+            setSelectedStore(null);
+            setExpandedConcept(id);
+            setExpandedCompany(null);
+          }}
+          onSelectCompany={(id) => {
+            setSelectedCompany(id);
+            setSelectedStore(null);
+            setExpandedCompany(id);
+          }}
+          onSelectStore={(id) => {
+            setSelectedStore(id);
           }}
         />
 

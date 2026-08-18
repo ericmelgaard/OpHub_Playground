@@ -17,6 +17,11 @@ import {
   Wand2,
   MapPin,
   ChevronDown,
+  Home,
+  Loader2,
+  Building2,
+  Building,
+  Store as StoreIcon,
 } from 'lucide-react';
 import { Theme } from '../types';
 import { Button } from '@/components/ui/button';
@@ -48,6 +53,7 @@ interface NavigationProps {
   onExpandConcept?: (conceptId: string | null) => void;
   onExpandCompany?: (companyId: string | null) => void;
   onResetLocation?: () => void;
+  loadingLocations?: boolean;
 }
 
 const CHANNEL_INFO = {
@@ -86,12 +92,14 @@ export function Navigation({
   onExpandConcept,
   onExpandCompany,
   onResetLocation,
+  loadingLocations = false,
 }: NavigationProps) {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showDismissAllConfirm, setShowDismissAllConfirm] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
+  const [navSpinner, setNavSpinner] = useState(false);
 
   const themeOptions = [
     { value: 'light', label: 'Light Mode', icon: Sun },
@@ -133,15 +141,104 @@ export function Navigation({
     );
   };
 
-  const getStoreName = () => {
-    if (!selectedStore) return 'Select Store';
-    const store = stores.find(s => s.id === selectedStore);
-    return store?.name || 'Select Store';
+  // Determine current navigation level
+  const currentLevel: 'wand' | 'concept' | 'company' | 'store' = selectedStore
+    ? 'store'
+    : selectedCompany
+      ? 'company'
+      : selectedConcept
+        ? 'concept'
+        : 'wand';
+
+  const triggerNavSpinner = () => {
+    setNavSpinner(true);
+    setTimeout(() => setNavSpinner(false), 600);
   };
 
-  const getStoresByCompany = () => {
-    if (!selectedCompany) return stores;
-    return stores.filter(s => s.company_id === selectedCompany);
+  const getCurrentLabel = () => {
+    if (currentLevel === 'wand') return 'WAND';
+    if (currentLevel === 'concept') {
+      const c = concepts.find((c) => c.id === selectedConcept);
+      return c?.name || 'WAND';
+    }
+    if (currentLevel === 'company') {
+      const c = companies.find((c) => c.id === selectedCompany);
+      return c?.name || 'WAND';
+    }
+    // store
+    const s = stores.find((s) => s.id === selectedStore);
+    return s?.name || 'WAND';
+  };
+
+  const getCurrentIcon = () => {
+    if (currentLevel === 'wand') return Wand2;
+    if (currentLevel === 'concept') return Building2;
+    if (currentLevel === 'company') return Building;
+    return StoreIcon;
+  };
+
+  const CurrentIcon = getCurrentIcon();
+
+  // Siblings for the quick-select dropdown
+  const getSiblings = () => {
+    if (currentLevel === 'wand') {
+      // Top-level: list all concepts
+      return concepts.map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: 'concept' as const,
+        icon: Building2,
+      }));
+    }
+    if (currentLevel === 'concept') {
+      // Sibling concepts
+      return concepts.map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: 'concept' as const,
+        icon: Building2,
+      }));
+    }
+    if (currentLevel === 'company') {
+      // Sibling companies within the same concept
+      return companies
+        .filter((c) => c.conceptId === selectedConcept)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: 'company' as const,
+          icon: Building,
+        }));
+    }
+    // store: sibling stores within the same company
+    return stores
+      .filter((s) => s.companyId === selectedCompany)
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        type: 'store' as const,
+        icon: StoreIcon,
+      }));
+  };
+
+  const siblings = getSiblings();
+
+  const handleSiblingSelect = (sibling: { id: string; type: 'concept' | 'company' | 'store' }) => {
+    triggerNavSpinner();
+    if (sibling.type === 'concept') {
+      onSelectConcept?.(sibling.id);
+    } else if (sibling.type === 'company') {
+      onSelectCompany?.(sibling.id);
+    } else {
+      onSelectStore?.(sibling.id);
+    }
+    setShowStoreDropdown(false);
+  };
+
+  const handleReset = () => {
+    triggerNavSpinner();
+    onResetLocation?.();
+    setShowStoreDropdown(false);
   };
 
   return (
@@ -160,35 +257,75 @@ export function Navigation({
 
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <button
-                    onClick={() => setShowStoreDropdown(!showStoreDropdown)}
-                    className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
-                  >
-                    {getStoreName()}
-                    <ChevronDown className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setShowStoreDropdown(!showStoreDropdown)}
+                      className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                    >
+                      <CurrentIcon className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
+                      {getCurrentLabel()}
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+
+                    {navSpinner && (
+                      <Loader2 className="h-4 w-4 animate-spin text-white/70" />
+                    )}
+
+                    {currentLevel !== 'wand' && (
+                      <button
+                        onClick={handleReset}
+                        className="p-2 hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                        title="Return to WAND"
+                      >
+                        <Home className="h-4 w-4 text-gray-300 dark:text-gray-400" />
+                      </button>
+                    )}
+                  </div>
 
                   {showStoreDropdown && (
-                    <Card className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
+                    <Card className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
                       <CardContent className="p-2">
-                        {getStoresByCompany().map((store) => (
-                          <Button
-                            key={store.id}
-                            variant={selectedStore === store.id ? 'secondary' : 'ghost'}
-                            onClick={() => {
-                              if (onSelectStore) onSelectStore(store.id);
-                              setShowStoreDropdown(false);
-                            }}
-                            className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
-                              selectedStore === store.id
-                                ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
-                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            <MapPin className="h-4 w-4" />
-                            {store.name}
-                          </Button>
-                        ))}
+                        <div className="px-3 py-1 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide border-b border-gray-100 dark:border-gray-700 mb-1">
+                          {currentLevel === 'wand'
+                            ? 'Concepts'
+                            : currentLevel === 'concept'
+                              ? 'Sibling Concepts'
+                              : currentLevel === 'company'
+                                ? 'Companies in Concept'
+                                : 'Stores in Company'}
+                        </div>
+                        {loadingLocations && siblings.length === 0 ? (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                          </div>
+                        ) : siblings.length === 0 ? (
+                          <p className="text-sm text-gray-400 dark:text-gray-500 px-3 py-4 text-center">
+                            No locations found.
+                          </p>
+                        ) : (
+                          siblings.map((sibling) => {
+                            const SibIcon = sibling.icon;
+                            const isActive =
+                              (sibling.type === 'concept' && sibling.id === selectedConcept) ||
+                              (sibling.type === 'company' && sibling.id === selectedCompany) ||
+                              (sibling.type === 'store' && sibling.id === selectedStore);
+                            return (
+                              <Button
+                                key={sibling.id}
+                                variant={isActive ? 'secondary' : 'ghost'}
+                                onClick={() => handleSiblingSelect(sibling)}
+                                className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
+                                  isActive
+                                    ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                              >
+                                <SibIcon className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">{sibling.name}</span>
+                              </Button>
+                            );
+                          })
+                        )}
                       </CardContent>
                     </Card>
                   )}
@@ -344,6 +481,7 @@ export function Navigation({
         onExpandConcept={onExpandConcept || (() => {})}
         onExpandCompany={onExpandCompany || (() => {})}
         onReset={onResetLocation || (() => {})}
+        loading={loadingLocations}
       />
     </>
   );
