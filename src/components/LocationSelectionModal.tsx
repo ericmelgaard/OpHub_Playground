@@ -35,6 +35,9 @@ interface LocationSelectionModalProps {
 
 const MAX_RESULTS_PER_LEVEL = 25;
 
+const fuzzyMatch = (name: string, query: string): boolean =>
+  name.toLowerCase().includes(query.toLowerCase());
+
 export function LocationSelectionModal({
   isOpen,
   onClose,
@@ -72,8 +75,6 @@ export function LocationSelectionModal({
     return map;
   }, [companies]);
 
-  if (!isOpen) return null;
-
   const currentLevel: 'wand' | 'concept' | 'company' | 'store' = selectedStore
     ? 'store'
     : selectedCompany
@@ -82,22 +83,8 @@ export function LocationSelectionModal({
         ? 'concept'
         : 'wand';
 
-  const fuzzyMatch = (name: string, query: string): boolean => {
-    return name.toLowerCase().includes(query.toLowerCase());
-  };
-
-  const getConceptName = (id: string) => conceptById.get(id)?.name || '';
-  const getCompanyName = (id: string) => companyById.get(id)?.name || '';
-
-  const conceptName = selectedConcept ? getConceptName(selectedConcept) : '';
-  const companyName = selectedCompany ? getCompanyName(selectedCompany) : '';
-  const storeName = selectedStore
-    ? stores.find((s) => s.id === selectedStore)?.name || ''
-    : '';
-
   const hasSearch = searchQuery.trim().length > 0;
 
-  // Determine the scope for search results based on current navigation level
   const scopedConceptIds = useMemo(() => {
     if (currentLevel === 'wand') return new Set(concepts.map((c) => c.id));
     if (currentLevel === 'concept') return new Set([selectedConcept!]);
@@ -155,6 +142,17 @@ export function LocationSelectionModal({
 
     return { matchingConcepts, matchingCompanies, matchingStores };
   }, [hasSearch, searchQuery, concepts, companies, stores, scopedConceptIds, scopedCompanyIds, scopedStoreIds]);
+
+  if (!isOpen) return null;
+
+  const getConceptName = (id: string) => conceptById.get(id)?.name || '';
+  const getCompanyName = (id: string) => companyById.get(id)?.name || '';
+
+  const conceptName = selectedConcept ? getConceptName(selectedConcept) : '';
+  const companyName = selectedCompany ? getCompanyName(selectedCompany) : '';
+  const storeName = selectedStore
+    ? stores.find((s) => s.id === selectedStore)?.name || ''
+    : '';
 
   const handleSearchResultClick = (type: 'concept' | 'company' | 'store', id: string) => {
     if (type === 'concept') {
