@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Bell,
   Settings,
@@ -100,6 +100,21 @@ export function Navigation({
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
   const [navSpinner, setNavSpinner] = useState(false);
+  const storeDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showStoreDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        storeDropdownRef.current &&
+        !storeDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowStoreDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showStoreDropdown]);
 
   const themeOptions = [
     { value: 'light', label: 'Light Mode', icon: Sun },
@@ -256,7 +271,7 @@ export function Navigation({
               </Button>
 
               <div className="flex items-center gap-3">
-                <div className="relative">
+                <div className="relative" ref={storeDropdownRef}>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setShowStoreDropdown(!showStoreDropdown)}
