@@ -230,15 +230,25 @@ export const api = {
   },
 
   getCompanies: async (): Promise<Company[]> => {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('id, name, concept_id')
-      .order('name');
-    if (error) {
-      console.error('Error fetching companies:', error);
-      return [];
+    const all: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name, concept_id')
+        .order('name')
+        .range(from, from + pageSize - 1);
+      if (error) {
+        console.error('Error fetching companies:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < pageSize) break;
+      from += pageSize;
     }
-    return (data || []).map((c: any) => ({
+    return all.map((c: any) => ({
       id: String(c.id),
       name: c.name,
       conceptId: String(c.concept_id),
@@ -246,19 +256,31 @@ export const api = {
   },
 
   getStores: async (): Promise<Store[]> => {
-    const { data, error } = await supabase
-      .from('stores')
-      .select('id, name, company_id')
-      .order('name');
-    if (error) {
-      console.error('Error fetching stores:', error);
-      return [];
+    const all: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('stores')
+        .select('id, name, company_id')
+        .order('name')
+        .range(from, from + pageSize - 1);
+      if (error) {
+        console.error('Error fetching stores:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < pageSize) break;
+      from += pageSize;
     }
-    return (data || []).map((s: any) => ({
-      id: String(s.id),
-      name: s.name,
-      companyId: String(s.company_id),
-    }));
+    return all
+      .filter((s: any) => s.company_id !== null)
+      .map((s: any) => ({
+        id: String(s.id),
+        name: s.name,
+        companyId: String(s.company_id),
+      }));
   },
 
   // Placements
