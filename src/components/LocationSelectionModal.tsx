@@ -38,6 +38,23 @@ const MAX_RESULTS_PER_LEVEL = 50;
 const fuzzyMatch = (name: string, query: string): boolean =>
   name.toLowerCase().includes(query.toLowerCase());
 
+function highlightMatch(text: string, query: string): React.ReactNode {
+  const q = query.trim().toLowerCase();
+  if (!q) return text;
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded px-0.5">
+        {text.slice(idx, idx + q.length)}
+      </mark>
+      {text.slice(idx + q.length)}
+    </>
+  );
+}
+
 export function LocationSelectionModal({
   isOpen,
   onClose,
@@ -317,6 +334,7 @@ export function LocationSelectionModal({
               conceptById={conceptById}
               companyById={companyById}
               onResultClick={handleSearchResultClick}
+              query={searchQuery.trim()}
             />
           ) : (
             // Browse mode: expandable concepts and companies
@@ -491,6 +509,7 @@ interface SearchResultsProps {
     type: 'concept' | 'company' | 'store',
     id: string,
   ) => void;
+  query: string;
 }
 
 function SearchResults({
@@ -498,6 +517,7 @@ function SearchResults({
   conceptById,
   companyById,
   onResultClick,
+  query,
 }: SearchResultsProps) {
   const { matchingConcepts, matchingCompanies, matchingStores } = results;
   const total =
@@ -522,10 +542,11 @@ function SearchResults({
               icon={Building2}
               name={concept.name}
               path={[]}
+              query={query}
               onClick={() => onResultClick('concept', concept.id)}
             />
           ))}
-          {results.matchingConcepts.length === MAX_RESULTS_PER_LEVEL && (
+          {results.matchingConcepts.length >= MAX_RESULTS_PER_LEVEL && (
             <p className="text-xs text-gray-400 dark:text-gray-500 pl-11 pt-1">
               Showing first {MAX_RESULTS_PER_LEVEL} concept matches.
             </p>
@@ -543,6 +564,7 @@ function SearchResults({
                 icon={Building}
                 name={company.name}
                 path={concept ? [concept.name] : []}
+                query={query}
                 onClick={() => onResultClick('company', company.id)}
               />
             );
@@ -568,6 +590,7 @@ function SearchResults({
                 icon={MapPin}
                 name={store.name}
                 path={[concept?.name, company?.name].filter(Boolean)}
+                query={query}
                 onClick={() => onResultClick('store', store.id)}
               />
             );
@@ -609,11 +632,13 @@ function SearchResultItem({
   icon: Icon,
   name,
   path,
+  query,
   onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   name: string;
   path: string[];
+  query: string;
   onClick: () => void;
 }) {
   return (
@@ -624,11 +649,11 @@ function SearchResultItem({
       <Icon className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
       <div className="min-w-0">
         <div className="font-medium text-gray-900 dark:text-white truncate">
-          {name}
+          {highlightMatch(name, query)}
         </div>
         {path.length > 0 && (
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {path.join(' › ')}
+            {highlightMatch(path.join(' › '), query)}
           </div>
         )}
       </div>
