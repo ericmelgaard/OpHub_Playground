@@ -95,31 +95,31 @@
     border-radius: 0.5rem;
     animation: nfc-listening-pulse 2s ease-in-out infinite;
   }
+}
 
-  /* Location change overlay */
-  @keyframes location-overlay-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
+/* Location change overlay */
+@keyframes location-overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
-  @keyframes location-overlay-card-in {
-    0% {
-      opacity: 0;
-      transform: scale(0.9) translateY(10px);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
+@keyframes location-overlay-card-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
   }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
 
-  .location-overlay-enter {
-    animation: location-overlay-fade-in 0.2s ease-out forwards;
-  }
+.location-overlay-enter {
+  animation: location-overlay-fade-in 0.2s ease-out forwards;
+}
 
-  .location-overlay-card {
-    animation: location-overlay-card-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  }
+.location-overlay-card {
+  animation: location-overlay-card-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 /* Modal styles */
