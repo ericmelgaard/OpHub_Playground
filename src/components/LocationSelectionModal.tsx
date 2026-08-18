@@ -33,7 +33,7 @@ interface LocationSelectionModalProps {
   loading?: boolean;
 }
 
-const MAX_RESULTS_PER_LEVEL = 25;
+const MAX_RESULTS_PER_LEVEL = 50;
 
 const fuzzyMatch = (name: string, query: string): boolean =>
   name.toLowerCase().includes(query.toLowerCase());
