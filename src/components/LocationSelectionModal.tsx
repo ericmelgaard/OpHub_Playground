@@ -361,19 +361,24 @@ export function LocationSelectionModal({
                       onClick={() =>
                         onExpandConcept(isExpanded ? null : concept.id)
                       }
-                      className="flex items-center gap-3 p-4 flex-1 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+                      className="w-full flex items-center justify-between p-4 flex-1 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
                     >
-                      {isExpanded ? (
-                        <ChevronDown className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                      )}
-                      <Building2
-                        className="h-5 w-5 flex-shrink-0"
-                        style={{ color: 'rgb(0, 173, 240)' }}
-                      />
-                      <span className="font-medium text-gray-900 dark:text-white">
-                        {concept.name}
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                        )}
+                        <Building2
+                          className="h-5 w-5 flex-shrink-0"
+                          style={{ color: 'rgb(0, 173, 240)' }}
+                        />
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {concept.name}
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
+                        {companyCount} companies
                       </span>
                     </button>
                     {/* Navigate here button */}
@@ -388,11 +393,6 @@ export function LocationSelectionModal({
                     >
                       Go
                     </button>
-                  </div>
-                  <div className="px-4 pb-2">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {companyCount} companies
-                    </span>
                   </div>
 
                   {isExpanded && (
