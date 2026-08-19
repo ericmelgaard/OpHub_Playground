@@ -162,6 +162,9 @@ Centered modal, max width 896px (`max-w-4xl`), max height 90vh, vertical scroll 
 
 4. **Browse tree**
    - Visible when no search query is active.
+   - Has two modes depending on the browse view level:
+
+   **Wide browse mode** (WAND or concept level):
    - Lists concepts as expandable cards.
    - Each concept card:
      - Expand/collapse chevron + concept icon (20px, brand blue) + name.
@@ -177,6 +180,13 @@ Centered modal, max width 896px (`max-w-4xl`), max height 90vh, vertical scroll 
      - MapPin icon (16px, red) + name.
      - Click selects concept + company + store and closes.
    - Empty children: "No companies under this concept." / "No stores under this company."
+
+   **Scoped view mode** (company or store level):
+   - Shows the concept as a **non-interactive context header** — a collapsed label that tells the operator where they are, with a "Go" button to navigate to the concept level. It does not expand to expose sibling companies.
+   - Below the concept header, only the **current company** is shown, already expanded with its stores listed.
+   - No company expand/collapse chevron is shown (there's only one company to look at).
+   - Store rows work the same as in wide browse mode.
+   - To browse wider (see sibling companies or other concepts), the operator uses the **breadcrumbs** to navigate up, which widens the view to the concept or WAND level and switches to wide browse mode.
 
 ### Search Results
 
@@ -195,6 +205,40 @@ Centered modal, max width 896px (`max-w-4xl`), max height 90vh, vertical scroll 
 - Breadcrumb clicks update the browse view only.
 - Search scope follows the browse view, not the actual selection.
 - Selecting a result updates the actual selection and closes the modal.
+
+### Auto-Expand on Open
+
+When the modal opens, the tree auto-expands based on the current selection level:
+
+| Current selection | Concept expansion | Company expansion | Browse mode |
+|-------------------|-------------------|-------------------|-------------|
+| WAND (nothing selected) | collapsed | collapsed | Wide browse |
+| Concept only | expanded (shows sibling companies) | collapsed | Wide browse |
+| Company or store | **collapsed** (concept is context header) | **collapsed** (single company shown expanded) | Scoped view |
+
+Key point: at the company/store level, the concept is **not** expanded. It appears as a collapsed context header, and only the current company is exposed. This avoids showing sibling companies when the operator is already scoped to one company — breadcrumbs are the way to widen the view.
+
+### Dynamic Highlight Rule
+
+An item in the browse tree is highlighted (brand-blue border, background tint, and blue text/icon) **only when multiple siblings at that level are visible**. When only a single item at a level is visible — because the operator is scoped into it — no highlight is shown. The highlight always means "this is the active one among several."
+
+| Level | When highlighted | When not highlighted |
+|-------|-----------------|---------------------|
+| Concept | Multiple concepts visible (browsing at WAND level) | Single concept visible (scoped to a concept or below) |
+| Company | Multiple companies visible (concept expanded in wide browse) | Single company visible (scoped view mode) |
+| Store | Multiple stores visible under the expanded company | Single store under the company |
+
+This rule applies in both wide browse mode and scoped view mode. It also applies dynamically when the operator breadcrumbs up: widening the view exposes siblings, which causes the highlight to appear on the current location at that level.
+
+### Breadcrumb Navigation Widens the View
+
+Breadcrumb clicks don't just change the browse level — they **widen what's visible**:
+
+- **Breadcrumb to WAND**: all concepts become visible → current concept gets highlighted (multiple concepts now visible).
+- **Breadcrumb to concept**: concept expands, exposing all sibling companies → current company gets highlighted (multiple companies now visible).
+- **Breadcrumb to company**: switches to scoped view mode (concept as context header, current company expanded with stores).
+
+As the view widens, highlights appear on the current location at each level because siblings become visible. As it narrows, highlights disappear because only the scoped item remains.
 
 ### Reset
 
@@ -267,4 +311,7 @@ For the demo, multi-domain mode is toggled via the "Manage Demo" control in the 
 | Selecting a company from search | Also sets the parent concept (derived from `conceptId`). |
 | Selecting a store from search | Also sets parent company and concept (derived from `companyId` → `conceptId`). |
 | Clicking breadcrumb at current level | No-op (already there). |
-| Modal reopened | Browse view resets to current selection; search cleared. |
+| Modal reopened | Browse view resets to current selection; search cleared. Auto-expand follows the scoping rules above. |
+| Modal opened at company/store level | Concept shows as collapsed context header; only current company exposed with its stores. No company highlight (single item). Store highlight only if multiple stores. |
+| Breadcrumb up from company to concept | View widens: concept expands, sibling companies visible, current company highlighted. |
+| Breadcrumb up from concept to WAND | View widens: all concepts visible, current concept highlighted. |
