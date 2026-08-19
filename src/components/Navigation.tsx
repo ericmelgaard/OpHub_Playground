@@ -119,6 +119,28 @@ export function Navigation({
   const [navSpinner, setNavSpinner] = useState(false);
   const storeDropdownRef = useRef<HTMLDivElement>(null);
   const demoMenuRef = useRef<HTMLDivElement>(null);
+  const dropdownScrollRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showStoreDropdown) return;
+    const t = setTimeout(() => {
+      if (activeItemRef.current && dropdownScrollRef.current) {
+        const item = activeItemRef.current;
+        const container = dropdownScrollRef.current;
+        const itemTop = item.offsetTop - container.offsetTop;
+        const itemBottom = itemTop + item.offsetHeight;
+        const viewTop = container.scrollTop;
+        const viewBottom = viewTop + container.clientHeight;
+        if (itemTop < viewTop) {
+          container.scrollTop = itemTop;
+        } else if (itemBottom > viewBottom) {
+          container.scrollTop = itemBottom - container.clientHeight;
+        }
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [showStoreDropdown]);
 
   useEffect(() => {
     if (!showStoreDropdown) return;
@@ -406,7 +428,7 @@ export function Navigation({
                   </div>
 
                   {showStoreDropdown && (
-                    <Card className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
+                    <Card ref={dropdownScrollRef} className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
                       <CardContent className="p-2">
                         <div className="px-3 py-1 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide border-b border-gray-100 dark:border-gray-700 mb-1">
                           {currentLevel === 'wand'
@@ -436,6 +458,7 @@ export function Navigation({
                             return (
                               <Button
                                 key={sibling.id}
+                                ref={isActive ? activeItemRef : undefined}
                                 title={sibling.name}
                                 variant={isActive ? 'secondary' : 'ghost'}
                                 onClick={() => handleSiblingSelect(sibling)}
@@ -472,6 +495,7 @@ export function Navigation({
                                 return (
                                   <Button
                                     key={s.id}
+                                    ref={isActive ? activeItemRef : undefined}
                                     title={s.name}
                                     variant={isActive ? 'secondary' : 'ghost'}
                                     onClick={() => handleOtherSelect(s)}
