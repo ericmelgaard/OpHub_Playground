@@ -467,18 +467,10 @@ function App() {
         <Sidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          concepts={concepts}
-          companies={companies}
-          stores={stores}
-          selectedConcept={selectedConcept}
-          selectedCompany={selectedCompany}
-          selectedStore={selectedStore}
-          expandedConcept={expandedConcept}
-          expandedCompany={expandedCompany}
-          onConceptClick={handleConceptClick}
-          onCompanyClick={handleCompanyClick}
-          onStoreSelect={handleStoreSelect}
           onOpenSettings={() => setShowSettings(true)}
+          quickActionConfigs={quickActionConfigs}
+          selectedQuickAction={selectedQuickAction}
+          onActionSelect={handleQuickActionSelect}
         />
 
         <div className="w-full mx-auto">
