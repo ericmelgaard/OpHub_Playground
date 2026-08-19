@@ -418,12 +418,7 @@ export function LocationSelectionModal({
               return (
                 <div
                   key={concept.id}
-                  ref={isSelected ? activeRowRef : undefined}
-                  className={`border rounded-lg overflow-hidden transition-colors scroll-mt-4 ${
-                    isSelected
-                      ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-gray-700/70'
-                      : 'border-gray-200 dark:border-gray-700'
-                  }`}
+                  className="border rounded-lg overflow-hidden transition-colors border-gray-200 dark:border-gray-700"
                 >
                   <div className="flex items-stretch">
                     {/* Expand button (browse) */}
@@ -443,11 +438,7 @@ export function LocationSelectionModal({
                           className="h-5 w-5 flex-shrink-0"
                           style={{ color: 'rgb(0, 173, 240)' }}
                         />
-                        <span className={`font-medium ${
-                          isSelected
-                            ? 'text-[rgb(0,173,240)] dark:text-white'
-                            : 'text-gray-900 dark:text-white'
-                        }`}>
+                        <span className="font-medium text-gray-900 dark:text-white">
                           {concept.name}
                         </span>
                       </div>
