@@ -123,24 +123,12 @@ export function Navigation({
   const activeItemRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!showStoreDropdown) return;
+    if (!showStoreDropdown || !activeItemRef.current) return;
     const t = setTimeout(() => {
-      if (activeItemRef.current && dropdownScrollRef.current) {
-        const item = activeItemRef.current;
-        const container = dropdownScrollRef.current;
-        const itemTop = item.offsetTop - container.offsetTop;
-        const itemBottom = itemTop + item.offsetHeight;
-        const viewTop = container.scrollTop;
-        const viewBottom = viewTop + container.clientHeight;
-        if (itemTop < viewTop) {
-          container.scrollTop = itemTop;
-        } else if (itemBottom > viewBottom) {
-          container.scrollTop = itemBottom - container.clientHeight;
-        }
-      }
+      activeItemRef.current?.scrollIntoView({ block: 'nearest' });
     }, 0);
     return () => clearTimeout(t);
-  }, [showStoreDropdown]);
+  }, [showStoreDropdown, siblings, otherItems]);
 
   useEffect(() => {
     if (!showStoreDropdown) return;
