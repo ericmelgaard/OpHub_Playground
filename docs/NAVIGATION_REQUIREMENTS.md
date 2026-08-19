@@ -240,6 +240,10 @@ Breadcrumb clicks don't just change the browse level — they **widen what's vis
 
 As the view widens, highlights appear on the current location at each level because siblings become visible. As it narrows, highlights disappear because only the scoped item remains.
 
+### Scroll Behavior
+
+The modal auto-scrolls the highlighted (active) row into view **only when the modal first opens**. After that, the scroll position is left alone — expanding or collapsing concepts and companies, breadcrumbing, or typing in search will never yank the view. The operator is free to scroll and browse without the modal fighting them.
+
 ### Reset
 
 - "Return to WAND" clears the actual selection, browse view, search query, and expanded states.
