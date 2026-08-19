@@ -43,14 +43,14 @@ export function Sidebar({
         }`}
       >
         <div className="w-80 flex flex-col bg-white dark:bg-gray-800 border-r dark:border-gray-700">
-          {/* WANDdigital Brand Header */}
+          {/* WAND Digital Brand Header */}
           <div className="px-6 pt-6 pb-5 border-b dark:border-gray-700">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
                 <div className="rounded-xl bg-white p-2.5 shadow-sm ring-1 ring-gray-200/80 dark:ring-gray-700 max-w-[180px]">
                   <img
                     src="/wand-digital-41-years-and-counting_(1).png"
-                    alt="WANDdigital"
+                    alt="WAND Digital"
                     className="block w-full h-auto"
                   />
                 </div>
@@ -69,7 +69,7 @@ export function Sidebar({
                 Operator Hub
               </p>
               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                WANDdigital operations workspace
+                WAND Digital operations workspace
               </p>
             </div>
           </div>
