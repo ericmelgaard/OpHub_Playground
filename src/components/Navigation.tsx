@@ -15,7 +15,6 @@ import {
   Tv,
   Receipt,
   Wand2,
-  Power,
   MapPin,
   ChevronDown,
   Home,
@@ -187,13 +186,14 @@ export function Navigation({
   };
 
   const getCurrentIcon = () => {
-    if (currentLevel === 'wand') return Power;
+    if (currentLevel === 'wand') return Wand2;
     if (currentLevel === 'concept') return Building2;
     if (currentLevel === 'company') return Building;
     return StoreIcon;
   };
 
   const CurrentIcon = getCurrentIcon();
+  const isWandLevel = currentLevel === 'wand';
 
   // Siblings for the quick-select dropdown
   const getSiblings = () => {
@@ -278,7 +278,11 @@ export function Navigation({
                       onClick={() => setShowStoreDropdown(!showStoreDropdown)}
                       className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
                     >
-                      <CurrentIcon className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
+                      {isWandLevel ? (
+                        <img src="/wand-level.webp" alt="WAND" className="h-4 w-4 object-contain" />
+                      ) : (
+                        <CurrentIcon className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
+                      )}
                       {getCurrentLabel()}
                       <ChevronDown className="h-4 w-4" />
                     </button>
