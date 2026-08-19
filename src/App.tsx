@@ -467,9 +467,6 @@ function App() {
         <Sidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          channels={channels}
-          selectedChannel={selectedChannel}
-          setSelectedChannel={setSelectedChannel}
           concepts={concepts}
           companies={companies}
           stores={stores}
@@ -482,8 +479,9 @@ function App() {
           onCompanyClick={handleCompanyClick}
           onStoreSelect={handleStoreSelect}
           onOpenSettings={() => setShowSettings(true)}
-          selectedPage={selectedPage}
-          setSelectedPage={setSelectedPage}
+          quickActionConfigs={quickActionConfigs}
+          selectedQuickAction={selectedQuickAction}
+          onActionSelect={handleQuickActionSelect}
         />
 
         <div className="w-full mx-auto">

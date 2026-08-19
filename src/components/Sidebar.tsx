@@ -7,26 +7,22 @@ import {
   Search,
   Check,
   Settings,
-  Package,
-  Monitor,
-  Tag,
-  MapPin,
   Expand,
   Minimize2,
   Nfc,
+  EyeOff,
+  MapPin,
 } from 'lucide-react';
-import { Channel, Concept, Company, Store, Placement } from '../types';
+import { Concept, Company, Store } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useNfc } from '../hooks/useNfc';
+import { QuickActionConfig, QuickActionType } from './QuickActionBar';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  channels: Channel[];
-  selectedChannel: string | null;
-  setSelectedChannel: (channelId: string | null) => void;
   concepts: Concept[];
   companies: Company[];
   stores: Store[];
@@ -39,16 +35,14 @@ interface SidebarProps {
   onCompanyClick: (companyId: string) => void;
   onStoreSelect: (storeId: string) => void;
   onOpenSettings: () => void;
-  selectedPage: 'products' | 'devices' | 'channels';
-  setSelectedPage: (page: 'products' | 'devices' | 'channels') => void;
+  quickActionConfigs: QuickActionConfig[];
+  selectedQuickAction: QuickActionType;
+  onActionSelect: (action: QuickActionType) => void;
 }
 
 export function Sidebar({
   isOpen,
   onClose,
-  channels = [],
-  selectedChannel,
-  setSelectedChannel,
   concepts,
   companies,
   stores,
@@ -61,26 +55,24 @@ export function Sidebar({
   onCompanyClick,
   onStoreSelect,
   onOpenSettings,
-  selectedPage,
-  setSelectedPage,
+  quickActionConfigs,
+  selectedQuickAction,
+  onActionSelect,
 }: SidebarProps) {
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
   const [showLocationPanel, setShowLocationPanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedPlacements, setExpandedPlacements] = useState<Set<string>>(new Set());
   const nfc = useNfc();
 
-  // Auto-fill search bar when an NFC tag is read
   useEffect(() => {
     if (nfc.lastReading) {
       setQuickSearchQuery(nfc.lastReading.text);
     }
   }, [nfc.lastReading]);
 
-  // Get current location details
   const currentLocationDetails = useMemo(() => {
     const store = selectedStore ? stores.find(s => s.id === selectedStore) : null;
-    const company = selectedCompany ? companies.find(c => c.id === selectedCompany) : 
+    const company = selectedCompany ? companies.find(c => c.id === selectedCompany) :
                    store ? companies.find(c => c.id === store.companyId) : null;
     const concept = selectedConcept ? concepts.find(c => c.id === selectedConcept) :
                    company ? concepts.find(c => c.id === company.conceptId) : null;
@@ -95,22 +87,18 @@ export function Sidebar({
     };
   }, [selectedStore, selectedCompany, selectedConcept, stores, companies, concepts]);
 
-  // Quick search results
   const quickSearchResults = useMemo(() => {
     if (!quickSearchQuery.trim()) return [];
 
     const query = quickSearchQuery.toLowerCase();
     const results = [];
-    const maxResults = 5; // Limit quick search results
+    const maxResults = 5;
 
-    // Add matching stores
     for (const store of stores) {
       if (results.length >= maxResults) break;
-      
       if (store.name.toLowerCase().includes(query)) {
         const company = companies.find(c => c.id === store.companyId);
         const concept = company ? concepts.find(c => c.id === company.conceptId) : null;
-        
         results.push({
           id: store.id,
           name: store.name,
@@ -123,11 +111,9 @@ export function Sidebar({
       }
     }
 
-    // Add matching companies if we still have room
     if (results.length < maxResults) {
       for (const company of companies) {
         if (results.length >= maxResults) break;
-        
         if (company.name.toLowerCase().includes(query)) {
           const concept = concepts.find(c => c.id === company.conceptId);
           results.push({
@@ -142,11 +128,9 @@ export function Sidebar({
       }
     }
 
-    // Add matching concepts if we still have room
     if (results.length < maxResults) {
       for (const concept of concepts) {
         if (results.length >= maxResults) break;
-        
         if (concept.name.toLowerCase().includes(query)) {
           results.push({
             id: concept.id,
@@ -176,19 +160,16 @@ export function Sidebar({
     setQuickSearchQuery('');
   };
 
-  // Get matching locations for panel search
   const matchingLocations = useMemo(() => {
     if (!searchQuery.trim()) return [];
 
     const query = searchQuery.toLowerCase();
     const results = [];
 
-    // Add matching stores
     stores.forEach(store => {
       if (store.name.toLowerCase().includes(query)) {
         const company = companies.find(c => c.id === store.companyId);
         const concept = company ? concepts.find(c => c.id === company.conceptId) : null;
-        
         results.push({
           id: store.id,
           name: store.name,
@@ -200,7 +181,6 @@ export function Sidebar({
       }
     });
 
-    // Add matching companies
     companies.forEach(company => {
       if (company.name.toLowerCase().includes(query)) {
         const concept = concepts.find(c => c.id === company.conceptId);
@@ -214,7 +194,6 @@ export function Sidebar({
       }
     });
 
-    // Add matching concepts
     concepts.forEach(concept => {
       if (concept.name.toLowerCase().includes(query)) {
         results.push({
@@ -243,62 +222,16 @@ export function Sidebar({
     setSearchQuery('');
   };
 
-  const togglePlacementExpanded = (id: string) => {
-    setExpandedPlacements((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  // All actions sorted by order — including hidden ones, since the sidebar
+  // is the fallback to reach navigation that's been hidden from the QuickActionBar.
+  const allActions = useMemo(
+    () => [...quickActionConfigs].sort((a, b) => a.order - b.order),
+    [quickActionConfigs],
+  );
 
-  const renderPlacement = (placement: Placement, level = 0) => {
-    const isExpanded = expandedPlacements.has(placement.id);
-    const isSelected = selectedPlacement === placement.id;
-    const hasDevices = placement.devices.length > 0;
-    const hasChildren = placement.children.length > 0;
-
-    return (
-      <div key={placement.id} className="space-y-1">
-        <Button
-          variant={isSelected ? 'secondary' : 'ghost'}
-          onClick={() => {
-            if (hasChildren) {
-              togglePlacementExpanded(placement.id);
-            }
-            if (hasDevices) {
-              setSelectedPlacement(placement.id);
-            }
-          }}
-          className={`w-full justify-start ${
-            isSelected
-              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
-              : 'text-gray-700 dark:text-gray-300'
-          }`}
-          style={{ paddingLeft: `${level * 1.5 + 0.5}rem` }}
-        >
-          <div className="flex items-center gap-2">
-            {placement.devices.length > 0 ? (
-              <Monitor className="h-4 w-4" />
-            ) : (
-              <StoreIcon className="h-4 w-4" />
-            )}
-            <span>{placement.name}</span>
-          </div>
-        </Button>
-
-        {isExpanded && placement.children.length > 0 && (
-          <div className="space-y-1">
-            {placement.children.map((child) =>
-              renderPlacement(child, level + 1)
-            )}
-          </div>
-        )}
-      </div>
-    );
+  const handleActionClick = (actionId: QuickActionType) => {
+    onActionSelect(actionId);
+    onClose();
   };
 
   return (
@@ -334,7 +267,7 @@ export function Sidebar({
                 placeholder="Quick search locations..."
                 value={quickSearchQuery}
                 onChange={(e) => setQuickSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-10 bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400"
+                className="w-full pl-10 pr-10 bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 focus:border-[rgb(0,173,240)] dark:focus:border-[rgb(0,173,240)]"
               />
               <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
               {nfc.supported && !nfc.scanning && (
@@ -418,11 +351,11 @@ export function Sidebar({
 
             {/* Current Location with Toggle */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 {React.createElement(currentLocationDetails.icon, {
-                  className: "h-5 w-5 text-gray-500 dark:text-gray-400"
+                  className: "h-5 w-5 text-gray-500 dark:text-gray-400 flex-shrink-0"
                 })}
-                <span className="font-medium text-gray-900 dark:text-white">
+                <span className="font-medium text-gray-900 dark:text-white truncate">
                   {currentLocationDetails.name}
                 </span>
               </div>
@@ -430,74 +363,51 @@ export function Sidebar({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowLocationPanel(!showLocationPanel)}
-                className="ml-2"
+                className="ml-2 flex-shrink-0"
               >
                 <Expand className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {/* Navigation */}
-          <div className="p-4 space-y-2">
-            <Button
-              variant={selectedPage === 'products' ? 'default' : 'ghost'}
-              onClick={() => setSelectedPage('products')}
-              className="w-full justify-start"
-            >
-              <Package className="h-4 w-4 mr-2" />
-              Products
-            </Button>
-            <Button
-              variant={selectedPage === 'devices' ? 'default' : 'ghost'}
-              onClick={() => setSelectedPage('devices')}
-              className="w-full justify-start"
-            >
-              <Monitor className="h-4 w-4 mr-2" />
-              Devices
-            </Button>
-            <Button
-              variant={selectedPage === 'channels' ? 'default' : 'ghost'}
-              onClick={() => setSelectedPage('channels')}
-              className="w-full justify-start"
-            >
-              <Tag className="h-4 w-4 mr-2" />
-              Channels
-            </Button>
+          {/* Full Navigation — all actions including hidden ones */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-4 pt-4 pb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 px-2">
+                All Pages
+              </p>
+            </div>
+            <div className="px-4 space-y-1">
+              {allActions.map((action) => {
+                const Icon = action.icon;
+                const isActive = selectedQuickAction === action.id;
+                return (
+                  <button
+                    key={action.id}
+                    onClick={() => handleActionClick(action.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                    style={isActive ? { backgroundColor: 'rgb(0, 173, 240)' } : undefined}
+                  >
+                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <span className="flex-1 text-left">{action.name}</span>
+                    {!action.visible && (
+                      <EyeOff className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    )}
+                    {isActive && (
+                      <Check className="h-4 w-4 flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Channel Selection */}
-          {selectedPage === 'channels' && (
-            <div className="px-4 pb-4">
-              <Card className="bg-gray-50 dark:bg-gray-800/50">
-                <CardContent className="p-2 space-y-1">
-                  {channels.map((channel) => {
-                    const Icon = channel.icon;
-                    return (
-                      <Button
-                        key={channel.id}
-                        variant="ghost"
-                        onClick={() => setSelectedChannel(channel.id)}
-                        className={`w-full justify-start ${
-                          selectedChannel === channel.id
-                            ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400'
-                            : 'text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        <Icon className="h-4 w-4 mr-2" />
-                        {channel.name}
-                        {selectedChannel === channel.id && (
-                          <Check className="h-4 w-4 ml-auto" />
-                        )}
-                      </Button>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
           {/* Settings Button */}
-          <div className="mt-auto border-t dark:border-gray-700 p-4">
+          <div className="border-t dark:border-gray-700 p-4">
             <Button
               variant="ghost"
               onClick={() => {
@@ -583,7 +493,7 @@ export function Sidebar({
                         onClick={() => onConceptClick(concept.id)}
                         className={`w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors ${
                           selectedConcept === concept.id
-                            ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                            ? 'bg-[rgb(0,173,240)]/10 text-[rgb(0,173,240)]'
                             : 'text-gray-700 dark:text-gray-300'
                         }`}
                       >
@@ -609,7 +519,7 @@ export function Sidebar({
                                   onClick={() => onCompanyClick(company.id)}
                                   className={`w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors ${
                                     selectedCompany === company.id
-                                      ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                                      ? 'bg-[rgb(0,173,240)]/10 text-[rgb(0,173,240)]'
                                       : 'text-gray-700 dark:text-gray-300'
                                   }`}
                                 >
@@ -635,7 +545,7 @@ export function Sidebar({
                                           onClick={() => onStoreSelect(store.id)}
                                           className={`w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors ${
                                             selectedStore === store.id
-                                              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                                              ? 'bg-[rgb(0,173,240)]/10 text-[rgb(0,173,240)]'
                                               : 'text-gray-700 dark:text-gray-300'
                                           }`}
                                         >
