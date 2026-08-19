@@ -128,7 +128,7 @@ export function Navigation({
       activeItemRef.current?.scrollIntoView({ block: 'nearest' });
     }, 0);
     return () => clearTimeout(t);
-  }, [showStoreDropdown, siblings, otherItems]);
+  }, [showStoreDropdown]);
 
   useEffect(() => {
     if (!showStoreDropdown) return;
