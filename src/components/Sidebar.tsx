@@ -10,7 +10,6 @@ import {
   Expand,
   Minimize2,
   Nfc,
-  EyeOff,
   MapPin,
 } from 'lucide-react';
 import { Concept, Company, Store } from '../types';
@@ -18,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useNfc } from '../hooks/useNfc';
-import { QuickActionConfig, QuickActionType } from './QuickActionBar';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -35,9 +33,6 @@ interface SidebarProps {
   onCompanyClick: (companyId: string) => void;
   onStoreSelect: (storeId: string) => void;
   onOpenSettings: () => void;
-  quickActionConfigs: QuickActionConfig[];
-  selectedQuickAction: QuickActionType;
-  onActionSelect: (action: QuickActionType) => void;
 }
 
 export function Sidebar({
@@ -55,9 +50,6 @@ export function Sidebar({
   onCompanyClick,
   onStoreSelect,
   onOpenSettings,
-  quickActionConfigs,
-  selectedQuickAction,
-  onActionSelect,
 }: SidebarProps) {
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
   const [showLocationPanel, setShowLocationPanel] = useState(false);
@@ -222,18 +214,6 @@ export function Sidebar({
     setSearchQuery('');
   };
 
-  // All actions sorted by order — including hidden ones, since the sidebar
-  // is the fallback to reach navigation that's been hidden from the QuickActionBar.
-  const allActions = useMemo(
-    () => [...quickActionConfigs].sort((a, b) => a.order - b.order),
-    [quickActionConfigs],
-  );
-
-  const handleActionClick = (actionId: QuickActionType) => {
-    onActionSelect(actionId);
-    onClose();
-  };
-
   return (
     <>
       <div
@@ -370,39 +350,26 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* Full Navigation — all actions including hidden ones */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 px-2">
-                All Pages
+          <div className="flex-1 flex items-center justify-center px-6 py-10">
+            <div className="w-full max-w-[240px] text-center">
+              <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-gray-200/80 dark:ring-gray-700">
+                <img
+                  src="/wand-digital-41-years-and-counting_(1).png"
+                  alt="WANDdigital"
+                  className="block w-full h-auto"
+                />
+              </div>
+              <div className="mt-5">
+                <p className="text-base font-semibold tracking-tight text-gray-900 dark:text-white">
+                  Operator Hub
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  WANDdigital operations workspace
+                </p>
+              </div>
+              <p className="mt-6 text-[11px] font-medium tracking-wide text-gray-400 dark:text-gray-500">
+                v0.0.0
               </p>
-            </div>
-            <div className="px-4 space-y-1">
-              {allActions.map((action) => {
-                const Icon = action.icon;
-                const isActive = selectedQuickAction === action.id;
-                return (
-                  <button
-                    key={action.id}
-                    onClick={() => handleActionClick(action.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                    style={isActive ? { backgroundColor: 'rgb(0, 173, 240)' } : undefined}
-                  >
-                    <Icon className="h-4 w-4 flex-shrink-0" />
-                    <span className="flex-1 text-left">{action.name}</span>
-                    {!action.visible && (
-                      <EyeOff className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                    )}
-                    {isActive && (
-                      <Check className="h-4 w-4 flex-shrink-0" />
-                    )}
-                  </button>
-                );
-              })}
             </div>
           </div>
 

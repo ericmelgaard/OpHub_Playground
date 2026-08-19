@@ -479,9 +479,6 @@ function App() {
           onCompanyClick={handleCompanyClick}
           onStoreSelect={handleStoreSelect}
           onOpenSettings={() => setShowSettings(true)}
-          quickActionConfigs={quickActionConfigs}
-          selectedQuickAction={selectedQuickAction}
-          onActionSelect={handleQuickActionSelect}
         />
 
         <div className="w-full mx-auto">
