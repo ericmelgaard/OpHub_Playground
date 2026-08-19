@@ -139,7 +139,7 @@ export function LocationSelectionModal({
 
   const hasSearch = searchQuery.trim().length > 0;
 
-  // Scroll the highlighted (active) row into view after the tree renders.
+  // Scroll the highlighted (active) row into view only when the modal opens.
   useEffect(() => {
     if (!isOpen) return;
     if (hasSearch) return;
@@ -148,7 +148,7 @@ export function LocationSelectionModal({
     }, 50);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, expandedConcept, expandedCompany, viewLevel]);
+  }, [isOpen]);
 
   // Search scope is driven by the browse view, not the actual selection
   const scopedConceptIds = useMemo(() => {
