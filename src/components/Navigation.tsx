@@ -15,6 +15,7 @@ import {
   Tv,
   Receipt,
   Wand2,
+  Power,
   MapPin,
   ChevronDown,
   Home,
@@ -186,7 +187,7 @@ export function Navigation({
   };
 
   const getCurrentIcon = () => {
-    if (currentLevel === 'wand') return Wand2;
+    if (currentLevel === 'wand') return Power;
     if (currentLevel === 'concept') return Building2;
     if (currentLevel === 'company') return Building;
     return StoreIcon;
