@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   ChevronRight,
@@ -76,9 +76,19 @@ export function LocationSelectionModal({
 }: LocationSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Local "browse view" state — controls what's shown in the browse tree and
+  // search scope WITHOUT changing the actual selected location. Reset to the
+  // actual selection every time the modal opens.
+  const [viewConcept, setViewConcept] = useState<string | null>(null);
+  const [viewCompany, setViewCompany] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!isOpen) setSearchQuery('');
-  }, [isOpen]);
+    if (isOpen) {
+      setViewConcept(selectedConcept || null);
+      setViewCompany(selectedCompany || null);
+      setSearchQuery('');
+    }
+  }, [isOpen, selectedConcept, selectedCompany]);
 
   const conceptById = useMemo(() => {
     const map = new Map<string, any>();
@@ -92,6 +102,7 @@ export function LocationSelectionModal({
     return map;
   }, [companies]);
 
+  // The actual location level (for breadcrumb trail display)
   const currentLevel: 'wand' | 'concept' | 'company' | 'store' = selectedStore
     ? 'store'
     : selectedCompany
@@ -100,45 +111,55 @@ export function LocationSelectionModal({
         ? 'concept'
         : 'wand';
 
+  // The browse view level (what's shown in the tree / search scope)
+  const viewLevel: 'wand' | 'concept' | 'company' | 'store' = viewCompany
+    ? selectedStore && viewConcept === selectedConcept && viewCompany === selectedCompany
+      ? 'store'
+      : 'company'
+    : viewConcept
+      ? 'concept'
+      : 'wand';
+
   const hasSearch = searchQuery.trim().length > 0;
 
+  // Search scope is driven by the browse view, not the actual selection
   const scopedConceptIds = useMemo(() => {
-    if (currentLevel === 'wand') return new Set(concepts.map((c) => c.id));
-    if (currentLevel === 'concept') return new Set([selectedConcept!]);
-    if (currentLevel === 'company' || currentLevel === 'store') {
-      return new Set([companyById.get(selectedCompany!)?.conceptId].filter(Boolean) as string[]);
+    if (viewLevel === 'wand') return new Set(concepts.map((c) => c.id));
+    if (viewLevel === 'concept') return new Set([viewConcept!]);
+    if (viewLevel === 'company' || viewLevel === 'store') {
+      return new Set([companyById.get(viewCompany!)?.conceptId].filter(Boolean) as string[]);
     }
     return new Set<string>();
-  }, [currentLevel, concepts, selectedConcept, selectedCompany, companyById]);
+  }, [viewLevel, concepts, viewConcept, viewCompany, companyById]);
 
   const scopedCompanyIds = useMemo(() => {
-    if (currentLevel === 'wand') return new Set(companies.map((c) => c.id));
-    if (currentLevel === 'concept')
+    if (viewLevel === 'wand') return new Set(companies.map((c) => c.id));
+    if (viewLevel === 'concept')
       return new Set(
-        companies.filter((c) => c.conceptId === selectedConcept).map((c) => c.id),
+        companies.filter((c) => c.conceptId === viewConcept).map((c) => c.id),
       );
-    if (currentLevel === 'company' || currentLevel === 'store')
-      return new Set([selectedCompany!]);
+    if (viewLevel === 'company' || viewLevel === 'store')
+      return new Set([viewCompany!]);
     return new Set<string>();
-  }, [currentLevel, companies, selectedConcept, selectedCompany]);
+  }, [viewLevel, companies, viewConcept, viewCompany]);
 
   const scopedStoreIds = useMemo(() => {
-    if (currentLevel === 'wand') return new Set(stores.map((s) => s.id));
-    if (currentLevel === 'concept')
+    if (viewLevel === 'wand') return new Set(stores.map((s) => s.id));
+    if (viewLevel === 'concept')
       return new Set(
         stores
           .filter((s) => {
             const comp = companyById.get(s.companyId);
-            return comp && comp.conceptId === selectedConcept;
+            return comp && comp.conceptId === viewConcept;
           })
           .map((s) => s.id),
       );
-    if (currentLevel === 'company' || currentLevel === 'store')
+    if (viewLevel === 'company' || viewLevel === 'store')
       return new Set(
-        stores.filter((s) => s.companyId === selectedCompany).map((s) => s.id),
+        stores.filter((s) => s.companyId === viewCompany).map((s) => s.id),
       );
     return new Set<string>();
-  }, [currentLevel, stores, selectedConcept, selectedCompany, companyById]);
+  }, [viewLevel, stores, viewConcept, viewCompany, companyById]);
 
   // Build fuzzy search results grouped by level
   const searchResults = useMemo(() => {
@@ -165,11 +186,16 @@ export function LocationSelectionModal({
   const getConceptName = (id: string) => conceptById.get(id)?.name || '';
   const getCompanyName = (id: string) => companyById.get(id)?.name || '';
 
+  // Breadcrumb trail shows the actual selected location
   const conceptName = selectedConcept ? getConceptName(selectedConcept) : '';
   const companyName = selectedCompany ? getCompanyName(selectedCompany) : '';
   const storeName = selectedStore
     ? stores.find((s) => s.id === selectedStore)?.name || ''
     : '';
+
+  // Browse view names for search placeholder
+  const viewConceptName = viewConcept ? getConceptName(viewConcept) : '';
+  const viewCompanyName = viewCompany ? getCompanyName(viewCompany) : '';
 
   const handleSearchResultClick = (type: 'concept' | 'company' | 'store', id: string) => {
     if (type === 'concept') {
@@ -201,12 +227,38 @@ export function LocationSelectionModal({
   const handleReset = () => {
     onReset();
     setSearchQuery('');
+    setViewConcept(null);
+    setViewCompany(null);
   };
 
-  // Visible concepts when browsing (not searching)
+  // Breadcrumb clicks update the local browse view only — no location change.
+  // Clicking WAND shows all concepts; clicking a concept shows its companies;
+  // clicking a company shows its stores. The tree and search scope update
+  // accordingly, but the actual selected location is untouched.
+  const handleBreadcrumbView = (level: 'wand' | 'concept' | 'company') => {
+    setSearchQuery('');
+    if (level === 'wand') {
+      setViewConcept(null);
+      setViewCompany(null);
+      onExpandConcept(null);
+      onExpandCompany(null);
+    } else if (level === 'concept') {
+      setViewConcept(selectedConcept);
+      setViewCompany(null);
+      onExpandConcept(selectedConcept);
+      onExpandCompany(null);
+    } else if (level === 'company') {
+      setViewConcept(selectedConcept);
+      setViewCompany(selectedCompany);
+      onExpandConcept(selectedConcept);
+      onExpandCompany(selectedCompany);
+    }
+  };
+
+  // Visible concepts when browsing (not searching) — driven by browse view
   const visibleConcepts =
-    currentLevel === 'concept' || currentLevel === 'company' || currentLevel === 'store'
-      ? concepts.filter((c) => c.id === selectedConcept)
+    viewLevel === 'concept' || viewLevel === 'company' || viewLevel === 'store'
+      ? concepts.filter((c) => c.id === viewConcept)
       : concepts;
 
   return (
@@ -244,44 +296,50 @@ export function LocationSelectionModal({
           </button>
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <button
-              onClick={handleReset}
+              onClick={() => handleBreadcrumbView('wand')}
               className={`font-medium transition-colors ${
-                currentLevel === 'wand'
+                viewLevel === 'wand'
                   ? 'text-gray-900 dark:text-white'
                   : 'hover:opacity-80'
               }`}
-              style={currentLevel === 'wand' ? {} : { color: 'rgb(0, 173, 240)' }}
+              style={viewLevel === 'wand' ? {} : { color: 'rgb(0, 173, 240)' }}
             >
               WAND
             </button>
             {conceptName && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                <BreadcrumbDropdown
-                  label={conceptName}
-                  isActive={currentLevel === 'concept'}
-                  options={concepts.map((c) => ({ id: c.id, name: c.name, type: 'concept' as const }))}
-                  selectedId={selectedConcept || ''}
-                  onSelect={(id, type) => {
-                    if (type === 'concept') onSelectConcept(id);
-                  }}
-                />
+                <button
+                  onClick={() => handleBreadcrumbView('concept')}
+                  className={`font-medium transition-colors ${
+                    viewLevel === 'concept'
+                      ? 'text-gray-900 dark:text-white'
+                      : 'hover:opacity-80'
+                  }`}
+                  style={viewLevel === 'concept' ? {} : { color: 'rgb(0, 173, 240)' }}
+                >
+                  {conceptName}
+                </button>
               </>
             )}
             {companyName && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                <BreadcrumbDropdown
-                  label={companyName}
-                  isActive={currentLevel === 'company' || currentLevel === 'store'}
-                  options={companies
-                    .filter((c) => c.conceptId === selectedConcept)
-                    .map((c) => ({ id: c.id, name: c.name, type: 'company' as const }))}
-                  selectedId={selectedCompany || ''}
-                  onSelect={(id, type) => {
-                    if (type === 'company') onSelectCompany(id);
-                  }}
-                />
+                <button
+                  onClick={() => handleBreadcrumbView('company')}
+                  className={`font-medium transition-colors ${
+                    viewLevel === 'company' || viewLevel === 'store'
+                      ? 'text-gray-900 dark:text-white'
+                      : 'hover:opacity-80'
+                  }`}
+                  style={
+                    viewLevel === 'company' || viewLevel === 'store'
+                      ? {}
+                      : { color: 'rgb(0, 173, 240)' }
+                  }
+                >
+                  {companyName}
+                </button>
               </>
             )}
             {storeName && (
@@ -302,12 +360,12 @@ export function LocationSelectionModal({
             <Input
               type="text"
               placeholder={
-                currentLevel === 'wand'
+                viewLevel === 'wand'
                   ? 'Search all concepts, companies, or stores...'
-                  : currentLevel === 'concept'
-                    ? `Search within ${conceptName}...`
-                    : currentLevel === 'company'
-                      ? `Search within ${companyName}...`
+                  : viewLevel === 'concept'
+                    ? `Search within ${viewConceptName}...`
+                    : viewLevel === 'company'
+                      ? `Search within ${viewCompanyName}...`
                       : `Search sibling stores...`
               }
               value={searchQuery}
@@ -649,83 +707,5 @@ function SearchResultItem({
         )}
       </div>
     </button>
-  );
-}
-
-interface BreadcrumbDropdownProps {
-  label: string;
-  isActive: boolean;
-  options: { id: string; name: string; type: 'concept' | 'company' | 'store' }[];
-  selectedId: string;
-  onSelect: (id: string, type: 'concept' | 'company' | 'store') => void;
-}
-
-function BreadcrumbDropdown({
-  label,
-  isActive,
-  options,
-  selectedId,
-  onSelect,
-}: BreadcrumbDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1 font-medium transition-colors rounded px-1 py-0.5 ${
-          isActive
-            ? 'text-gray-900 dark:text-white'
-            : 'hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
-        }`}
-        style={isActive ? {} : { color: 'rgb(0, 173, 240)' }}
-        title={`Switch to a different ${options[0]?.type || 'item'}`}
-      >
-        {label}
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-20 min-w-[200px] max-h-64 overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
-          {options.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 px-3 py-2">
-              No options available.
-            </p>
-          ) : (
-            options.map((opt) => {
-              const isSelected = opt.id === selectedId;
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => {
-                    onSelect(opt.id, opt.type);
-                    setOpen(false);
-                  }}
-                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors ${
-                    isSelected
-                      ? 'text-white'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                  style={isSelected ? { backgroundColor: 'rgb(0, 173, 240)' } : {}}
-                >
-                  <span className="truncate">{opt.name}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
   );
 }
