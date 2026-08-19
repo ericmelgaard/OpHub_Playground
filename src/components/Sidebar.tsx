@@ -110,11 +110,8 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* Footer: Version + Settings */}
+          {/* Footer: Settings + Version */}
           <div className="border-t dark:border-gray-700 p-4 space-y-3">
-            <p className="text-[11px] font-medium tracking-wide text-gray-400 dark:text-gray-500 px-1">
-              v0.0.0
-            </p>
             <Button
               variant="ghost"
               onClick={() => {
@@ -126,6 +123,9 @@ export function Sidebar({
               <Settings className="h-4 w-4" />
               Settings
             </Button>
+            <p className="text-right text-[11px] font-medium tracking-wide text-gray-400 dark:text-gray-500">
+              v0.0.0
+            </p>
           </div>
         </div>
       </div>
