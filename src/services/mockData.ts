@@ -382,6 +382,13 @@ export const mockCompanies: Company[] = [
     id: "company-8",
     name: "District Food Services",
     conceptId: "concept-4"
+  },
+
+  // Perrilco (demo "other store" the user has access to outside the current hierarchy)
+  {
+    id: "company-9",
+    name: "Perrilco",
+    conceptId: "concept-1"
   }
 ];
 
@@ -501,6 +508,13 @@ export const mockStores: Store[] = [
     id: "store-20",
     name: "Elementary School Café",
     companyId: "company-8"
+  },
+
+  // Creative Service Lab — demo "other store" under Perrilco
+  {
+    id: "store-21",
+    name: "Creative Service Lab",
+    companyId: "company-9"
   }
 ];
 

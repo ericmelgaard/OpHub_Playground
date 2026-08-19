@@ -462,6 +462,18 @@ function App() {
             setLocationChangeInfo({ label: s?.name || 'Store', path: ['WAND', cName, coName, s?.name || ''] });
             setLocationChangeTrigger(t => t + 1);
           }}
+          onSelectOtherStore={(storeId) => {
+            const s = stores.find(s => s.id === storeId);
+            const co = companies.find(c => c.id === s?.companyId);
+            const con = concepts.find(c => c.id === co?.conceptId);
+            setSelectedConcept(con?.id || null);
+            setSelectedCompany(co?.id || null);
+            setSelectedStore(storeId);
+            setExpandedConcept(con?.id || null);
+            setExpandedCompany(co?.id || null);
+            setLocationChangeInfo({ label: s?.name || 'Store', path: ['WAND', con?.name || '', co?.name || '', s?.name || ''] });
+            setLocationChangeTrigger(t => t + 1);
+          }}
         />
 
         <Sidebar

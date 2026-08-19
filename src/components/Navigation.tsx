@@ -54,6 +54,7 @@ interface NavigationProps {
   onExpandCompany?: (companyId: string | null) => void;
   onResetLocation?: () => void;
   loadingLocations?: boolean;
+  onSelectOtherStore?: (storeId: string) => void;
 }
 
 const CHANNEL_INFO = {
@@ -93,6 +94,7 @@ export function Navigation({
   onExpandCompany,
   onResetLocation,
   loadingLocations = false,
+  onSelectOtherStore,
 }: NavigationProps) {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
@@ -195,10 +197,11 @@ export function Navigation({
   const CurrentIcon = getCurrentIcon();
   const isWandLevel = currentLevel === 'wand';
 
-  // Siblings for the quick-select dropdown
-  const getSiblings = () => {
+  // Drill-down items for the quick-select dropdown.
+  // WAND/concept/company show children (one step down the hierarchy);
+  // store shows siblings (stores in the same company) plus an "Other stores" group.
+  const getDropdownItems = () => {
     if (currentLevel === 'wand') {
-      // Top-level: list all concepts
       return concepts.map((c) => ({
         id: c.id,
         name: c.name,
@@ -207,16 +210,6 @@ export function Navigation({
       }));
     }
     if (currentLevel === 'concept') {
-      // Sibling concepts
-      return concepts.map((c) => ({
-        id: c.id,
-        name: c.name,
-        type: 'concept' as const,
-        icon: Building2,
-      }));
-    }
-    if (currentLevel === 'company') {
-      // Sibling companies within the same concept
       return companies
         .filter((c) => c.conceptId === selectedConcept)
         .map((c) => ({
@@ -226,7 +219,17 @@ export function Navigation({
           icon: Building,
         }));
     }
-    // store: sibling stores within the same company
+    if (currentLevel === 'company') {
+      return stores
+        .filter((s) => s.companyId === selectedCompany)
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          type: 'store' as const,
+          icon: StoreIcon,
+        }));
+    }
+    // store level: sibling stores within the same company
     return stores
       .filter((s) => s.companyId === selectedCompany)
       .map((s) => ({
@@ -237,7 +240,14 @@ export function Navigation({
       }));
   };
 
-  const siblings = getSiblings();
+  const siblings = getDropdownItems();
+
+  // Demo "other stores" — stores the user has access to outside the current hierarchy.
+  // For this demo we always show one: Creative Service Lab.
+  const otherStores =
+    currentLevel === 'store'
+      ? [{ id: 'store-21', name: 'Creative Service Lab', type: 'store' as const, icon: StoreIcon }]
+      : [];
 
   const handleSiblingSelect = (sibling: { id: string; type: 'concept' | 'company' | 'store' }) => {
     triggerNavSpinner();
@@ -248,6 +258,12 @@ export function Navigation({
     } else {
       onSelectStore?.(sibling.id);
     }
+    setShowStoreDropdown(false);
+  };
+
+  const handleOtherStoreSelect = (storeId: string) => {
+    triggerNavSpinner();
+    onSelectOtherStore?.(storeId);
     setShowStoreDropdown(false);
   };
 
@@ -309,21 +325,22 @@ export function Navigation({
                           {currentLevel === 'wand'
                             ? 'Concepts'
                             : currentLevel === 'concept'
-                              ? 'Sibling Concepts'
+                              ? 'Companies'
                               : currentLevel === 'company'
-                                ? 'Companies in Concept'
+                                ? 'Stores'
                                 : 'Stores in Company'}
                         </div>
-                        {loadingLocations && siblings.length === 0 ? (
+                        {loadingLocations && siblings.length === 0 && otherStores.length === 0 ? (
                           <div className="flex items-center justify-center py-6">
                             <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                           </div>
-                        ) : siblings.length === 0 ? (
+                        ) : siblings.length === 0 && otherStores.length === 0 ? (
                           <p className="text-sm text-gray-400 dark:text-gray-500 px-3 py-4 text-center">
                             No locations found.
                           </p>
                         ) : (
-                          siblings.map((sibling) => {
+                          <>
+                          {siblings.map((sibling) => {
                             const SibIcon = sibling.icon;
                             const isActive =
                               (sibling.type === 'concept' && sibling.id === selectedConcept) ||
@@ -344,7 +361,34 @@ export function Navigation({
                                 <span className="truncate">{sibling.name}</span>
                               </Button>
                             );
-                          })
+                          })}
+                          {otherStores.length > 0 && (
+                            <>
+                              <div className="px-3 py-1 mt-2 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide border-t border-gray-100 dark:border-gray-700 pt-2">
+                                Other Stores
+                              </div>
+                              {otherStores.map((s) => {
+                                const SibIcon = s.icon;
+                                const isActive = s.id === selectedStore;
+                                return (
+                                  <Button
+                                    key={s.id}
+                                    variant={isActive ? 'secondary' : 'ghost'}
+                                    onClick={() => handleOtherStoreSelect(s.id)}
+                                    className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
+                                      isActive
+                                        ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                                  >
+                                    <SibIcon className="h-4 w-4 flex-shrink-0" />
+                                    <span className="truncate">{s.name}</span>
+                                  </Button>
+                                );
+                              })}
+                            </>
+                          )}
+                          </>
                         )}
                       </CardContent>
                     </Card>

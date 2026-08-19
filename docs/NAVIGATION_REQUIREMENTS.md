@@ -4,7 +4,7 @@
 
 The CCGS navigation system lets operators move between levels of their organizational hierarchy: **WAND** (root) → **Concept** → **Company** → **Store**. Two surfaces provide this capability:
 
-1. **Quick Nav** — the compact location selector embedded in the top navigation bar, designed for fast one-click switches between sibling locations.
+1. **Quick Nav** — the compact location selector embedded in the top navigation bar, designed for fast drill-down from WAND all the way to a store, one step at a time.
 2. **Full Nav** — the Location Selection modal, a larger browse-and-search surface for exploring the full hierarchy and jumping to any node.
 
 Both surfaces share the same data model and selection callbacks, but differ in interaction style and depth of exploration.
@@ -57,7 +57,7 @@ The current level is derived from the deepest non-null selection:
 
 ### Purpose
 
-Fast, inline switching between sibling locations at the current level, without opening a modal. Optimized for operators who know where they are and want to jump one step sideways or up.
+Fast, inline drill-down through the organizational hierarchy, one step at a time, without opening a modal. The dropdown always shows the **children** of the current location (WAND → concepts, concept → companies, company → stores), letting the operator step all the way down to a store. At the store level it shows **sibling stores** within the same company, plus an "Other stores" group for stores the user has access to outside the current hierarchy.
 
 ### Location
 
@@ -74,22 +74,24 @@ Embedded in the fixed top navigation bar, left section, immediately after the ha
    - Chevron-down icon (16px) indicates dropdown affordance.
    - Click toggles the sibling dropdown.
 
-2. **Sibling dropdown**
+2. **Drill-down dropdown**
    - Opens below the current-location button.
    - Card panel, 288px wide (`w-72`), max height 384px with vertical scroll.
    - Header label adapts to the current level:
      - WAND → "Concepts"
-     - concept → "Sibling Concepts"
-     - company → "Companies in Concept"
+     - concept → "Companies"
+     - company → "Stores"
      - store → "Stores in Company"
-   - Lists siblings at the current level:
-     - WAND: all concepts.
-     - concept: all concepts (siblings).
-     - company: companies within the selected concept.
-     - store: stores within the selected company.
-   - Each sibling row shows its level icon (16px) and name (truncated).
-   - Active sibling (matching the current selection) is highlighted with the brand-blue background (`rgb(0, 173, 240)`) and white text.
-   - Clicking a sibling selects it and closes the dropdown.
+   - Lists items at one step below the current level:
+     - WAND: all concepts (children).
+     - concept: companies within the selected concept (children).
+     - company: stores within the selected company (children).
+     - store: stores within the selected company (siblings).
+   - At the store level, an additional **"Other stores"** section appears below the sibling stores, separated by a divider and its own header. It contains stores the user has access to that are **not** inherited from the current company. For the demo, this always shows one entry: "Creative Service Lab".
+   - Each row shows its level icon (16px) and name (truncated).
+   - Active item (matching the current selection) is highlighted with the brand-blue background (`rgb(0, 173, 240)`) and white text.
+   - Clicking an item selects it and closes the dropdown. Selecting a company also sets the parent concept; selecting a store also sets the parent company and concept. Selecting an "Other store" sets its full parent chain so the hierarchy stays consistent.
+   - You can use the quick nav to go from WAND all the way to a site — each step is always one level down.
 
 3. **Nav spinner**
    - On any navigation action, a `Loader2` spinner (16px, white at 70% opacity) appears next to the button for 600ms to give visual feedback.
@@ -109,12 +111,12 @@ Embedded in the fixed top navigation bar, left section, immediately after the ha
 
 ### Empty State
 
-- If no siblings are found, the dropdown shows "No locations found."
+- If no items are found (and no "Other stores"), the dropdown shows "No locations found."
 
 ### Interaction
 
 - Clicking outside the dropdown closes it (mousedown listener on document).
-- The dropdown does not close on sibling click until after selection is applied.
+- The dropdown does not close on item click until after selection is applied.
 
 ---
 
