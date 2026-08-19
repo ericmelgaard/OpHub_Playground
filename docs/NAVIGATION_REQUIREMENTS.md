@@ -226,27 +226,25 @@ Centered modal, max width 896px (`max-w-4xl`), max height 90vh, vertical scroll 
 
 Some operators have access across multiple organizational domains (e.g., a corporate user who manages both University Dining and Perrilco internal sites). The `isMultiDomainUser` flag on the access response controls whether "Other" sections appear in the quick nav.
 
-### Access Response Shape
+### Access Response
+
+The access response includes `isMultiDomainUser`, which defaults to `false`. The vast majority of users are single-domain and will never see "Other" sections. Only when the flag is explicitly `true` does the multi-domain behavior activate.
 
 ```
-companies: [,…]
-concepts: [,…]
-groups: [{name: "ADMIN", privilegeLevel: 1, parentLevel: 4, domainLevel: 8,…},…]
-initialCcgs: {}
-isMultiDomainUser: false
-stores: [{name: "0473 - San Diego, CA - (23374)", privilegeLevel: 1, parentLevel: 8, domainLevel: 16,…},…]
-userPrivilegeLevel: 1
+isMultiDomainUser: false   // default — most users
 ```
 
-### "Other" Sections in Quick Nav
+### Where "Other" Sections Appear
 
-When `isMultiDomainUser` is true, the quick nav dropdown shows an additional "Other" group below the current-level items at **every** level. The contents are drawn from the user's selected secondary domain:
+"Other" sections only appear at the **concept**, **company**, and **store** levels — never at the **WAND** level. A WAND-level user already sees every concept they have access to as direct children of root; there is no "outside the current context" to show, so multi-domain is meaningless there.
 
-- **Concept level**: an "Other Concepts" section listing concepts outside the current navigation context.
-- **Company level**: an "Other Companies" section listing companies outside the current concept.
-- **Store level**: an "Other Stores" section listing stores outside the current company.
+When `isMultiDomainUser` is true and the user is drilled into a hierarchy, the quick nav dropdown shows an additional "Other" group below the current-level items. The contents come from the user's selected secondary domain:
 
-Single-domain users never see these "Other" sections.
+- **Concept level**: an "Other Concepts" section listing concepts from the secondary domain that aren't in the current navigation context.
+- **Company level**: an "Other Companies" section listing companies from the secondary domain outside the current concept.
+- **Store level**: an "Other Stores" section listing stores from the secondary domain outside the current company. (This extends the existing "Other stores" behavior already documented in the Quick Nav section.)
+
+At WAND level, the dropdown is unchanged regardless of the flag.
 
 ### Selecting an "Other" Entry
 
@@ -254,7 +252,7 @@ Selecting any "Other" item jumps the entire hierarchy to that domain and sets th
 
 ### Demo Behavior
 
-For the demo, multi-domain mode is toggled via the "Manage Demo" control in the top navigation bar. When enabled, a dropdown lets you select which secondary domain is active from several demo options (e.g., "Perrilco (Internal)", "Midwest University Alliance", "Regional Hospital Network"). The selected domain's concepts, companies, and stores populate the "Other" sections. Switching the selection updates the "Other" entries immediately.
+For the demo, multi-domain mode is toggled via the "Manage Demo" control in the top navigation bar. When enabled, a dropdown lets you select which secondary domain is active from several demo options (e.g., "Perrilco (Internal)", "Midwest University Alliance", "Regional Hospital Network"). The selected domain's concepts, companies, and stores populate the "Other" sections. Switching the selection updates the "Other" entries immediately. At WAND level the dropdown shows no "Other" section even when multi-domain is enabled.
 
 ---
 
