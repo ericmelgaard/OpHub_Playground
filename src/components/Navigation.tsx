@@ -459,7 +459,7 @@ export function Navigation({
                                 onClick={() => handleSiblingSelect(sibling)}
                                 className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
                                   isActive
-                                    ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                                    ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] dark:bg-gray-600 dark:hover:bg-gray-500'
                                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                               >
@@ -496,7 +496,7 @@ export function Navigation({
                                     onClick={() => handleOtherSelect(s)}
                                     className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
                                       isActive
-                                        ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                                        ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] dark:bg-gray-600 dark:hover:bg-gray-500'
                                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                                   >

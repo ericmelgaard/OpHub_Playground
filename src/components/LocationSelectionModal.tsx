@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X,
   ChevronRight,
@@ -75,6 +75,7 @@ export function LocationSelectionModal({
   loading = false,
 }: LocationSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const activeRowRef = useRef<HTMLDivElement>(null);
 
   // Local "browse view" state — controls what's shown in the browse tree and
   // search scope WITHOUT changing the actual selected location. Reset to the
@@ -82,13 +83,38 @@ export function LocationSelectionModal({
   const [viewConcept, setViewConcept] = useState<string | null>(null);
   const [viewCompany, setViewCompany] = useState<string | null>(null);
 
+  // Auto-expand the path to the current selection when the modal opens so the
+  // target location is visible immediately, not hidden inside collapsed nesting.
   useEffect(() => {
     if (isOpen) {
       setViewConcept(selectedConcept || null);
       setViewCompany(selectedCompany || null);
       setSearchQuery('');
+      if (selectedConcept) {
+        onExpandConcept(selectedConcept);
+        if (selectedCompany) {
+          onExpandCompany(selectedCompany);
+        } else {
+          onExpandCompany(null);
+        }
+      } else {
+        onExpandConcept(null);
+        onExpandCompany(null);
+      }
     }
-  }, [isOpen, selectedConcept, selectedCompany]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Scroll the highlighted (active) row into view after the tree renders.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (hasSearch) return;
+    const t = setTimeout(() => {
+      activeRowRef.current?.scrollIntoView({ block: 'center' });
+    }, 50);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, expandedConcept, expandedCompany]);
 
   const conceptById = useMemo(() => {
     const map = new Map<string, any>();
@@ -392,9 +418,10 @@ export function LocationSelectionModal({
               return (
                 <div
                   key={concept.id}
-                  className={`border rounded-lg overflow-hidden transition-colors ${
+                  ref={isSelected ? activeRowRef : undefined}
+                  className={`border rounded-lg overflow-hidden transition-colors scroll-mt-4 ${
                     isSelected
-                      ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-blue-900/10'
+                      ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-gray-700/70'
                       : 'border-gray-200 dark:border-gray-700'
                   }`}
                 >
@@ -416,7 +443,11 @@ export function LocationSelectionModal({
                           className="h-5 w-5 flex-shrink-0"
                           style={{ color: 'rgb(0, 173, 240)' }}
                         />
-                        <span className="font-medium text-gray-900 dark:text-white">
+                        <span className={`font-medium ${
+                          isSelected
+                            ? 'text-[rgb(0,173,240)] dark:text-white'
+                            : 'text-gray-900 dark:text-white'
+                        }`}>
                           {concept.name}
                         </span>
                       </div>
@@ -448,6 +479,8 @@ export function LocationSelectionModal({
                         conceptCompanies.map((company) => {
                           const isCompanyExpanded =
                             expandedCompany === company.id;
+                          const isCompanySelected =
+                            selectedCompany === company.id;
                           const storeCount = getCompanyStoreCount(company.id);
                           const companyStores = stores.filter(
                             (s) => s.companyId === company.id,
@@ -455,7 +488,14 @@ export function LocationSelectionModal({
 
                           return (
                             <div key={company.id} className="mt-2">
-                              <div className="flex items-stretch rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                              <div
+                                ref={isCompanySelected ? activeRowRef : undefined}
+                                className={`flex items-stretch rounded-lg overflow-hidden border scroll-mt-4 ${
+                                  isCompanySelected
+                                    ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-gray-700/70'
+                                    : 'border-gray-200 dark:border-gray-700'
+                                }`}
+                              >
                                 <button
                                   onClick={() =>
                                     onExpandCompany(
@@ -471,7 +511,7 @@ export function LocationSelectionModal({
                                       <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                     )}
                                     <Building className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                    <span className="text-gray-900 dark:text-white">
+                                    <span className={isCompanySelected ? 'text-[rgb(0,173,240)] dark:text-white' : 'text-gray-900 dark:text-white'}>
                                       {company.name}
                                     </span>
                                   </div>
@@ -502,23 +542,35 @@ export function LocationSelectionModal({
                                       No stores under this company.
                                     </p>
                                   ) : (
-                                    companyStores.map((store) => (
-                                      <button
+                                    companyStores.map((store) => {
+                                      const isStoreSelected = selectedStore === store.id;
+                                      return (
+                                      <div
                                         key={store.id}
-                                        onClick={() => {
-                                          onSelectConcept(concept.id);
-                                          onSelectCompany(company.id);
-                                          onSelectStore(store.id);
-                                          onClose();
-                                        }}
-                                        className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
+                                        ref={isStoreSelected ? activeRowRef : undefined}
+                                        className={`rounded-lg scroll-mt-4 ${
+                                          isStoreSelected
+                                            ? 'bg-blue-50/50 dark:bg-gray-700/70'
+                                            : ''
+                                        }`}
                                       >
-                                        <MapPin className="h-4 w-4 text-red-500" />
-                                        <span className="text-gray-900 dark:text-white">
-                                          {store.name}
-                                        </span>
-                                      </button>
-                                    ))
+                                        <button
+                                          onClick={() => {
+                                            onSelectConcept(concept.id);
+                                            onSelectCompany(company.id);
+                                            onSelectStore(store.id);
+                                            onClose();
+                                          }}
+                                          className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
+                                        >
+                                          <MapPin className={`h-4 w-4 ${isStoreSelected ? 'text-[rgb(0,173,240)]' : 'text-red-500'}`} />
+                                          <span className={isStoreSelected ? 'text-[rgb(0,173,240)] dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
+                                            {store.name}
+                                          </span>
+                                        </button>
+                                      </div>
+                                      );
+                                    })
                                   )}
                                 </div>
                               )}
