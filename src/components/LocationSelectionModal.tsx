@@ -107,17 +107,6 @@ export function LocationSelectionModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Scroll the highlighted (active) row into view after the tree renders.
-  useEffect(() => {
-    if (!isOpen) return;
-    if (hasSearch) return;
-    const t = setTimeout(() => {
-      activeRowRef.current?.scrollIntoView({ block: 'center' });
-    }, 50);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, expandedConcept, expandedCompany, viewLevel]);
-
   const conceptById = useMemo(() => {
     const map = new Map<string, any>();
     concepts.forEach((c) => map.set(c.id, c));
@@ -149,6 +138,17 @@ export function LocationSelectionModal({
       : 'wand';
 
   const hasSearch = searchQuery.trim().length > 0;
+
+  // Scroll the highlighted (active) row into view after the tree renders.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (hasSearch) return;
+    const t = setTimeout(() => {
+      activeRowRef.current?.scrollIntoView({ block: 'center' });
+    }, 50);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, expandedConcept, expandedCompany, viewLevel]);
 
   // Search scope is driven by the browse view, not the actual selection
   const scopedConceptIds = useMemo(() => {
