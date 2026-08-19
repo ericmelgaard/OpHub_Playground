@@ -187,8 +187,6 @@ export function LocationSelectionModal({
   const getCompanyName = (id: string) => companyById.get(id)?.name || '';
 
   // Breadcrumb trail shows the actual selected location
-  const conceptName = selectedConcept ? getConceptName(selectedConcept) : '';
-  const companyName = selectedCompany ? getCompanyName(selectedCompany) : '';
   const storeName = selectedStore
     ? stores.find((s) => s.id === selectedStore)?.name || ''
     : '';
@@ -232,9 +230,9 @@ export function LocationSelectionModal({
   };
 
   // Breadcrumb clicks update the local browse view only — no location change.
-  // Clicking WAND shows all concepts; clicking a concept shows its companies;
-  // clicking a company shows its stores. The tree and search scope update
-  // accordingly, but the actual selected location is untouched.
+  // Each click clears the levels below it in the view, so the breadcrumb trail
+  // shrinks to reflect what you're browsing. The actual selected location is
+  // untouched.
   const handleBreadcrumbView = (level: 'wand' | 'concept' | 'company') => {
     setSearchQuery('');
     if (level === 'wand') {
@@ -243,15 +241,11 @@ export function LocationSelectionModal({
       onExpandConcept(null);
       onExpandCompany(null);
     } else if (level === 'concept') {
-      setViewConcept(selectedConcept);
       setViewCompany(null);
-      onExpandConcept(selectedConcept);
+      onExpandConcept(viewConcept);
       onExpandCompany(null);
     } else if (level === 'company') {
-      setViewConcept(selectedConcept);
-      setViewCompany(selectedCompany);
-      onExpandConcept(selectedConcept);
-      onExpandCompany(selectedCompany);
+      onExpandCompany(viewCompany);
     }
   };
 
@@ -306,7 +300,7 @@ export function LocationSelectionModal({
             >
               WAND
             </button>
-            {conceptName && (
+            {viewConcept && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                 <button
@@ -318,11 +312,11 @@ export function LocationSelectionModal({
                   }`}
                   style={viewLevel === 'concept' ? {} : { color: 'rgb(0, 173, 240)' }}
                 >
-                  {conceptName}
+                  {getConceptName(viewConcept)}
                 </button>
               </>
             )}
-            {companyName && (
+            {viewCompany && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                 <button
@@ -338,11 +332,11 @@ export function LocationSelectionModal({
                       : { color: 'rgb(0, 173, 240)' }
                   }
                 >
-                  {companyName}
+                  {getCompanyName(viewCompany)}
                 </button>
               </>
             )}
-            {storeName && (
+            {viewLevel === 'store' && storeName && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                 <span className="font-medium text-gray-900 dark:text-white">
