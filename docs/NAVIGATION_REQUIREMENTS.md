@@ -220,6 +220,44 @@ Centered modal, max width 896px (`max-w-4xl`), max height 90vh, vertical scroll 
 
 ---
 
+## Multi-Domain Users
+
+### Overview
+
+Some operators have access across multiple organizational domains (e.g., a corporate user who manages both University Dining and Perrilco internal sites). The `isMultiDomainUser` flag on the access response controls whether "Other" sections appear in the quick nav.
+
+### Access Response Shape
+
+```
+companies: [,…]
+concepts: [,…]
+groups: [{name: "ADMIN", privilegeLevel: 1, parentLevel: 4, domainLevel: 8,…},…]
+initialCcgs: {}
+isMultiDomainUser: false
+stores: [{name: "0473 - San Diego, CA - (23374)", privilegeLevel: 1, parentLevel: 8, domainLevel: 16,…},…]
+userPrivilegeLevel: 1
+```
+
+### "Other" Sections in Quick Nav
+
+When `isMultiDomainUser` is true, the quick nav dropdown shows an additional "Other" group below the current-level items at **every** level. The contents are drawn from the user's selected secondary domain:
+
+- **Concept level**: an "Other Concepts" section listing concepts outside the current navigation context.
+- **Company level**: an "Other Companies" section listing companies outside the current concept.
+- **Store level**: an "Other Stores" section listing stores outside the current company.
+
+Single-domain users never see these "Other" sections.
+
+### Selecting an "Other" Entry
+
+Selecting any "Other" item jumps the entire hierarchy to that domain and sets the full parent chain (concept → company → store) so navigation stays consistent. The location change overlay and breadcrumb trail reflect the new domain immediately.
+
+### Demo Behavior
+
+For the demo, multi-domain mode is toggled via the "Manage Demo" control in the top navigation bar. When enabled, a dropdown lets you select which secondary domain is active from several demo options (e.g., "Perrilco (Internal)", "Midwest University Alliance", "Regional Hospital Network"). The selected domain's concepts, companies, and stores populate the "Other" sections. Switching the selection updates the "Other" entries immediately.
+
+---
+
 ## Edge Cases
 
 | Case | Behavior |

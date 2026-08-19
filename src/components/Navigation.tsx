@@ -22,18 +22,19 @@ import {
   Building2,
   Building,
   Store as StoreIcon,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Theme } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LocationSelectionModal } from './LocationSelectionModal';
+import type { DemoSecondaryDomain } from '../services/mockData';
 
 interface NavigationProps {
   notifications: number;
   setNotifications: (count: number) => void;
   onCreateItem: () => void;
-  onCreateRule: () => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
   onMenuClick: () => void;
@@ -55,6 +56,13 @@ interface NavigationProps {
   onResetLocation?: () => void;
   loadingLocations?: boolean;
   onSelectOtherStore?: (storeId: string) => void;
+  onSelectOtherConcept?: (conceptId: string) => void;
+  onSelectOtherCompany?: (companyId: string) => void;
+  isMultiDomainUser?: boolean;
+  selectedSecondaryDomain?: DemoSecondaryDomain | null;
+  onToggleMultiDomain?: (enabled: boolean) => void;
+  onSelectSecondaryDomain?: (domainId: string) => void;
+  demoSecondaryDomains?: DemoSecondaryDomain[];
 }
 
 const CHANNEL_INFO = {
@@ -73,7 +81,6 @@ export function Navigation({
   notifications,
   setNotifications,
   onCreateItem,
-  onCreateRule,
   theme,
   setTheme,
   onMenuClick,
@@ -95,14 +102,23 @@ export function Navigation({
   onResetLocation,
   loadingLocations = false,
   onSelectOtherStore,
+  onSelectOtherConcept,
+  onSelectOtherCompany,
+  isMultiDomainUser = false,
+  selectedSecondaryDomain = null,
+  onToggleMultiDomain,
+  onSelectSecondaryDomain,
+  demoSecondaryDomains = [],
 }: NavigationProps) {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showDismissAllConfirm, setShowDismissAllConfirm] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
+  const [showDemoMenu, setShowDemoMenu] = useState(false);
   const [navSpinner, setNavSpinner] = useState(false);
   const storeDropdownRef = useRef<HTMLDivElement>(null);
+  const demoMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!showStoreDropdown) return;
@@ -117,6 +133,20 @@ export function Navigation({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showStoreDropdown]);
+
+  useEffect(() => {
+    if (!showDemoMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        demoMenuRef.current &&
+        !demoMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowDemoMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDemoMenu]);
 
   const themeOptions = [
     { value: 'light', label: 'Light Mode', icon: Sun },
@@ -242,12 +272,47 @@ export function Navigation({
 
   const siblings = getDropdownItems();
 
-  // Demo "other stores" — stores the user has access to outside the current hierarchy.
-  // For this demo we always show one: Creative Service Lab.
-  const otherStores =
-    currentLevel === 'store'
-      ? [{ id: 'store-21', name: 'Creative Service Lab', type: 'store' as const, icon: StoreIcon }]
-      : [];
+  // Multi-domain "Other" sections — only shown when the user is multi-domain.
+  // Each level shows nodes from the selected secondary domain that are outside
+  // the current navigation context.
+  const otherItems: { id: string; name: string; type: 'concept' | 'company' | 'store'; icon: any }[] = [];
+  if (isMultiDomainUser && selectedSecondaryDomain) {
+    if (currentLevel === 'wand' || currentLevel === 'concept') {
+      otherItems.push({
+        id: selectedSecondaryDomain.concept.id,
+        name: selectedSecondaryDomain.concept.name,
+        type: 'concept',
+        icon: Building2,
+      });
+    }
+    if (currentLevel === 'company') {
+      otherItems.push(
+        ...selectedSecondaryDomain.companies.map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: 'company' as const,
+          icon: Building,
+        })),
+      );
+    }
+    if (currentLevel === 'store') {
+      otherItems.push(
+        ...selectedSecondaryDomain.stores.map((s) => ({
+          id: s.id,
+          name: s.name,
+          type: 'store' as const,
+          icon: StoreIcon,
+        })),
+      );
+    }
+  }
+
+  const otherSectionTitle =
+    currentLevel === 'company'
+      ? 'Other Companies'
+      : currentLevel === 'store'
+        ? 'Other Stores'
+        : 'Other Concepts';
 
   const handleSiblingSelect = (sibling: { id: string; type: 'concept' | 'company' | 'store' }) => {
     triggerNavSpinner();
@@ -265,6 +330,28 @@ export function Navigation({
     triggerNavSpinner();
     onSelectOtherStore?.(storeId);
     setShowStoreDropdown(false);
+  };
+
+  const handleOtherConceptSelect = (conceptId: string) => {
+    triggerNavSpinner();
+    onSelectOtherConcept?.(conceptId);
+    setShowStoreDropdown(false);
+  };
+
+  const handleOtherCompanySelect = (companyId: string) => {
+    triggerNavSpinner();
+    onSelectOtherCompany?.(companyId);
+    setShowStoreDropdown(false);
+  };
+
+  const handleOtherSelect = (item: { id: string; type: 'concept' | 'company' | 'store' }) => {
+    if (item.type === 'concept') {
+      handleOtherConceptSelect(item.id);
+    } else if (item.type === 'company') {
+      handleOtherCompanySelect(item.id);
+    } else {
+      handleOtherStoreSelect(item.id);
+    }
   };
 
   const handleReset = () => {
@@ -330,11 +417,11 @@ export function Navigation({
                                 ? 'Stores'
                                 : 'Stores in Company'}
                         </div>
-                        {loadingLocations && siblings.length === 0 && otherStores.length === 0 ? (
+                        {loadingLocations && siblings.length === 0 && otherItems.length === 0 ? (
                           <div className="flex items-center justify-center py-6">
                             <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                           </div>
-                        ) : siblings.length === 0 && otherStores.length === 0 ? (
+                        ) : siblings.length === 0 && otherItems.length === 0 ? (
                           <p className="text-sm text-gray-400 dark:text-gray-500 px-3 py-4 text-center">
                             No locations found.
                           </p>
@@ -362,19 +449,22 @@ export function Navigation({
                               </Button>
                             );
                           })}
-                          {otherStores.length > 0 && (
+                          {otherItems.length > 0 && (
                             <>
                               <div className="px-3 py-1 mt-2 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide border-t border-gray-100 dark:border-gray-700 pt-2">
-                                Other Stores
+                                {otherSectionTitle}
                               </div>
-                              {otherStores.map((s) => {
+                              {otherItems.map((s) => {
                                 const SibIcon = s.icon;
-                                const isActive = s.id === selectedStore;
+                                const isActive =
+                                  (s.type === 'concept' && s.id === selectedConcept) ||
+                                  (s.type === 'company' && s.id === selectedCompany) ||
+                                  (s.type === 'store' && s.id === selectedStore);
                                 return (
                                   <Button
                                     key={s.id}
                                     variant={isActive ? 'secondary' : 'ghost'}
-                                    onClick={() => handleOtherStoreSelect(s.id)}
+                                    onClick={() => handleOtherSelect(s)}
                                     className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
                                       isActive
                                         ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
@@ -408,17 +498,77 @@ export function Navigation({
 
           <div className="flex items-center space-x-2 sm:space-x-6">
             <div className="flex items-center gap-2 sm:gap-4">
-              {selectedPage !== 'devices' && (
+              <div className="relative" ref={demoMenuRef}>
                 <Button
                   variant="secondary"
-                  onClick={onCreateRule}
+                  onClick={() => setShowDemoMenu(!showDemoMenu)}
                   className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
                   style={{ backgroundColor: 'rgb(0, 173, 240)' }}
                 >
-                  <Wand2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Manage Rules</span>
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span className="hidden sm:inline">Manage Demo</span>
                 </Button>
-              )}
+
+                {showDemoMenu && (
+                  <Card className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+                    <CardContent className="p-4 space-y-4">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                          Demo Controls
+                        </h3>
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            Multi-domain user
+                          </span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isMultiDomainUser}
+                            onClick={() => onToggleMultiDomain?.(!isMultiDomainUser)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              isMultiDomainUser ? 'bg-[rgb(0,173,240)]' : 'bg-gray-300 dark:bg-gray-600'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                isMultiDomainUser ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </label>
+                      </div>
+
+                      {isMultiDomainUser && (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            Secondary Domain
+                          </label>
+                          <div className="space-y-1">
+                            {demoSecondaryDomains.map((domain) => (
+                              <button
+                                key={domain.id}
+                                onClick={() => onSelectSecondaryDomain?.(domain.id)}
+                                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md transition-colors ${
+                                  domain.id === selectedSecondaryDomain?.id
+                                    ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                              >
+                                <Building2 className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate text-left">{domain.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-gray-700">
+                        Toggling multi-domain shows "Other" sections in the quick nav at every level.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
 
             <div className="h-6 w-px bg-gray-700 dark:bg-gray-800" />

@@ -518,6 +518,55 @@ export const mockStores: Store[] = [
   }
 ];
 
+// Demo secondary domains for multi-domain users.
+// Each domain has its own concept, companies, and stores. When a user toggles
+// "multi-domain" on and picks one of these, its nodes appear in the quick nav
+// "Other" sections at concept/company/store level.
+export interface DemoSecondaryDomain {
+  id: string;
+  name: string;
+  concept: { id: string; name: string };
+  companies: { id: string; name: string; conceptId: string }[];
+  stores: { id: string; name: string; companyId: string }[];
+}
+
+export const demoSecondaryDomains: DemoSecondaryDomain[] = [
+  {
+    id: 'domain-perrilco',
+    name: 'Perrilco (Internal)',
+    concept: { id: 'concept-perrilco', name: 'Perrilco' },
+    companies: [
+      { id: 'company-perrilco-1', name: 'Perrilco Internal Services', conceptId: 'concept-perrilco' },
+    ],
+    stores: [
+      { id: 'store-21', name: 'Creative Service Lab', companyId: 'company-perrilco-1' },
+    ],
+  },
+  {
+    id: 'domain-midwest',
+    name: 'Midwest University Alliance',
+    concept: { id: 'concept-midwest', name: 'Midwest Collegiate Dining' },
+    companies: [
+      { id: 'company-midwest-1', name: 'Great Lakes Campus Group', conceptId: 'concept-midwest' },
+    ],
+    stores: [
+      { id: 'store-midwest-1', name: 'Lakeshore Dining Hall', companyId: 'company-midwest-1' },
+      { id: 'store-midwest-2', name: 'Student Center Bistro', companyId: 'company-midwest-1' },
+    ],
+  },
+  {
+    id: 'domain-regional',
+    name: 'Regional Hospital Network',
+    concept: { id: 'concept-regional', name: 'Regional Healthcare Dining' },
+    companies: [
+      { id: 'company-regional-1', name: 'Tri-County Hospital Group', conceptId: 'concept-regional' },
+    ],
+    stores: [
+      { id: 'store-regional-1', name: 'North Wing Cafeteria', companyId: 'company-regional-1' },
+    ],
+  },
+];
+
 // Helper function to get device references after devices are defined
 const getDeviceById = (id: string): Device | undefined => {
   return mockDevices.find(d => d.id === id);

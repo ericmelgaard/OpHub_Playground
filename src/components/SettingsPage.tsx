@@ -1,5 +1,5 @@
-import React from 'react';
-import { Database, ArrowLeft } from 'lucide-react';
+import React, { useState } from 'react';
+import { Database, ArrowLeft, Wand2 } from 'lucide-react';
 import { IntegrationSettings, Theme } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +12,7 @@ interface SettingsPageProps {
   setTheme: (theme: Theme) => void;
   integrationSettings: IntegrationSettings;
   setIntegrationSettings: (settings: IntegrationSettings) => void;
+  onOpenRules?: () => void;
 }
 
 export function SettingsPage({
@@ -20,7 +21,10 @@ export function SettingsPage({
   setTheme,
   integrationSettings,
   setIntegrationSettings,
+  onOpenRules,
 }: SettingsPageProps) {
+  const [activeSection, setActiveSection] = useState<'integrations' | 'rules'>('integrations');
+
   return (
     <div className="fixed inset-0 bg-white dark:bg-gray-800 z-50">
       {/* Header */}
@@ -51,17 +55,57 @@ export function SettingsPage({
           <div className="md:col-span-1">
             <nav className="space-y-1">
               <Button
-                variant="secondary"
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-50 hover:dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
+                variant={activeSection === 'integrations' ? 'secondary' : 'ghost'}
+                onClick={() => setActiveSection('integrations')}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeSection === 'integrations'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-50 hover:dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
               >
                 <Database className="h-4 w-4" />
                 Integrations
+              </Button>
+              <Button
+                variant={activeSection === 'rules' ? 'secondary' : 'ghost'}
+                onClick={() => setActiveSection('rules')}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg ${
+                  activeSection === 'rules'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-50 hover:dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Wand2 className="h-4 w-4" />
+                Manage Rules
               </Button>
             </nav>
           </div>
 
           {/* Settings Panel */}
           <div className="md:col-span-2">
+            {activeSection === 'rules' ? (
+              <Card className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
+                <CardContent className="p-6">
+                  <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    Manage Rules
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                    Create and edit presentation rules that control how menu items appear across devices and dayparts.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      onClose();
+                      onOpenRules?.();
+                    }}
+                    className="flex items-center gap-2 text-white"
+                    style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+                  >
+                    <Wand2 className="h-4 w-4" />
+                    Open Rule Builder
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
             <Card className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
               <CardContent className="p-6">
                 <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-6">
@@ -152,6 +196,7 @@ export function SettingsPage({
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity } from 'lucide-react';
+import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
@@ -15,10 +15,12 @@ import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
 import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
+import { SettingsPage } from './components/SettingsPage';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { LocationChangeOverlay } from './components/LocationChangeOverlay';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
 import { api } from './services/api';
+import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
 
 function App() {
@@ -218,6 +220,11 @@ function App() {
   // Rules state
   const [rules, setRules] = useState<Rule[]>([]);
 
+  // Multi-domain demo state
+  const [isMultiDomainUser, setIsMultiDomainUser] = useState(false);
+  const [selectedSecondaryDomainId, setSelectedSecondaryDomainId] = useState<string>(demoSecondaryDomains[0]?.id || '');
+  const selectedSecondaryDomain = demoSecondaryDomains.find(d => d.id === selectedSecondaryDomainId) || null;
+
   // Load menu items
   useEffect(() => {
     const loadMenuItems = async () => {
@@ -409,7 +416,6 @@ function App() {
           notifications={notifications}
           setNotifications={setNotifications}
           onCreateItem={() => setShowCreateItemModal(true)}
-          onCreateRule={() => setShowCreateRuleModal(true)}
           theme={theme}
           setTheme={setTheme}
           onMenuClick={() => setIsSidebarOpen(true)}
@@ -425,6 +431,11 @@ function App() {
           expandedCompany={expandedCompany}
           onExpandConcept={setExpandedConcept}
           onExpandCompany={setExpandedCompany}
+          isMultiDomainUser={isMultiDomainUser}
+          selectedSecondaryDomain={selectedSecondaryDomain}
+          onToggleMultiDomain={setIsMultiDomainUser}
+          onSelectSecondaryDomain={setSelectedSecondaryDomainId}
+          demoSecondaryDomains={demoSecondaryDomains}
           onResetLocation={() => {
             setSelectedConcept(null);
             setSelectedCompany(null);
@@ -473,6 +484,31 @@ function App() {
             setExpandedCompany(co?.id || null);
             setLocationChangeInfo({ label: s?.name || 'Store', path: ['WAND', con?.name || '', co?.name || '', s?.name || ''] });
             setLocationChangeTrigger(t => t + 1);
+          }}
+          onSelectOtherConcept={(conceptId) => {
+            if (selectedSecondaryDomain && conceptId === selectedSecondaryDomain.concept.id) {
+              setSelectedConcept(conceptId);
+              setSelectedCompany(null);
+              setSelectedStore(null);
+              setExpandedConcept(conceptId);
+              setExpandedCompany(null);
+              setLocationChangeInfo({ label: selectedSecondaryDomain.concept.name, path: ['WAND', selectedSecondaryDomain.concept.name] });
+              setLocationChangeTrigger(t => t + 1);
+            }
+          }}
+          onSelectOtherCompany={(companyId) => {
+            if (selectedSecondaryDomain) {
+              const co = selectedSecondaryDomain.companies.find(c => c.id === companyId);
+              if (co) {
+                setSelectedConcept(selectedSecondaryDomain.concept.id);
+                setSelectedCompany(companyId);
+                setSelectedStore(null);
+                setExpandedConcept(selectedSecondaryDomain.concept.id);
+                setExpandedCompany(companyId);
+                setLocationChangeInfo({ label: co.name, path: ['WAND', selectedSecondaryDomain.concept.name, co.name] });
+                setLocationChangeTrigger(t => t + 1);
+              }
+            }
           }}
         />
 
@@ -634,6 +670,24 @@ function App() {
             show={showCreateItemModal}
             onClose={() => setShowCreateItemModal(false)}
             onSave={() => setShowCreateItemModal(false)}
+          />
+        )}
+
+        {showSettings && (
+          <SettingsPage
+            onClose={() => setShowSettings(false)}
+            theme={theme}
+            setTheme={setTheme}
+            integrationSettings={{
+              type: 'webtrition',
+              businessUnit: '',
+              location: '',
+              enabled: false,
+              customAttributeDefinitions: [],
+              supportedLanguages: []
+            }}
+            setIntegrationSettings={() => {}}
+            onOpenRules={() => setShowCreateRuleModal(true)}
           />
         )}
 
