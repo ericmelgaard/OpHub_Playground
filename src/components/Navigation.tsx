@@ -436,6 +436,7 @@ export function Navigation({
                             return (
                               <Button
                                 key={sibling.id}
+                                title={sibling.name}
                                 variant={isActive ? 'secondary' : 'ghost'}
                                 onClick={() => handleSiblingSelect(sibling)}
                                 className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
@@ -471,6 +472,7 @@ export function Navigation({
                                 return (
                                   <Button
                                     key={s.id}
+                                    title={s.name}
                                     variant={isActive ? 'secondary' : 'ghost'}
                                     onClick={() => handleOtherSelect(s)}
                                     className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
