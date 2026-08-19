@@ -121,9 +121,15 @@ export function Navigation({
   const demoMenuRef = useRef<HTMLDivElement>(null);
   const dropdownScrollRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [dropdownMinWidth, setDropdownMinWidth] = useState(0);
 
   useEffect(() => {
-    if (!showStoreDropdown || !activeItemRef.current) return;
+    if (!showStoreDropdown) return;
+    if (triggerRef.current) {
+      setDropdownMinWidth(triggerRef.current.offsetWidth);
+    }
+    if (!activeItemRef.current) return;
     const t = setTimeout(() => {
       activeItemRef.current?.scrollIntoView({ block: 'nearest' });
     }, 0);
@@ -388,8 +394,9 @@ export function Navigation({
                 <div className="relative" ref={storeDropdownRef}>
                   <div className="flex items-center gap-1">
                     <button
+                      ref={triggerRef}
                       onClick={() => setShowStoreDropdown(!showStoreDropdown)}
-                      className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors whitespace-nowrap"
                     >
                       {isWandLevel ? (
                         <img src="/wand-level.webp" alt="WAND" className="h-4 w-4 object-contain" />
@@ -416,7 +423,7 @@ export function Navigation({
                   </div>
 
                   {showStoreDropdown && (
-                    <Card ref={dropdownScrollRef} className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
+                    <Card ref={dropdownScrollRef} className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto" style={{ minWidth: dropdownMinWidth ? `${dropdownMinWidth}px` : undefined }}>
                       <CardContent className="p-2">
                         <div className="px-3 py-1 text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide border-b border-gray-100 dark:border-gray-700 mb-1">
                           {currentLevel === 'wand'
