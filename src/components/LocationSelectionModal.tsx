@@ -83,20 +83,22 @@ export function LocationSelectionModal({
   const [viewConcept, setViewConcept] = useState<string | null>(null);
   const [viewCompany, setViewCompany] = useState<string | null>(null);
 
-  // Auto-expand the path to the current selection when the modal opens so the
-  // target location is visible immediately, not hidden inside collapsed nesting.
+  // Auto-expand the path to the current selection when the modal opens.
+  // At company/store level, only the current company is exposed (concept stays
+  // collapsed as a context header). Breadcrumbing up widens the view.
   useEffect(() => {
     if (isOpen) {
       setViewConcept(selectedConcept || null);
       setViewCompany(selectedCompany || null);
       setSearchQuery('');
-      if (selectedConcept) {
+      if (selectedCompany) {
+        // Scoped to a single company — concept stays collapsed
+        onExpandConcept(null);
+        onExpandCompany(null);
+      } else if (selectedConcept) {
+        // Concept level — expand to show sibling companies
         onExpandConcept(selectedConcept);
-        if (selectedCompany) {
-          onExpandCompany(selectedCompany);
-        } else {
-          onExpandCompany(null);
-        }
+        onExpandCompany(null);
       } else {
         onExpandConcept(null);
         onExpandCompany(null);
@@ -114,7 +116,7 @@ export function LocationSelectionModal({
     }, 50);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, expandedConcept, expandedCompany]);
+  }, [isOpen, expandedConcept, expandedCompany, viewLevel]);
 
   const conceptById = useMemo(() => {
     const map = new Map<string, any>();
@@ -405,11 +407,105 @@ export function LocationSelectionModal({
               onResultClick={handleSearchResultClick}
               query={searchQuery.trim()}
             />
+          ) : viewLevel === 'company' || viewLevel === 'store' ? (
+            // Scoped view: concept as context header + current company with stores
+            (() => {
+              const concept = conceptById.get(viewConcept!)!;
+              const company = companyById.get(viewCompany!)!;
+              const conceptCompanyCount = getConceptCompanyCount(viewConcept!);
+              const companyStores = stores.filter(
+                (s) => s.companyId === viewCompany,
+              );
+              return (
+                <div className="space-y-3">
+                  {/* Concept context header (non-interactive label) */}
+                  <div className="flex items-stretch rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div className="w-full flex items-center justify-between p-4 flex-1">
+                      <div className="flex items-center gap-3">
+                        <Building2
+                          className="h-5 w-5 flex-shrink-0"
+                          style={{ color: 'rgb(0, 173, 240)' }}
+                        />
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {concept.name}
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
+                        {conceptCompanyCount} companies
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        onSelectConcept(concept.id);
+                        onClose();
+                      }}
+                      className="px-4 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      style={{ color: 'rgb(0, 173, 240)' }}
+                    >
+                      Go
+                    </button>
+                  </div>
+
+                  {/* Current company expanded with stores */}
+                  <div className="border rounded-lg overflow-hidden border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex items-center gap-3">
+                        <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                        <Building className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {company.name}
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {companyStores.length} stores
+                      </span>
+                    </div>
+                    <div className="pl-10 space-y-1 p-2">
+                      {companyStores.length === 0 ? (
+                        <p className="text-sm text-gray-400 dark:text-gray-500 py-2">
+                          No stores under this company.
+                        </p>
+                      ) : (
+                        companyStores.map((store) => {
+                          const isStoreSelected = selectedStore === store.id;
+                          const showStoreHighlight = companyStores.length > 1 && isStoreSelected;
+                          return (
+                            <div
+                              key={store.id}
+                              ref={showStoreHighlight ? activeRowRef : undefined}
+                              className={`rounded-lg scroll-mt-4 ${
+                                showStoreHighlight ? 'bg-blue-50/50 dark:bg-gray-700/70' : ''
+                              }`}
+                            >
+                              <button
+                                onClick={() => {
+                                  onSelectConcept(concept.id);
+                                  onSelectCompany(company.id);
+                                  onSelectStore(store.id);
+                                  onClose();
+                                }}
+                                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
+                              >
+                                <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-[rgb(0,173,240)]' : 'text-red-500'}`} />
+                                <span className={showStoreHighlight ? 'text-[rgb(0,173,240)] dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
+                                  {store.name}
+                                </span>
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
           ) : (
-            // Browse mode: expandable concepts and companies
+            // Wide browse mode: expandable concepts and companies
             visibleConcepts.map((concept) => {
               const isExpanded = expandedConcept === concept.id;
               const isSelected = selectedConcept === concept.id;
+              const showConceptHighlight = visibleConcepts.length > 1 && isSelected;
               const companyCount = getConceptCompanyCount(concept.id);
               const conceptCompanies = companies.filter(
                 (c) => c.conceptId === concept.id,
@@ -418,7 +514,12 @@ export function LocationSelectionModal({
               return (
                 <div
                   key={concept.id}
-                  className="border rounded-lg overflow-hidden transition-colors border-gray-200 dark:border-gray-700"
+                  ref={showConceptHighlight ? activeRowRef : undefined}
+                  className={`border rounded-lg overflow-hidden transition-colors scroll-mt-4 ${
+                    showConceptHighlight
+                      ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-gray-700/70'
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}
                 >
                   <div className="flex items-stretch">
                     {/* Expand button (browse) */}
@@ -438,7 +539,11 @@ export function LocationSelectionModal({
                           className="h-5 w-5 flex-shrink-0"
                           style={{ color: 'rgb(0, 173, 240)' }}
                         />
-                        <span className="font-medium text-gray-900 dark:text-white">
+                        <span className={`font-medium ${
+                          showConceptHighlight
+                            ? 'text-[rgb(0,173,240)] dark:text-white'
+                            : 'text-gray-900 dark:text-white'
+                        }`}>
                           {concept.name}
                         </span>
                       </div>
@@ -472,6 +577,7 @@ export function LocationSelectionModal({
                             expandedCompany === company.id;
                           const isCompanySelected =
                             selectedCompany === company.id;
+                          const showCompanyHighlight = conceptCompanies.length > 1 && isCompanySelected;
                           const storeCount = getCompanyStoreCount(company.id);
                           const companyStores = stores.filter(
                             (s) => s.companyId === company.id,
@@ -480,9 +586,9 @@ export function LocationSelectionModal({
                           return (
                             <div key={company.id} className="mt-2">
                               <div
-                                ref={isCompanySelected ? activeRowRef : undefined}
+                                ref={showCompanyHighlight ? activeRowRef : undefined}
                                 className={`flex items-stretch rounded-lg overflow-hidden border scroll-mt-4 ${
-                                  isCompanySelected
+                                  showCompanyHighlight
                                     ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-gray-700/70'
                                     : 'border-gray-200 dark:border-gray-700'
                                 }`}
@@ -502,7 +608,7 @@ export function LocationSelectionModal({
                                       <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                     )}
                                     <Building className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                    <span className={isCompanySelected ? 'text-[rgb(0,173,240)] dark:text-white' : 'text-gray-900 dark:text-white'}>
+                                    <span className={showCompanyHighlight ? 'text-[rgb(0,173,240)] dark:text-white' : 'text-gray-900 dark:text-white'}>
                                       {company.name}
                                     </span>
                                   </div>
@@ -535,12 +641,13 @@ export function LocationSelectionModal({
                                   ) : (
                                     companyStores.map((store) => {
                                       const isStoreSelected = selectedStore === store.id;
+                                      const showStoreHighlight = companyStores.length > 1 && isStoreSelected;
                                       return (
                                       <div
                                         key={store.id}
-                                        ref={isStoreSelected ? activeRowRef : undefined}
+                                        ref={showStoreHighlight ? activeRowRef : undefined}
                                         className={`rounded-lg scroll-mt-4 ${
-                                          isStoreSelected
+                                          showStoreHighlight
                                             ? 'bg-blue-50/50 dark:bg-gray-700/70'
                                             : ''
                                         }`}
@@ -554,8 +661,8 @@ export function LocationSelectionModal({
                                           }}
                                           className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
                                         >
-                                          <MapPin className={`h-4 w-4 ${isStoreSelected ? 'text-[rgb(0,173,240)]' : 'text-red-500'}`} />
-                                          <span className={isStoreSelected ? 'text-[rgb(0,173,240)] dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
+                                          <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-[rgb(0,173,240)]' : 'text-red-500'}`} />
+                                          <span className={showStoreHighlight ? 'text-[rgb(0,173,240)] dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
                                             {store.name}
                                           </span>
                                         </button>
