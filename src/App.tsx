@@ -453,7 +453,7 @@ function App() {
             setExpandedConcept(id);
             setExpandedCompany(null);
             const c = concepts.find(c => c.id === id);
-            setLocationChangeInfo({ label: c?.name || 'Concept', path: ['WAND', c?.name || ''] });
+            setLocationChangeInfo({ label: c?.name || 'Concept', path: [] });
             setLocationChangeTrigger(t => t + 1);
           }}
           onSelectCompany={(id) => {
@@ -462,15 +462,14 @@ function App() {
             setExpandedCompany(id);
             const co = companies.find(c => c.id === id);
             const cName = concepts.find(c => c.id === selectedConcept)?.name || '';
-            setLocationChangeInfo({ label: co?.name || 'Company', path: ['WAND', cName, co?.name || ''] });
+            setLocationChangeInfo({ label: cName, path: [co?.name || 'Company'] });
             setLocationChangeTrigger(t => t + 1);
           }}
           onSelectStore={(id) => {
             setSelectedStore(id);
             const s = stores.find(s => s.id === id);
             const cName = concepts.find(c => c.id === selectedConcept)?.name || '';
-            const coName = companies.find(c => c.id === selectedCompany)?.name || '';
-            setLocationChangeInfo({ label: s?.name || 'Store', path: ['WAND', cName, coName, s?.name || ''] });
+            setLocationChangeInfo({ label: cName, path: [s?.name || 'Store'] });
             setLocationChangeTrigger(t => t + 1);
           }}
           onSelectOtherStore={(storeId) => {
@@ -482,7 +481,7 @@ function App() {
             setSelectedStore(storeId);
             setExpandedConcept(con?.id || null);
             setExpandedCompany(co?.id || null);
-            setLocationChangeInfo({ label: s?.name || 'Store', path: ['WAND', con?.name || '', co?.name || '', s?.name || ''] });
+            setLocationChangeInfo({ label: con?.name || 'Concept', path: [s?.name || 'Store'] });
             setLocationChangeTrigger(t => t + 1);
           }}
           onSelectOtherConcept={(conceptId) => {
@@ -492,7 +491,7 @@ function App() {
               setSelectedStore(null);
               setExpandedConcept(conceptId);
               setExpandedCompany(null);
-              setLocationChangeInfo({ label: selectedSecondaryDomain.concept.name, path: ['WAND', selectedSecondaryDomain.concept.name] });
+              setLocationChangeInfo({ label: selectedSecondaryDomain.concept.name, path: [] });
               setLocationChangeTrigger(t => t + 1);
             }
           }}
@@ -505,7 +504,7 @@ function App() {
                 setSelectedStore(null);
                 setExpandedConcept(selectedSecondaryDomain.concept.id);
                 setExpandedCompany(companyId);
-                setLocationChangeInfo({ label: co.name, path: ['WAND', selectedSecondaryDomain.concept.name, co.name] });
+                setLocationChangeInfo({ label: selectedSecondaryDomain.concept.name, path: [co.name] });
                 setLocationChangeTrigger(t => t + 1);
               }
             }
