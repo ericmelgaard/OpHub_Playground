@@ -444,7 +444,15 @@ export function Navigation({
                                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                               >
-                                <SibIcon className="h-4 w-4 flex-shrink-0" />
+                                <SibIcon className={`h-4 w-4 flex-shrink-0 ${
+                                  isActive
+                                    ? ''
+                                    : sibling.type === 'concept'
+                                      ? 'text-[rgb(0,173,240)]'
+                                      : sibling.type === 'company'
+                                        ? 'text-gray-500 dark:text-gray-400'
+                                        : 'text-red-500'
+                                }`} />
                                 <span className="truncate">{sibling.name}</span>
                               </Button>
                             );
@@ -471,7 +479,15 @@ export function Navigation({
                                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                                   >
-                                    <SibIcon className="h-4 w-4 flex-shrink-0" />
+                                    <SibIcon className={`h-4 w-4 flex-shrink-0 ${
+                                      isActive
+                                        ? ''
+                                        : s.type === 'concept'
+                                          ? 'text-[rgb(0,173,240)]'
+                                          : s.type === 'company'
+                                            ? 'text-gray-500 dark:text-gray-400'
+                                            : 'text-red-500'
+                                    }`} />
                                     <span className="truncate">{s.name}</span>
                                   </Button>
                                 );
