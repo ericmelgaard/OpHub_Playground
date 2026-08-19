@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X,
   ChevronRight,
@@ -257,40 +257,31 @@ export function LocationSelectionModal({
             {conceptName && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                <button
-                  onClick={() => {
-                    onSelectConcept(selectedConcept!);
-                    onSelectCompany('');
+                <BreadcrumbDropdown
+                  label={conceptName}
+                  isActive={currentLevel === 'concept'}
+                  options={concepts.map((c) => ({ id: c.id, name: c.name, type: 'concept' as const }))}
+                  selectedId={selectedConcept || ''}
+                  onSelect={(id, type) => {
+                    if (type === 'concept') onSelectConcept(id);
                   }}
-                  className={`font-medium transition-colors ${
-                    currentLevel === 'concept'
-                      ? 'text-gray-900 dark:text-white'
-                      : 'hover:opacity-80'
-                  }`}
-                  style={currentLevel === 'concept' ? {} : { color: 'rgb(0, 173, 240)' }}
-                >
-                  {conceptName}
-                </button>
+                />
               </>
             )}
             {companyName && (
               <>
                 <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                <button
-                  onClick={() => onSelectCompany(selectedCompany!)}
-                  className={`font-medium transition-colors ${
-                    currentLevel === 'company' || currentLevel === 'store'
-                      ? 'text-gray-900 dark:text-white'
-                      : 'hover:opacity-80'
-                  }`}
-                  style={
-                    currentLevel === 'company' || currentLevel === 'store'
-                      ? {}
-                      : { color: 'rgb(0, 173, 240)' }
-                  }
-                >
-                  {companyName}
-                </button>
+                <BreadcrumbDropdown
+                  label={companyName}
+                  isActive={currentLevel === 'company' || currentLevel === 'store'}
+                  options={companies
+                    .filter((c) => c.conceptId === selectedConcept)
+                    .map((c) => ({ id: c.id, name: c.name, type: 'company' as const }))}
+                  selectedId={selectedCompany || ''}
+                  onSelect={(id, type) => {
+                    if (type === 'company') onSelectCompany(id);
+                  }}
+                />
               </>
             )}
             {storeName && (
@@ -658,5 +649,83 @@ function SearchResultItem({
         )}
       </div>
     </button>
+  );
+}
+
+interface BreadcrumbDropdownProps {
+  label: string;
+  isActive: boolean;
+  options: { id: string; name: string; type: 'concept' | 'company' | 'store' }[];
+  selectedId: string;
+  onSelect: (id: string, type: 'concept' | 'company' | 'store') => void;
+}
+
+function BreadcrumbDropdown({
+  label,
+  isActive,
+  options,
+  selectedId,
+  onSelect,
+}: BreadcrumbDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center gap-1 font-medium transition-colors rounded px-1 py-0.5 ${
+          isActive
+            ? 'text-gray-900 dark:text-white'
+            : 'hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
+        }`}
+        style={isActive ? {} : { color: 'rgb(0, 173, 240)' }}
+        title={`Switch to a different ${options[0]?.type || 'item'}`}
+      >
+        {label}
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-20 min-w-[200px] max-h-64 overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
+          {options.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 px-3 py-2">
+              No options available.
+            </p>
+          ) : (
+            options.map((opt) => {
+              const isSelected = opt.id === selectedId;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => {
+                    onSelect(opt.id, opt.type);
+                    setOpen(false);
+                  }}
+                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors ${
+                    isSelected
+                      ? 'text-white'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  style={isSelected ? { backgroundColor: 'rgb(0, 173, 240)' } : {}}
+                >
+                  <span className="truncate">{opt.name}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
   );
 }
