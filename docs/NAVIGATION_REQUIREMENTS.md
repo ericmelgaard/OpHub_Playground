@@ -1,0 +1,232 @@
+# CCGS Navigation Requirements
+
+## Overview
+
+The CCGS navigation system lets operators move between levels of their organizational hierarchy: **WAND** (root) → **Concept** → **Company** → **Store**. Two surfaces provide this capability:
+
+1. **Quick Nav** — the compact location selector embedded in the top navigation bar, designed for fast one-click switches between sibling locations.
+2. **Full Nav** — the Location Selection modal, a larger browse-and-search surface for exploring the full hierarchy and jumping to any node.
+
+Both surfaces share the same data model and selection callbacks, but differ in interaction style and depth of exploration.
+
+---
+
+## Shared Data Model
+
+### Hierarchy Levels
+
+| Level | Description | Default Icon | Example |
+|-------|-------------|--------------|---------|
+| WAND | Root / top level. The operator's home base. | `Wand2` (lucide), with a small brand WebP image rendered at 16px | WAND |
+| Concept | A dining concept (e.g., University Dining, Healthcare). | `Building2` | University Dining |
+| Company | A company group within a concept. | `Building` | Northeast University Group |
+| Store | An individual store location. | `Store` (lucide) | Main Campus Dining Hall |
+
+### Data Types
+
+- **Concept**: `{ id: string; name: string; children: Concept[] }`
+- **Company**: `{ id: string; name: string; conceptId: string }`
+- **Store**: `{ id: string; name: string; companyId: string }`
+
+### Future Data Point
+
+- **Concept logos**: each concept may carry an optional `logo` field (PNG or WebP, small format, displayed at icon size). Default icons remain in place until a logo is provided.
+
+### Selection State
+
+A single set of selection state drives both surfaces:
+
+- `selectedConcept: string | null`
+- `selectedCompany: string | null`
+- `selectedStore: string | null`
+- `expandedConcept: string | null` — which concept is expanded in the browse tree
+- `expandedCompany: string | null` — which company is expanded in the browse tree
+
+### Derived Level
+
+The current level is derived from the deepest non-null selection:
+
+- store selected → `store`
+- company selected (no store) → `company`
+- concept selected (no company) → `concept`
+- nothing selected → `wand`
+
+---
+
+## Quick Nav (Header Dropdown)
+
+### Purpose
+
+Fast, inline switching between sibling locations at the current level, without opening a modal. Optimized for operators who know where they are and want to jump one step sideways or up.
+
+### Location
+
+Embedded in the fixed top navigation bar, left section, immediately after the hamburger menu button.
+
+### Components
+
+1. **Current-location button**
+   - Displays the current level's icon (or WAND brand image at the WAND level) and the current location label.
+   - Icon size: 16px (`h-4 w-4`), matching the surrounding icons.
+   - WAND level: renders `/wand-level.webp` at 16px; the image must not disrupt alignment or exceed the icon box.
+   - All other levels: lucide icon colored `rgb(0, 173, 240)`.
+   - Label: concept/company/store name, or "WAND" at root.
+   - Chevron-down icon (16px) indicates dropdown affordance.
+   - Click toggles the sibling dropdown.
+
+2. **Sibling dropdown**
+   - Opens below the current-location button.
+   - Card panel, 288px wide (`w-72`), max height 384px with vertical scroll.
+   - Header label adapts to the current level:
+     - WAND → "Concepts"
+     - concept → "Sibling Concepts"
+     - company → "Companies in Concept"
+     - store → "Stores in Company"
+   - Lists siblings at the current level:
+     - WAND: all concepts.
+     - concept: all concepts (siblings).
+     - company: companies within the selected concept.
+     - store: stores within the selected company.
+   - Each sibling row shows its level icon (16px) and name (truncated).
+   - Active sibling (matching the current selection) is highlighted with the brand-blue background (`rgb(0, 173, 240)`) and white text.
+   - Clicking a sibling selects it and closes the dropdown.
+
+3. **Nav spinner**
+   - On any navigation action, a `Loader2` spinner (16px, white at 70% opacity) appears next to the button for 600ms to give visual feedback.
+
+4. **Return-to-WAND button**
+   - Visible only when the current level is not `wand`.
+   - Home icon (16px), gray.
+   - Clicking resets the location to WAND root.
+
+5. **Full Location Selector button**
+   - MapPin icon (20px), brand blue.
+   - Opens the Full Nav modal.
+
+### Loading State
+
+- If `loadingLocations` is true and siblings are empty, the dropdown shows a centered spinner.
+
+### Empty State
+
+- If no siblings are found, the dropdown shows "No locations found."
+
+### Interaction
+
+- Clicking outside the dropdown closes it (mousedown listener on document).
+- The dropdown does not close on sibling click until after selection is applied.
+
+---
+
+## Full Nav (Location Selection Modal)
+
+### Purpose
+
+Browse the entire hierarchy, search across concepts/companies/stores, and navigate to any node. Designed for discovery and cross-level jumps.
+
+### Trigger
+
+Opened via the Full Location Selector button (MapPin icon) in the Quick Nav.
+
+### Layout
+
+Centered modal, max width 896px (`max-w-4xl`), max height 90vh, vertical scroll on content area.
+
+### Sections
+
+1. **Header**
+   - Title: "Select Location".
+   - Loading spinner if `loading` is true.
+   - Close button (X icon).
+
+2. **Breadcrumb bar**
+   - "Return to WAND" link with Home icon — resets selection to root and clears browse view.
+   - Breadcrumb trail: WAND › [Concept] › [Company] › [Store].
+   - Breadcrumbs reflect the **browse view** (what's currently displayed), not the actual selection.
+   - Clicking a breadcrumb navigates the browse view to that level without changing the actual selection.
+   - Current browse level is shown in dark text; parent levels are brand-blue links.
+   - Separators: ChevronRight icons (16px, gray).
+
+3. **Search**
+   - Search input with Search icon prefix.
+   - Placeholder adapts to browse scope:
+     - WAND → "Search all concepts, companies, or stores..."
+     - concept → "Search within [concept name]..."
+     - company → "Search within [company name]..."
+     - store → "Search sibling stores..."
+   - Fuzzy (case-insensitive substring) match on names.
+   - Results are scoped to the current browse view (see below).
+   - Max 50 results per level, with a "Showing first N matches" note when capped.
+
+4. **Browse tree**
+   - Visible when no search query is active.
+   - Lists concepts as expandable cards.
+   - Each concept card:
+     - Expand/collapse chevron + concept icon (20px, brand blue) + name.
+     - Company count on the right.
+     - "Go" button on the right edge: selects this concept and closes the modal.
+     - Expanding reveals nested companies.
+   - Each company row:
+     - Expand/collapse chevron + company icon (16px, gray) + name.
+     - Store count on the right.
+     - "Go" button: selects concept + company and closes.
+     - Expanding reveals nested stores.
+   - Each store row:
+     - MapPin icon (16px, red) + name.
+     - Click selects concept + company + store and closes.
+   - Empty children: "No companies under this concept." / "No stores under this company."
+
+### Search Results
+
+- Grouped into three sections: Concepts, Companies, Stores.
+- Each section has a header with its icon and an uppercase title.
+- Each result row:
+  - Level icon (16px, gray).
+  - Name with highlighted match (`<mark>`).
+  - Parent path shown as small text below (e.g., "Concept › Company" for a store).
+  - Click selects the appropriate levels and closes the modal.
+
+### Browse View vs. Actual Selection
+
+- The modal maintains a local **browse view** state (`viewConcept`, `viewCompany`) separate from the actual selection.
+- When the modal opens, browse view initializes to the current selection.
+- Breadcrumb clicks update the browse view only.
+- Search scope follows the browse view, not the actual selection.
+- Selecting a result updates the actual selection and closes the modal.
+
+### Reset
+
+- "Return to WAND" clears the actual selection, browse view, search query, and expanded states.
+
+---
+
+## Branding & Visual Rules
+
+- Brand accent color: `rgb(0, 173, 240)` (light blue), used for active states, icons, links, and the WAND-level icon.
+- WAND-level icon: small WebP image (`/wand-level.webp`) at 16px, constrained to the icon box — must not alter alignment, spacing, or line height.
+- Concept/company/store icons: default lucide icons until per-concept logos are added as a future data point.
+- Dark mode: navigation bar is `bg-gray-900` / `dark:bg-gray-950`; text is white/light-gray; hover states use `bg-gray-800` / `dark:bg-gray-900`.
+
+---
+
+## Responsive Behavior
+
+- Top nav uses `px-4 sm:px-6 lg:px-8` horizontal padding.
+- Quick Nav button text is always visible (no hidden-on-mobile label).
+- Full Nav modal: `w-full` on mobile, `max-w-4xl` on larger screens; `p-4` outer padding on mobile.
+- Breadcrumb trail wraps (`flex-wrap`) on narrow viewports.
+
+---
+
+## Edge Cases
+
+| Case | Behavior |
+|------|----------|
+| No concepts/companies/stores loaded | Quick Nav dropdown: "No locations found." Full Nav: empty browse tree or spinner during load. |
+| Loading in progress | Spinner shown in dropdown / modal header. |
+| Search with no matches | "No matches found." centered in content area. |
+| Search exceeds 50 per level | Truncated with "Showing first N matches" note. |
+| Selecting a company from search | Also sets the parent concept (derived from `conceptId`). |
+| Selecting a store from search | Also sets parent company and concept (derived from `companyId` → `conceptId`). |
+| Clicking breadcrumb at current level | No-op (already there). |
+| Modal reopened | Browse view resets to current selection; search cleared. |
