@@ -573,8 +573,6 @@ function App() {
                 nfcScanning={nfc.scanning}
                 onNfcStart={nfc.startScan}
                 onNfcStop={nfc.stopScan}
-                filteredCount={selectedQuickAction === 'products' ? filteredItemCount : undefined}
-                totalCount={selectedQuickAction === 'products' ? menuItems.length : undefined}
               />
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">

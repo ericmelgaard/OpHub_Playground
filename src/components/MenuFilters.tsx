@@ -24,8 +24,6 @@ interface MenuFiltersProps {
   nfcScanning?: boolean;
   onNfcStart?: () => void;
   onNfcStop?: () => void;
-  filteredCount?: number;
-  totalCount?: number;
 }
 
 export function MenuFilters({
@@ -46,8 +44,6 @@ export function MenuFilters({
   nfcScanning = false,
   onNfcStart,
   onNfcStop,
-  filteredCount,
-  totalCount,
 }: MenuFiltersProps) {
   const handleScanBarcode = () => {
     console.log('Barcode scanning will be implemented when API is available');
@@ -89,14 +85,6 @@ export function MenuFilters({
                 </span>
               )}
             </Button>
-          )}
-          {showProductFilters && filteredCount !== undefined && totalCount !== undefined && (
-            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-              <span className="font-medium text-gray-700 dark:text-gray-300">{filteredCount}</span>
-              {' of '}
-              <span className="font-medium text-gray-700 dark:text-gray-300">{totalCount}</span>
-              {' items'}
-            </span>
           )}
         </div>
 

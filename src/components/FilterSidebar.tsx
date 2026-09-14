@@ -346,6 +346,26 @@ export function FilterSidebar({
             </div>
           </div>
 
+          {/* Results count */}
+          {filteredCount !== undefined && totalCount !== undefined && (
+            <div className="px-4 py-2.5 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500 dark:text-gray-400">Showing</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {filteredCount} of {totalCount} {totalCount === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+              {filteredCount < totalCount && (
+                <div className="mt-1.5 h-1 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-all duration-300"
+                    style={{ width: `${totalCount > 0 ? (filteredCount / totalCount) * 100 : 0}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Active filter tags */}
           {activeFilterCount > 0 && (
             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
@@ -736,28 +756,6 @@ export function FilterSidebar({
               )}
             </div>
           </div>
-
-          {/* Results count footer */}
-          {filteredCount !== undefined && totalCount !== undefined && (
-            <div className="flex-shrink-0 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500 dark:text-gray-400">
-                  Showing
-                </span>
-                <span className="font-medium text-gray-700 dark:text-gray-300">
-                  {filteredCount} of {totalCount} {totalCount === 1 ? 'item' : 'items'}
-                </span>
-              </div>
-              {filteredCount < totalCount && (
-                <div className="mt-1.5 h-1 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-sky-500 transition-all duration-300"
-                    style={{ width: `${totalCount > 0 ? (filteredCount / totalCount) * 100 : 0}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Mobile footer */}
           <div className="md:hidden flex-shrink-0 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
