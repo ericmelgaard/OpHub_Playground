@@ -90,6 +90,9 @@ function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
+  // Filtered item count (for sidebar display)
+  const [filteredItemCount, setFilteredItemCount] = useState(0);
+
   useEffect(() => {
     localStorage.setItem('filterSidebarOpen', JSON.stringify(isFilterSidebarOpen));
   }, [isFilterSidebarOpen]);
@@ -582,6 +585,8 @@ function App() {
                     menuItems={menuItems}
                     selectedCycleWeek={selectedCycleWeek}
                     onCycleWeekChange={setSelectedCycleWeek}
+                    filteredCount={filteredItemCount}
+                    totalCount={menuItems.length}
                   />
                 )}
 
@@ -644,6 +649,7 @@ function App() {
                       devices={devices}
                       searchValue={searchValue}
                       activeFilters={activeFilters}
+                      onFilteredCountChange={setFilteredItemCount}
                     />
                   ) : selectedQuickAction === 'groups' ? (
                     <div className="text-center py-20">

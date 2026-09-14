@@ -25,6 +25,8 @@ interface FilterSidebarProps {
   onCycleWeekChange: (week: number | null) => void;
   mode?: 'products' | 'smart-labels';
   placements?: Placement[];
+  filteredCount?: number;
+  totalCount?: number;
 }
 
 interface SectionState {
@@ -44,6 +46,8 @@ export function FilterSidebar({
   menuItems,
   selectedCycleWeek,
   onCycleWeekChange,
+  filteredCount,
+  totalCount,
 }: FilterSidebarProps) {
   const [expandedSections, setExpandedSections] = useState<SectionState>({
     week: true,
@@ -732,6 +736,28 @@ export function FilterSidebar({
               )}
             </div>
           </div>
+
+          {/* Results count footer */}
+          {filteredCount !== undefined && totalCount !== undefined && (
+            <div className="flex-shrink-0 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500 dark:text-gray-400">
+                  Showing
+                </span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {filteredCount} of {totalCount} {totalCount === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+              {filteredCount < totalCount && (
+                <div className="mt-1.5 h-1 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-all duration-300"
+                    style={{ width: `${totalCount > 0 ? (filteredCount / totalCount) * 100 : 0}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Mobile footer */}
           <div className="md:hidden flex-shrink-0 px-4 py-3 border-t border-gray-200 dark:border-gray-700">

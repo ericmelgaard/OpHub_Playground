@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AlertCircle, Clock, MapPin } from 'lucide-react';
 import { MenuItem as MenuItemComponent } from './MenuItem';
 import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
@@ -30,6 +30,7 @@ interface MenuItemsProps {
   onEdit?: (item: MenuItemType) => void;
   searchValue?: string;
   activeFilters?: FilterConfig[];
+  onFilteredCountChange?: (count: number) => void;
 }
 
 export function MenuItems({
@@ -49,7 +50,8 @@ export function MenuItems({
   devices,
   onEdit,
   searchValue = '',
-  activeFilters = []
+  activeFilters = [],
+  onFilteredCountChange
 }: MenuItemsProps) {
   const applyFilters = (item: MenuItemType): boolean => {
     if (activeFilters.length === 0) return true;
@@ -103,6 +105,10 @@ export function MenuItems({
 
     return matchesSearch && matchesFilters;
   });
+
+  useEffect(() => {
+    onFilteredCountChange?.(filteredItems.length);
+  }, [filteredItems.length, onFilteredCountChange]);
 
   if (loading) {
     return (
