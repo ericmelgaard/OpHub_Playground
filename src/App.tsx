@@ -11,7 +11,6 @@ import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
-import { CycleWeekSelector } from './components/CycleWeekSelector';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
 import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
@@ -593,16 +592,9 @@ function App() {
                 nfcScanning={nfc.scanning}
                 onNfcStart={nfc.startScan}
                 onNfcStop={nfc.stopScan}
+                selectedCycleWeek={selectedCycleWeek}
+                onCycleWeekChange={handleCycleWeekChange}
               />
-
-              {selectedQuickAction === 'products' && (
-                <div className="mb-4">
-                  <CycleWeekSelector
-                    selectedWeek={selectedCycleWeek}
-                    onSelectWeek={handleCycleWeekChange}
-                  />
-                </div>
-              )}
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">
                 {selectedQuickAction === 'products' && (

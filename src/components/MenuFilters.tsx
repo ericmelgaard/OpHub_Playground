@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
 import { QuickActionType } from './QuickActionBar';
+import { CycleWeekSelector } from './CycleWeekSelector';
 
 interface MenuFiltersProps {
   viewMode: 'grid' | 'tiles';
@@ -22,6 +23,8 @@ interface MenuFiltersProps {
   nfcScanning?: boolean;
   onNfcStart?: () => void;
   onNfcStop?: () => void;
+  selectedCycleWeek?: number;
+  onCycleWeekChange?: (week: number) => void;
 }
 
 export function MenuFilters({
@@ -30,7 +33,6 @@ export function MenuFilters({
   searchValue,
   setSearchValue,
   selectedQuickAction,
-  onCreateItem,
   activeFilters,
   onToggleFilterSidebar,
   isFilterSidebarOpen,
@@ -41,6 +43,8 @@ export function MenuFilters({
   nfcScanning = false,
   onNfcStart,
   onNfcStop,
+  selectedCycleWeek,
+  onCycleWeekChange,
 }: MenuFiltersProps) {
   const handleScanBarcode = () => {
     console.log('Barcode scanning will be implemented when API is available');
@@ -82,6 +86,12 @@ export function MenuFilters({
                 </span>
               )}
             </Button>
+          )}
+          {showProductFilters && selectedCycleWeek !== undefined && onCycleWeekChange && (
+            <CycleWeekSelector
+              selectedWeek={selectedCycleWeek}
+              onSelectWeek={onCycleWeekChange}
+            />
           )}
         </div>
 
