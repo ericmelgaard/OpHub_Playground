@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon } from 'lucide-react';
+import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
@@ -11,6 +11,7 @@ import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
+import { CycleWeekSelector } from './components/CycleWeekSelector';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
 import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
@@ -81,8 +82,18 @@ function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
-  // Cycle Week state
-  const [selectedCycleWeek, setSelectedCycleWeek] = useState<number | null>(1);
+  // Cycle Week state (0 = This Week, 1 = Next Week, etc.)
+  const [selectedCycleWeek, setSelectedCycleWeek] = useState<number>(0);
+  const [weekTransition, setWeekTransition] = useState<'in' | 'out'>('in');
+
+  const handleCycleWeekChange = useCallback((week: number) => {
+    if (week === selectedCycleWeek) return;
+    setWeekTransition('out');
+    setTimeout(() => {
+      setSelectedCycleWeek(week);
+      setWeekTransition('in');
+    }, 150);
+  }, [selectedCycleWeek]);
 
   // Filter sidebar state
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(() => {
@@ -552,6 +563,17 @@ function App() {
                     </div>
                   )}
                 </div>
+
+                {selectedQuickAction === 'products' && (
+                  <button
+                    onClick={() => setShowCreateItemModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
+                    style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Product</span>
+                  </button>
+                )}
               </div>
 
               <MenuFilters
@@ -560,20 +582,27 @@ function App() {
                 searchValue={searchValue}
                 setSearchValue={setSearchValue}
                 selectedQuickAction={selectedQuickAction}
-                onCreateItem={() => setShowCreateItemModal(true)}
                 activeFilters={activeFilters}
                 onToggleFilterSidebar={() => setIsFilterSidebarOpen(!isFilterSidebarOpen)}
                 isFilterSidebarOpen={isFilterSidebarOpen}
                 menuItems={menuItems}
                 groupByMrn={groupByMrn}
                 onToggleGroupByMrn={handleToggleGroupByMrn}
-                selectedCycleWeek={selectedCycleWeek}
                 onScanLookup={selectedQuickAction === 'smart-labels' ? handleScanLookup : undefined}
                 nfcSupported={selectedQuickAction === 'smart-labels'}
                 nfcScanning={nfc.scanning}
                 onNfcStart={nfc.startScan}
                 onNfcStop={nfc.stopScan}
               />
+
+              {selectedQuickAction === 'products' && (
+                <div className="mb-4">
+                  <CycleWeekSelector
+                    selectedWeek={selectedCycleWeek}
+                    onSelectWeek={handleCycleWeekChange}
+                  />
+                </div>
+              )}
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">
                 {selectedQuickAction === 'products' && (
@@ -583,8 +612,6 @@ function App() {
                     activeFilters={activeFilters}
                     onFiltersChange={handleFiltersChange}
                     menuItems={menuItems}
-                    selectedCycleWeek={selectedCycleWeek}
-                    onCycleWeekChange={setSelectedCycleWeek}
                     filteredCount={filteredItemCount}
                     totalCount={menuItems.length}
                   />
@@ -620,37 +647,39 @@ function App() {
                       />
                     </div>
                   ) : selectedQuickAction === 'products' ? (
-                    <MenuItems
-                      loading={loading}
-                      error={error}
-                      menuItems={menuItems}
-                      viewMode={viewMode}
-                      selectedChannel={selectedChannel}
-                      expandedItem={null}
-                      toggleItemExpansion={() => {}}
-                      isItemInChannel={(itemId, channelId) => api.isItemInChannel(itemId, channelId)}
-                      toggleItemInChannel={(item, channelId) => {
-                        if (api.isItemInChannel(item.id, channelId)) {
-                          api.removeItemFromChannel(item.id, channelId);
-                        } else {
-                          api.assignItemToChannel(item.id, channelId);
-                        }
-                      }}
-                      setSelectedItem={(item) => {
-                        setSelectedItem(item);
-                      }}
-                      setShowDeviceModal={(show) => {
-                        setShowItemWorkflow(show);
-                      }}
-                      setShowPageSelectionModal={() => {}}
-                      setWorkflowType={(type) => {
-                        setWorkflowType(type);
-                      }}
-                      devices={devices}
-                      searchValue={searchValue}
-                      activeFilters={activeFilters}
-                      onFilteredCountChange={setFilteredItemCount}
-                    />
+                    <div key={selectedCycleWeek} className={weekTransition === 'out' ? 'week-transition-out' : 'week-transition-in'}>
+                      <MenuItems
+                        loading={loading}
+                        error={error}
+                        menuItems={menuItems}
+                        viewMode={viewMode}
+                        selectedChannel={selectedChannel}
+                        expandedItem={null}
+                        toggleItemExpansion={() => {}}
+                        isItemInChannel={(itemId, channelId) => api.isItemInChannel(itemId, channelId)}
+                        toggleItemInChannel={(item, channelId) => {
+                          if (api.isItemInChannel(item.id, channelId)) {
+                            api.removeItemFromChannel(item.id, channelId);
+                          } else {
+                            api.assignItemToChannel(item.id, channelId);
+                          }
+                        }}
+                        setSelectedItem={(item) => {
+                          setSelectedItem(item);
+                        }}
+                        setShowDeviceModal={(show) => {
+                          setShowItemWorkflow(show);
+                        }}
+                        setShowPageSelectionModal={() => {}}
+                        setWorkflowType={(type) => {
+                          setWorkflowType(type);
+                        }}
+                        devices={devices}
+                        searchValue={searchValue}
+                        activeFilters={activeFilters}
+                        onFilteredCountChange={setFilteredItemCount}
+                      />
+                    </div>
                   ) : selectedQuickAction === 'groups' ? (
                     <div className="text-center py-20">
                       <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">Groups</h3>

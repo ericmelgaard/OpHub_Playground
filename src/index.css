@@ -122,6 +122,25 @@
   animation: location-overlay-card-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+/* Week change grid transition */
+@keyframes week-fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes week-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.week-transition-out {
+  animation: week-fade-out 0.15s ease-in forwards;
+}
+
+.week-transition-in {
+  animation: week-fade-in 0.25s ease-out forwards;
+}
+
 /* Modal styles */
 @media (max-width: 767px) {
   .modal-container {

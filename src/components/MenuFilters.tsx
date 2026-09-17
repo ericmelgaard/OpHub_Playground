@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Rows2 as Rows, Search, Camera, Plus, Layers, PanelLeftOpen, PanelLeftClose, Nfc } from 'lucide-react';
+import { LayoutGrid, Rows2 as Rows, Search, Camera, Layers, PanelLeftOpen, PanelLeftClose, Nfc } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
@@ -11,14 +11,12 @@ interface MenuFiltersProps {
   searchValue: string;
   setSearchValue: (value: string) => void;
   selectedQuickAction: QuickActionType;
-  onCreateItem: () => void;
   activeFilters: FilterConfig[];
   onToggleFilterSidebar: () => void;
   isFilterSidebarOpen: boolean;
   menuItems: MenuItem[];
   groupByMrn?: boolean;
   onToggleGroupByMrn?: () => void;
-  selectedCycleWeek?: number | null;
   onScanLookup?: (query: string) => boolean;
   nfcSupported?: boolean;
   nfcScanning?: boolean;
@@ -38,7 +36,6 @@ export function MenuFilters({
   isFilterSidebarOpen,
   groupByMrn = false,
   onToggleGroupByMrn,
-  selectedCycleWeek,
   onScanLookup,
   nfcSupported = false,
   nfcScanning = false,
@@ -53,7 +50,7 @@ export function MenuFilters({
   const showDeviceFilters = selectedQuickAction === 'smart-labels' || selectedQuickAction === 'groups';
   const showFilterToggle = selectedQuickAction === 'products' || selectedQuickAction === 'smart-labels';
 
-  const totalActiveCount = activeFilters.length + (selectedCycleWeek ? 1 : 0);
+  const totalActiveCount = activeFilters.length;
 
   return (
     <div className="mb-6">
@@ -140,16 +137,6 @@ export function MenuFilters({
         <div className="flex items-center gap-2 order-3">
           {showProductFilters && (
             <>
-              <Button
-                variant="secondary"
-                onClick={onCreateItem}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
-                style={{ backgroundColor: 'rgb(0, 173, 240)' }}
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create Item</span>
-              </Button>
-
               {onToggleGroupByMrn && (
                 <Button
                   variant="secondary"

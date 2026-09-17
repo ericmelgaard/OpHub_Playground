@@ -9,7 +9,6 @@ import {
   MapPin,
   Hash,
   Type,
-  Layers,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -21,8 +20,6 @@ interface FilterSidebarProps {
   activeFilters: FilterConfig[];
   onFiltersChange: (filters: FilterConfig[]) => void;
   menuItems: MenuItem[];
-  selectedCycleWeek: number | null;
-  onCycleWeekChange: (week: number | null) => void;
   mode?: 'products' | 'smart-labels';
   placements?: Placement[];
   filteredCount?: number;
@@ -30,7 +27,6 @@ interface FilterSidebarProps {
 }
 
 interface SectionState {
-  week: boolean;
   daypart: boolean;
   station: boolean;
   menu_item_name: boolean;
@@ -44,13 +40,10 @@ export function FilterSidebar({
   activeFilters,
   onFiltersChange,
   menuItems,
-  selectedCycleWeek,
-  onCycleWeekChange,
   filteredCount,
   totalCount,
 }: FilterSidebarProps) {
   const [expandedSections, setExpandedSections] = useState<SectionState>({
-    week: true,
     daypart: true,
     station: true,
     menu_item_name: false,
@@ -229,7 +222,6 @@ export function FilterSidebar({
 
   const clearAll = () => {
     onFiltersChange([]);
-    onCycleWeekChange(null);
     setNameSearch('');
     setMrnSearch('');
     setSelectedDate('');
@@ -237,7 +229,7 @@ export function FilterSidebar({
     setRangeEnd('');
   };
 
-  const activeFilterCount = activeFilters.length + (selectedCycleWeek ? 1 : 0);
+  const activeFilterCount = activeFilters.length;
 
   const getCurrentWeekDays = () => {
     const today = new Date();
@@ -370,17 +362,6 @@ export function FilterSidebar({
           {activeFilterCount > 0 && (
             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <div className="flex flex-wrap gap-1.5">
-                {selectedCycleWeek && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
-                    Week {selectedCycleWeek}
-                    <button
-                      onClick={() => onCycleWeekChange(null)}
-                      className="ml-0.5 hover:text-sky-900 dark:hover:text-sky-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
                 {activeFilters.map(filter => {
                   let label = '';
                   if (filter.type === 'daypart') {
@@ -423,43 +404,6 @@ export function FilterSidebar({
 
           {/* Filter sections */}
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
-            {/* Week Section */}
-            <div className="border-b border-gray-100 dark:border-gray-800">
-              <SectionHeader
-                title="Cycle Week"
-                icon={Layers}
-                sectionKey="week"
-                hasActive={selectedCycleWeek !== null}
-              />
-              {expandedSections.week && (
-                <div className="pb-3 px-1">
-                  <div className="flex flex-wrap gap-2">
-                    {[1, 2, 3, 4].map(week => (
-                      <button
-                        key={week}
-                        onClick={() => onCycleWeekChange(selectedCycleWeek === week ? null : week)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                          selectedCycleWeek === week
-                            ? 'bg-sky-500 text-white shadow-sm'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        Week {week}{week === 1 ? ' (Current)' : ''}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedCycleWeek && (
-                    <button
-                      onClick={() => onCycleWeekChange(null)}
-                      className="mt-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* Dayparts Section */}
             <div className="border-b border-gray-100 dark:border-gray-800">
               <SectionHeader
