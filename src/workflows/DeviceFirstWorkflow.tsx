@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Device, MenuItem } from '../types';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Device, MenuItem, Substitution } from '../types';
+import { buildSubstitutionMap } from '../lib/substitutions';
 import { DeviceModal } from '../components/DeviceModal';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
 import { ItemSelectionModal } from '../components/ItemSelectionModal';
@@ -53,6 +54,22 @@ export function DeviceFirstWorkflow({
   const [selectedDaypart, setSelectedDaypart] = useState<string | null>(preSelectedDaypart);
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
   const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>({});
+  const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
+
+  const substitutionMap = useMemo(() => buildSubstitutionMap(substitutions), [substitutions]);
+
+  const handleAddSubstitution = useCallback((sub: Omit<Substitution, 'id' | 'createdAt'>) => {
+    setSubstitutions(prev => [
+      ...prev.filter(s =>
+        !(s.pageId === sub.pageId && s.originalItemId === sub.originalItemId && s.dayOfWeek === sub.dayOfWeek)
+      ),
+      { ...sub, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
+    ]);
+  }, []);
+
+  const handleRemoveSubstitution = useCallback((id: string) => {
+    setSubstitutions(prev => prev.filter(s => s.id !== id));
+  }, []);
 
   // Get unique meal periods and stations from menu items
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
@@ -350,6 +367,10 @@ export function DeviceFirstWorkflow({
         itemDisplayToggles={itemDisplayToggles}
         recentlyAddedItemIds={recentlyAddedItemIds}
         onCreateMenuItem={onCreateMenuItem}
+        substitutions={substitutions}
+        substitutionMap={substitutionMap}
+        onAddSubstitution={handleAddSubstitution}
+        onRemoveSubstitution={handleRemoveSubstitution}
       />
 
       <ItemSelectionModal

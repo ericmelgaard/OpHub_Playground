@@ -162,6 +162,34 @@ export interface Rule {
   active: boolean;
 }
 
+export interface Substitution {
+  id: string;
+  pageId: string;
+  originalItemId: number;
+  substituteItem: MenuItem;
+  dayOfWeek: number;
+  createdAt: string;
+}
+
+export type SubstitutionKey = `${string}:${number}:${number}`;
+
+export type SubstitutionMode = 'copy-and-edit' | 'pick-existing' | 'create-new';
+
+export interface SubstitutionContext {
+  originalItem: MenuItem;
+  pageId: string;
+  dayOfWeek: number;
+  deviceId: string;
+}
+
+export interface ResolvedItem {
+  item: MenuItem;
+  isSubstituted: boolean;
+  substitution?: Substitution;
+  originalItem?: MenuItem;
+  originalItemId: number;
+}
+
 export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement';
 
 export interface DateRange {

@@ -9,14 +9,19 @@ import {
   AlertTriangle,
   Search,
   Calendar,
+  ArrowLeftRight,
 } from 'lucide-react';
-import { Device, MenuItem, DevicePage as DevicePageType } from '../types';
+import { Device, MenuItem, DevicePage as DevicePageType, Substitution, SubstitutionKey, SubstitutionContext, ResolvedItem } from '../types';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { isItemActiveForDaypart, DAY_ABBR } from '../lib/availability';
+import { resolveItemsForDay, hasSubstitutionOnAnyDay } from '../lib/substitutions';
 import { QuickAddModal } from './QuickAddModal';
+import { ItemActionSheet } from './ItemActionSheet';
+import { SubstitutionFlow } from './SubstitutionFlow';
+import { PageActionBar } from './PageActionBar';
 import type { DisplayToggle } from './InlineItemPicker';
 
 interface DeviceSettingsModalProps {
@@ -42,6 +47,10 @@ interface DeviceSettingsModalProps {
   recentlyAddedItemIds?: Set<number>;
   itemDisplayToggles?: Record<string, Record<number, DisplayToggle>>;
   onCreateMenuItem?: (item: { name: string; price: string; mealPeriod: string; mealStation: string }) => Promise<MenuItem | null>;
+  substitutions?: Substitution[];
+  substitutionMap?: Map<SubstitutionKey, Substitution>;
+  onAddSubstitution?: (sub: Omit<Substitution, 'id' | 'createdAt'>) => void;
+  onRemoveSubstitution?: (id: string) => void;
 }
 
 const getDaypartColor = (daypart: string) => {
@@ -110,6 +119,10 @@ export function DeviceSettingsModal({
   recentlyAddedItemIds,
   itemDisplayToggles = {},
   onCreateMenuItem,
+  substitutions = [],
+  substitutionMap = new Map(),
+  onAddSubstitution,
+  onRemoveSubstitution,
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
   const [selectedDay, setSelectedDay] = useState<number | 'every-day'>(() => new Date().getDay());
@@ -142,6 +155,12 @@ export function DeviceSettingsModal({
   const [showNotAvailable, setShowNotAvailable] = useState(false);
   const [showNotAvailableAssigned, setShowNotAvailableAssigned] = useState(false);
   const [confirmClearPage, setConfirmClearPage] = useState(false);
+  const [actionSheetState, setActionSheetState] = useState<{
+    isOpen: boolean;
+    resolvedItem: ResolvedItem | null;
+    anchorRect: DOMRect | null;
+  }>({ isOpen: false, resolvedItem: null, anchorRect: null });
+  const [substitutionContext, setSubstitutionContext] = useState<SubstitutionContext | null>(null);
 
   const handleClearPage = () => {
     if (!currentPage || !device) return;
@@ -153,6 +172,47 @@ export function DeviceSettingsModal({
       allIds.forEach(id => removeItemFromDevice(id, device.id, currentPage.id));
     }
     setConfirmClearPage(false);
+  };
+
+  const handleItemTap = (resolved: ResolvedItem, e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setActionSheetState({ isOpen: true, resolvedItem: resolved, anchorRect: rect });
+  };
+
+  const handleStartSubstitution = () => {
+    if (!actionSheetState.resolvedItem || !currentPage || selectedDay === 'every-day') return;
+    setSubstitutionContext({
+      originalItem: actionSheetState.resolvedItem.originalItem || actionSheetState.resolvedItem.item,
+      pageId: currentPage.id,
+      dayOfWeek: selectedDay as number,
+      deviceId: device?.id || '',
+    });
+    setActionSheetState({ isOpen: false, resolvedItem: null, anchorRect: null });
+  };
+
+  const handleEndSubstitution = () => {
+    if (!actionSheetState.resolvedItem?.substitution || !onRemoveSubstitution) return;
+    onRemoveSubstitution(actionSheetState.resolvedItem.substitution.id);
+    setActionSheetState({ isOpen: false, resolvedItem: null, anchorRect: null });
+  };
+
+  const handleSubstitutionComplete = (substituteItem: MenuItem) => {
+    if (!substitutionContext || !onAddSubstitution) return;
+    onAddSubstitution({
+      pageId: substitutionContext.pageId,
+      originalItemId: substitutionContext.originalItem.id,
+      substituteItem,
+      dayOfWeek: substitutionContext.dayOfWeek,
+    });
+    setSubstitutionContext(null);
+  };
+
+  const handleActionRemove = () => {
+    if (!actionSheetState.resolvedItem || !currentPage || !device) return;
+    const itemId = actionSheetState.resolvedItem.originalItemId;
+    if (onInlineRemoveItems) onInlineRemoveItems(device, [itemId], currentPage.id);
+    else removeItemFromDevice(itemId, device.id, currentPage.id);
+    setActionSheetState({ isOpen: false, resolvedItem: null, anchorRect: null });
   };
 
   const handleDragEnd = useCallback((result: DropResult) => {
@@ -387,16 +447,6 @@ export function DeviceSettingsModal({
                       {showingCount} of {currentPage.displayCapacity} showing · {currentPage.assignedItems.length} assigned
                     </span>
                     <div className="flex items-center gap-2">
-                      {currentPage.assignedItems.length > 0 && (
-                        <button
-                          onClick={() => setConfirmClearPage(true)}
-                          className="flex items-center gap-1 text-[10px] font-medium text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
-                          title="Remove all items from this page"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          <span>Clear Page</span>
-                        </button>
-                      )}
                       {currentPage.schedule && (
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           {currentPage.schedule.startTime} - {currentPage.schedule.endTime}
@@ -435,6 +485,15 @@ export function DeviceSettingsModal({
                       activeOrderIds.push(itemId);
                     }
                   }
+
+                  const resolvedItems = resolveItemsForDay(
+                    activeOrderIds,
+                    currentPage.assignedItems,
+                    currentPage.id,
+                    selectedDay === 'every-day' ? null : selectedDay,
+                    substitutionMap,
+                  );
+
                   return (
                     <div className="flex flex-col min-h-0 flex-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-b-lg overflow-hidden">
                       <Droppable droppableId={`page|${currentPage.id}`}>
@@ -447,53 +506,89 @@ export function DeviceSettingsModal({
                             }`}
                           >
                             <div className="space-y-2">
-                              {activeOrderIds.map((itemId, index) => {
-                                const item = currentPage.assignedItems.find(i => i.id === itemId);
-                                if (!item) return null;
-                                const isDisplayed = getDisplayedItems(currentPage).some(d => d.id === item.id);
-                                const isRecentlyAdded = recentlyAddedIds?.has(item.id) || recentlyAddedItemIds?.has(item.id);
-                                const toggleState = itemDisplayToggles[currentPage.id]?.[item.id] ?? 'auto';
+                              {resolvedItems.map((resolved, index) => {
+                                const originalId = resolved.originalItemId;
+                                const item = resolved.item;
+                                const isDisplayed = getDisplayedItems(currentPage).some(d => d.id === originalId);
+                                const isRecentlyAdded = recentlyAddedIds?.has(originalId) || recentlyAddedItemIds?.has(originalId);
+                                const toggleState = itemDisplayToggles[currentPage.id]?.[originalId] ?? 'auto';
+                                const hasSub = !resolved.isSubstituted && selectedDay === 'every-day' && hasSubstitutionOnAnyDay(currentPage.id, originalId, substitutionMap);
 
                                 return (
-                                  <Draggable key={`${item.id}`} draggableId={`${item.id}`} index={index}>
+                                  <Draggable key={`slot-${originalId}`} draggableId={`${originalId}`} index={index}>
                                     {(prov, snap) => (
                                       <div
                                         ref={prov.innerRef}
                                         {...prov.draggableProps}
-                                        className={`relative select-none transition-all duration-200 ${
+                                        onClick={(e) => handleItemTap(resolved, e)}
+                                        className={`relative select-none transition-all duration-200 cursor-pointer ${
                                           snap.isDragging ? 'shadow-lg z-10' : ''
                                         } ${isRecentlyAdded ? 'animate-in fade-in slide-in-from-right-4 duration-300' : ''}`}
                                       >
-                                        <Card className={`flex items-center justify-between p-3 border dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 group ${
-                                          snap.isDragging ? 'ring-2 ring-sky-500 dark:ring-sky-400 shadow-xl' : ''
-                                        } ${
-                                          isRecentlyAdded ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
-                                          : toggleState === 'on' ? 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
-                                          : toggleState === 'off' ? 'border-gray-200 dark:border-gray-700 opacity-60'
-                                          : isDisplayed ? 'border-sky-300 dark:border-sky-500 bg-sky-50 dark:bg-sky-900/30'
-                                          : ''
-                                        }`}>
-                                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <div {...prov.dragHandleProps} className="touch-none p-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0 cursor-grab active:cursor-grabbing">
-                                              <GripVertical className="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-move" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                              <div className={`text-sm font-medium truncate ${
-                                                toggleState === 'off' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'
-                                              }`}>{item.name}</div>
-                                              <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                                                ${item.price}
-                                                {isRecentlyAdded && <span className="text-green-600 dark:text-green-400 text-[10px] font-medium">New</span>}
+                                        {resolved.isSubstituted ? (
+                                          <Card className={`flex items-center justify-between p-3 rounded-md border-l-4 border-l-amber-400 dark:border-l-amber-500 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 group ${
+                                            snap.isDragging ? 'ring-2 ring-amber-500 shadow-xl' : ''
+                                          }`}>
+                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                              <div {...prov.dragHandleProps} className="touch-none p-1 rounded transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/30 flex-shrink-0 cursor-grab active:cursor-grabbing">
+                                                <GripVertical className="h-4 w-4 text-amber-400 dark:text-amber-500 cursor-move" />
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="text-sm font-medium truncate text-gray-900 dark:text-white">{item.name}</span>
+                                                  <span className="inline-flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0">
+                                                    <ArrowLeftRight className="h-2.5 w-2.5" />
+                                                    Sub
+                                                  </span>
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                                  ${item.price}
+                                                  <span className="text-[10px] text-amber-600 dark:text-amber-400">replaces {resolved.originalItem?.name}</span>
+                                                </div>
                                               </div>
                                             </div>
-                                          </div>
-                                          {onToggleItemDisplay && (
-                                            <ThreeStageToggle
-                                              state={toggleState}
-                                              onChange={(newState) => onToggleItemDisplay(device, currentPage.id, item.id, newState)}
-                                            />
-                                          )}
-                                        </Card>
+                                            {onToggleItemDisplay && (
+                                              <ThreeStageToggle
+                                                state={toggleState}
+                                                onChange={(newState) => onToggleItemDisplay(device, currentPage.id, originalId, newState)}
+                                              />
+                                            )}
+                                          </Card>
+                                        ) : (
+                                          <Card className={`flex items-center justify-between p-3 border dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 group ${
+                                            snap.isDragging ? 'ring-2 ring-sky-500 dark:ring-sky-400 shadow-xl' : ''
+                                          } ${
+                                            isRecentlyAdded ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
+                                            : toggleState === 'on' ? 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
+                                            : toggleState === 'off' ? 'border-gray-200 dark:border-gray-700 opacity-60'
+                                            : isDisplayed ? 'border-sky-300 dark:border-sky-500 bg-sky-50 dark:bg-sky-900/30'
+                                            : ''
+                                          }`}>
+                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                              <div {...prov.dragHandleProps} className="touch-none p-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0 cursor-grab active:cursor-grabbing">
+                                                <GripVertical className="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-move" />
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className={`text-sm font-medium truncate ${
+                                                    toggleState === 'off' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'
+                                                  }`}>{item.name}</span>
+                                                  {hasSub && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Has substitution on another day" />}
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                                  ${item.price}
+                                                  {isRecentlyAdded && <span className="text-green-600 dark:text-green-400 text-[10px] font-medium">New</span>}
+                                                </div>
+                                              </div>
+                                            </div>
+                                            {onToggleItemDisplay && (
+                                              <ThreeStageToggle
+                                                state={toggleState}
+                                                onChange={(newState) => onToggleItemDisplay(device, currentPage.id, item.id, newState)}
+                                              />
+                                            )}
+                                          </Card>
+                                        )}
                                       </div>
                                     )}
                                   </Draggable>
@@ -560,6 +655,13 @@ export function DeviceSettingsModal({
                           )}
                         </div>
                       )}
+
+                      <PageActionBar
+                        onQuickAdd={() => setShowQuickAdd(true)}
+                        onClearPage={() => setConfirmClearPage(true)}
+                        hasItems={currentPage.assignedItems.length > 0}
+                        canQuickAdd={!!onCreateMenuItem}
+                      />
                     </div>
                   );
                 })()}
@@ -574,16 +676,6 @@ export function DeviceSettingsModal({
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
                         <Plus className="h-4 w-4 text-sky-500" />Available Items
                       </h4>
-                      {onCreateMenuItem && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowQuickAdd(true)}
-                          className="flex items-center gap-1.5 text-xs px-2.5 py-1 h-7 border-sky-300 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
-                        >
-                          <Plus className="h-3.5 w-3.5" />Quick Add
-                        </Button>
-                      )}
                     </div>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -878,6 +970,35 @@ export function DeviceSettingsModal({
         availableMealPeriods={mealPeriods}
         availableStations={stations}
       />
+
+      {/* Item Action Sheet */}
+      {actionSheetState.isOpen && actionSheetState.resolvedItem && (
+        <ItemActionSheet
+          resolvedItem={actionSheetState.resolvedItem}
+          anchorRect={actionSheetState.anchorRect}
+          isOpen={actionSheetState.isOpen}
+          onClose={() => setActionSheetState({ isOpen: false, resolvedItem: null, anchorRect: null })}
+          onSubstitute={handleStartSubstitution}
+          onEndSubstitution={handleEndSubstitution}
+          onRemove={handleActionRemove}
+          canSubstitute={selectedDay !== 'every-day' && !!onAddSubstitution}
+        />
+      )}
+
+      {/* Substitution Flow */}
+      {substitutionContext && (
+        <SubstitutionFlow
+          isOpen={!!substitutionContext}
+          context={substitutionContext}
+          menuItems={menuItems}
+          assignedItemIds={assignedIds}
+          onComplete={handleSubstitutionComplete}
+          onClose={() => setSubstitutionContext(null)}
+          onCreateMenuItem={onCreateMenuItem}
+          availableMealPeriods={mealPeriods}
+          availableStations={stations}
+        />
+      )}
     </div>
   );
 }
