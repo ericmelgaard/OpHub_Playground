@@ -19,6 +19,7 @@ interface DeviceFirstWorkflowProps {
   onClose: () => void;
   onForcePage?: (deviceId: string, pageId: string | null) => void;
   setNotifications: (count: number) => void;
+  onCreateMenuItem?: (item: { name: string; price: string; mealPeriod: string; mealStation: string }) => Promise<MenuItem | null>;
 }
 
 export function DeviceFirstWorkflow({
@@ -31,7 +32,8 @@ export function DeviceFirstWorkflow({
   onReorderItems,
   onClose,
   onForcePage,
-  setNotifications
+  setNotifications,
+  onCreateMenuItem,
 }: DeviceFirstWorkflowProps) {
   const [showDeviceModal, setShowDeviceModal] = useState(!preSelectedDevice);
   const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(!!preSelectedDevice);
@@ -347,6 +349,7 @@ export function DeviceFirstWorkflow({
         onToggleItemDisplay={handleToggleItemDisplay}
         itemDisplayToggles={itemDisplayToggles}
         recentlyAddedItemIds={recentlyAddedItemIds}
+        onCreateMenuItem={onCreateMenuItem}
       />
 
       <ItemSelectionModal

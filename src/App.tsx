@@ -781,6 +781,17 @@ function App() {
               setDevices(updatedDevices);
             }}
             setNotifications={setNotifications}
+            onCreateMenuItem={async (data) => {
+              try {
+                const item = await api.createMenuItem(data);
+                const updated = await api.getGroupedMenuItems();
+                setMenuItems(updated);
+                return item;
+              } catch (err) {
+                console.error('Error creating menu item from device page:', err);
+                return null;
+              }
+            }}
           />
         )}
 
