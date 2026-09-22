@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Copy, Search, Plus, Save, ArrowLeftRight, Check } from 'lucide-react';
-import { MenuItem, SubstitutionContext, SubstitutionMode } from '../types';
+import { X, Copy, Search, Save, ArrowLeftRight } from 'lucide-react';
+import { MenuItem, SubstitutionContext } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,94 +37,71 @@ export function SubstitutionFlow({
   availableMealPeriods = [],
   availableStations = [],
 }: SubstitutionFlowProps) {
-  const [mode, setMode] = useState<SubstitutionMode>('copy-and-edit');
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [mealPeriod, setMealPeriod] = useState('');
   const [mealStation, setMealStation] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
   const [pickSearch, setPickSearch] = useState('');
-  const [selectedPickItem, setSelectedPickItem] = useState<MenuItem | null>(null);
+  const [filledFrom, setFilledFrom] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && context) {
-      setMode('copy-and-edit');
       setName(context.originalItem.name);
       setPrice(context.originalItem.price);
       setMealPeriod(context.originalItem.mealPeriod || '');
       setMealStation(context.originalItem.mealStation || '');
+      setShowPicker(false);
       setPickSearch('');
-      setSelectedPickItem(null);
+      setFilledFrom(context.originalItem.name);
     }
   }, [isOpen, context]);
 
-  const resetToNew = () => {
+  const filteredPickItems = useMemo(() => {
+    const items = menuItems.filter(i => i.id !== context?.originalItem.id);
+    if (!pickSearch.trim()) return items.slice(0, 50);
+    const q = pickSearch.toLowerCase();
+    return items
+      .filter(i => i.name.toLowerCase().includes(q) || (i.description?.toLowerCase().includes(q) ?? false))
+      .slice(0, 50);
+  }, [menuItems, pickSearch, context]);
+
+  const fillFromItem = (item: MenuItem) => {
+    setName(item.name);
+    setPrice(item.price);
+    if (item.mealPeriod) setMealPeriod(item.mealPeriod);
+    if (item.mealStation) setMealStation(item.mealStation);
+    setFilledFrom(item.name);
+    setShowPicker(false);
+    setPickSearch('');
+  };
+
+  const clearForm = () => {
     setName('');
     setPrice('');
     setMealPeriod(context?.originalItem.mealPeriod || '');
     setMealStation(context?.originalItem.mealStation || '');
+    setFilledFrom(null);
   };
 
-  const handleModeChange = (newMode: SubstitutionMode) => {
-    setMode(newMode);
-    if (newMode === 'copy-and-edit' && context) {
-      setName(context.originalItem.name);
-      setPrice(context.originalItem.price);
-      setMealPeriod(context.originalItem.mealPeriod || '');
-      setMealStation(context.originalItem.mealStation || '');
-    } else if (newMode === 'create-new') {
-      resetToNew();
-    }
-    setSelectedPickItem(null);
-  };
-
-  const filteredPickItems = useMemo(() => {
-    if (!pickSearch.trim()) return menuItems.filter(i => i.id !== context?.originalItem.id).slice(0, 50);
-    const q = pickSearch.toLowerCase();
-    return menuItems
-      .filter(i => i.id !== context?.originalItem.id && (i.name.toLowerCase().includes(q) || (i.description?.toLowerCase().includes(q) ?? false)))
-      .slice(0, 50);
-  }, [menuItems, pickSearch, context]);
-
-  const handleSaveCopyOrNew = () => {
+  const handleSave = async () => {
     if (!name.trim()) return;
     const subItem: MenuItem = {
       ...context.originalItem,
       id: -(Date.now()),
       name: name.trim(),
       price: price || '0.00',
-      mealPeriod: mealPeriod,
-      mealStation: mealStation,
+      mealPeriod,
+      mealStation,
       mrn: `SUB-${Date.now()}`,
       activeDays: [context.dayOfWeek],
     };
     onComplete(subItem);
   };
 
-  const handleSavePick = async () => {
-    if (!selectedPickItem) return;
-    onComplete(selectedPickItem);
-  };
-
-  const handleCreateAndSave = async () => {
-    if (!name.trim()) return;
-    if (onCreateMenuItem) {
-      const item = await onCreateMenuItem({ name: name.trim(), price: price || '0.00', mealPeriod, mealStation });
-      if (item) {
-        onComplete(item);
-        return;
-      }
-    }
-    handleSaveCopyOrNew();
-  };
-
   if (!isOpen || !context) return null;
 
   const dayLabel = DAY_ABBR[context.dayOfWeek];
-  const tabs: { key: SubstitutionMode; label: string; icon: React.ReactNode }[] = [
-    { key: 'copy-and-edit', label: 'Copy & Edit', icon: <Copy className="h-3.5 w-3.5" /> },
-    { key: 'pick-existing', label: 'Pick Existing', icon: <Search className="h-3.5 w-3.5" /> },
-    { key: 'create-new', label: 'Create New', icon: <Plus className="h-3.5 w-3.5" /> },
-  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
@@ -144,38 +121,38 @@ export function SubstitutionFlow({
               <X className="h-5 w-5" />
             </Button>
           </div>
-          <div className="flex gap-1 mt-3 bg-gray-100 dark:bg-gray-900/40 rounded-lg p-1">
-            {tabs.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => handleModeChange(tab.key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all ${
-                  mode === tab.key
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                {tab.icon}
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
-          </div>
         </CardHeader>
 
-        <CardContent className="flex-1 overflow-y-auto p-4 min-h-0">
-          {mode === 'copy-and-edit' && (
-            <ItemForm
-              name={name} setName={setName}
-              price={price} setPrice={setPrice}
-              mealPeriod={mealPeriod} setMealPeriod={setMealPeriod}
-              mealStation={mealStation} setMealStation={setMealStation}
-              availableMealPeriods={availableMealPeriods}
-              availableStations={availableStations}
-            />
-          )}
-
-          {mode === 'pick-existing' && (
-            <div className="space-y-3">
+        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+          {/* Fill from existing / start fresh */}
+          {!showPicker ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowPicker(true)}
+                className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-amber-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+              >
+                <Copy className="h-4 w-4 flex-shrink-0" />
+                {filledFrom ? (
+                  <span className="truncate">From <span className="font-medium text-gray-700 dark:text-gray-300">{filledFrom}</span></span>
+                ) : (
+                  <span>Fill from existing</span>
+                )}
+              </button>
+              {filledFrom && (
+                <button
+                  onClick={clearForm}
+                  className="px-3 py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-400 transition-colors whitespace-nowrap"
+                >
+                  Start fresh
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2 border border-amber-200 dark:border-amber-800 rounded-lg p-2 bg-amber-50/50 dark:bg-amber-900/10">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Pick a product to fill from</span>
+                <button onClick={() => { setShowPicker(false); setPickSearch(''); }} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Cancel</button>
+              </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
@@ -184,34 +161,29 @@ export function SubstitutionFlow({
                   onChange={(e) => setPickSearch(e.target.value)}
                   placeholder="Search products..."
                   autoFocus
-                  className="w-full pl-8 pr-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
                 />
               </div>
-              <div className="max-h-[300px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700/50">
+              <div className="max-h-[200px] overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50">
                 {filteredPickItems.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">No matching items</p>
+                  <p className="text-xs text-gray-400 text-center py-4">No matching items</p>
                 ) : (
                   filteredPickItems.map(item => {
-                    const isSelected = selectedPickItem?.id === item.id;
                     const isAssigned = assignedItemIds.has(item.id);
                     return (
                       <button
                         key={item.id}
-                        onClick={() => setSelectedPickItem(item)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                          isSelected
-                            ? 'bg-sky-50 dark:bg-sky-900/30 ring-1 ring-inset ring-sky-400'
-                            : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                        }`}
+                        onClick={() => fillFromItem(item)}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate text-gray-900 dark:text-white">{item.name}</p>
-                          <p className="text-xs text-gray-400">{item.mealStation} · ${item.price}</p>
+                          <p className="text-xs font-medium truncate text-gray-900 dark:text-white">{item.name}</p>
+                          <p className="text-[10px] text-gray-400">{item.mealStation} &middot; ${item.price}</p>
                         </div>
                         {isAssigned && (
-                          <span className="text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">On page</span>
+                          <span className="text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">On page</span>
                         )}
-                        {isSelected && <Check className="h-4 w-4 text-sky-500 flex-shrink-0" />}
+                        <Copy className="h-3 w-3 text-gray-300 flex-shrink-0" />
                       </button>
                     );
                   })
@@ -220,16 +192,56 @@ export function SubstitutionFlow({
             </div>
           )}
 
-          {mode === 'create-new' && (
-            <ItemForm
-              name={name} setName={setName}
-              price={price} setPrice={setPrice}
-              mealPeriod={mealPeriod} setMealPeriod={setMealPeriod}
-              mealStation={mealStation} setMealStation={setMealStation}
-              availableMealPeriods={availableMealPeriods}
-              availableStations={availableStations}
+          {/* Form fields */}
+          <div className="space-y-2">
+            <Label htmlFor="sub-name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Name <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="sub-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus={!showPicker}
+              placeholder="e.g. Grilled Chicken Salad"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
-          )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sub-price" className="text-sm font-medium text-gray-700 dark:text-gray-300">Price</Label>
+            <Input
+              id="sub-price"
+              type="text"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="0.00"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Meal Period</Label>
+              <Select value={mealPeriod || 'none'} onValueChange={(v) => setMealPeriod(v === 'none' ? '' : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select period" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" className="text-sm">None</SelectItem>
+                  {availableMealPeriods.map(p => <SelectItem key={p} value={p} className="text-sm">{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Station</Label>
+              <Select value={mealStation || 'none'} onValueChange={(v) => setMealStation(v === 'none' ? '' : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select station" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" className="text-sm">None</SelectItem>
+                  {availableStations.map(s => <SelectItem key={s} value={s} className="text-sm">{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardContent>
 
         <CardFooter className="flex-shrink-0 border-t dark:border-gray-700 p-3">
@@ -237,97 +249,21 @@ export function SubstitutionFlow({
             <Button variant="outline" onClick={onClose} className="px-4 py-2 text-sm rounded-lg">
               Cancel
             </Button>
-            {mode === 'pick-existing' ? (
-              <Button
-                onClick={handleSavePick}
-                disabled={!selectedPickItem}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  selectedPickItem
-                    ? 'bg-amber-500 text-white hover:bg-amber-600'
-                    : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                Substitute
-              </Button>
-            ) : (
-              <Button
-                onClick={mode === 'create-new' ? handleCreateAndSave : handleSaveCopyOrNew}
-                disabled={!name.trim()}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  name.trim()
-                    ? 'bg-amber-500 text-white hover:bg-amber-600'
-                    : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                <Save className="h-4 w-4" />
-                {mode === 'create-new' ? 'Create & Substitute' : 'Substitute'}
-              </Button>
-            )}
+            <Button
+              onClick={handleSave}
+              disabled={!name.trim()}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                name.trim()
+                  ? 'bg-amber-500 text-white hover:bg-amber-600'
+                  : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <Save className="h-4 w-4" />
+              Substitute
+            </Button>
           </div>
         </CardFooter>
       </Card>
-    </div>
-  );
-}
-
-function ItemForm({ name, setName, price, setPrice, mealPeriod, setMealPeriod, mealStation, setMealStation, availableMealPeriods, availableStations }: {
-  name: string; setName: (v: string) => void;
-  price: string; setPrice: (v: string) => void;
-  mealPeriod: string; setMealPeriod: (v: string) => void;
-  mealStation: string; setMealStation: (v: string) => void;
-  availableMealPeriods: string[];
-  availableStations: string[];
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="sub-name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          Name <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="sub-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-          placeholder="e.g. Grilled Chicken Salad"
-          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="sub-price" className="text-sm font-medium text-gray-700 dark:text-gray-300">Price</Label>
-        <Input
-          id="sub-price"
-          type="text"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="0.00"
-          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Meal Period</Label>
-          <Select value={mealPeriod || 'none'} onValueChange={(v) => setMealPeriod(v === 'none' ? '' : v)}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select period" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" className="text-sm">None</SelectItem>
-              {availableMealPeriods.map(p => <SelectItem key={p} value={p} className="text-sm">{p}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Station</Label>
-          <Select value={mealStation || 'none'} onValueChange={(v) => setMealStation(v === 'none' ? '' : v)}>
-            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select station" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" className="text-sm">None</SelectItem>
-              {availableStations.map(s => <SelectItem key={s} value={s} className="text-sm">{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
     </div>
   );
 }

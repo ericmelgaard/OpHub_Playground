@@ -309,7 +309,7 @@ export function DeviceSettingsModal({
     return { availableItems: avail, notAvailableItems: notAvail };
   }, [menuItems, assignedIds, searchValue, stationFilter, dayNum, activeDaypart, currentPage]);
 
-  const handleQuickAdd = async (data: { name: string; price: string; mealPeriod: string; mealStation: string }) => {
+  const handleQuickAdd = async (data: { name: string; price: string; mealPeriod: string; mealStation: string; activeDays?: number[] }) => {
     if (!onCreateMenuItem) return;
     try {
       const item = await onCreateMenuItem(data);
@@ -969,6 +969,8 @@ export function DeviceSettingsModal({
         defaultMealStation={stationFilter !== 'all' ? stationFilter : ''}
         availableMealPeriods={mealPeriods}
         availableStations={stations}
+        selectedDay={selectedDay}
+        menuItems={menuItems}
       />
 
       {/* Item Action Sheet */}

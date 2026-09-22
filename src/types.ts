@@ -173,8 +173,6 @@ export interface Substitution {
 
 export type SubstitutionKey = `${string}:${number}:${number}`;
 
-export type SubstitutionMode = 'copy-and-edit' | 'pick-existing' | 'create-new';
-
 export interface SubstitutionContext {
   originalItem: MenuItem;
   pageId: string;
