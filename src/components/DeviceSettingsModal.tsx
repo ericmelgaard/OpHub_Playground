@@ -140,6 +140,19 @@ export function DeviceSettingsModal({
   const [stationFilter, setStationFilter] = useState('all');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [showNotAvailable, setShowNotAvailable] = useState(false);
+  const [confirmClearPage, setConfirmClearPage] = useState(false);
+
+  const handleClearPage = () => {
+    if (!currentPage || !device) return;
+    const allIds = currentPage.assignedItems.map(i => i.id);
+    if (allIds.length === 0) return;
+    if (onInlineRemoveItems) {
+      onInlineRemoveItems(device, allIds, currentPage.id);
+    } else {
+      allIds.forEach(id => removeItemFromDevice(id, device.id, currentPage.id));
+    }
+    setConfirmClearPage(false);
+  };
 
   const handleDragEnd = useCallback((result: DropResult) => {
     if (!result.destination || !selectedDeviceSettings) return;
@@ -372,11 +385,37 @@ export function DeviceSettingsModal({
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {showingCount} of {currentPage.displayCapacity} showing · {currentPage.assignedItems.length} assigned
                     </span>
-                    {currentPage.schedule && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {currentPage.schedule.startTime} - {currentPage.schedule.endTime}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {currentPage.assignedItems.length > 0 && (
+                        confirmClearPage ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-medium text-red-600 dark:text-red-400">Clear all?</span>
+                            <button
+                              onClick={handleClearPage}
+                              className="text-[10px] font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded transition-colors"
+                            >Yes</button>
+                            <button
+                              onClick={() => setConfirmClearPage(false)}
+                              className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-1.5 py-0.5 rounded transition-colors"
+                            >No</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmClearPage(true)}
+                            className="flex items-center gap-1 text-[10px] font-medium text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
+                            title="Remove all items from this page"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Clear Page</span>
+                          </button>
+                        )
+                      )}
+                      {currentPage.schedule && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {currentPage.schedule.startTime} - {currentPage.schedule.endTime}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {hasWarning(currentPage) && (
                     <div className="mt-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md">
