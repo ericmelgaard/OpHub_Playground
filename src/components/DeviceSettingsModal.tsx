@@ -387,28 +387,14 @@ export function DeviceSettingsModal({
                     </span>
                     <div className="flex items-center gap-2">
                       {currentPage.assignedItems.length > 0 && (
-                        confirmClearPage ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-medium text-red-600 dark:text-red-400">Clear all?</span>
-                            <button
-                              onClick={handleClearPage}
-                              className="text-[10px] font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded transition-colors"
-                            >Yes</button>
-                            <button
-                              onClick={() => setConfirmClearPage(false)}
-                              className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-1.5 py-0.5 rounded transition-colors"
-                            >No</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmClearPage(true)}
-                            className="flex items-center gap-1 text-[10px] font-medium text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
-                            title="Remove all items from this page"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            <span>Clear Page</span>
-                          </button>
-                        )
+                        <button
+                          onClick={() => setConfirmClearPage(true)}
+                          className="flex items-center gap-1 text-[10px] font-medium text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
+                          title="Remove all items from this page"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Clear Page</span>
+                        </button>
                       )}
                       {currentPage.schedule && (
                         <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -767,6 +753,43 @@ export function DeviceSettingsModal({
           </div>
         )}
       </div>
+
+      {/* Clear Page confirmation modal */}
+      {confirmClearPage && currentPage && (
+        <div
+          className="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 animate-in fade-in duration-200"
+          onClick={() => setConfirmClearPage(false)}
+        >
+          <div
+            className="mx-4 w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 shadow-2xl animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center p-6 text-center">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                <Trash2 className="h-7 w-7 text-red-500 dark:text-red-400" />
+              </div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Clear this page?</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                This will remove all {currentPage.assignedItems.length} item{currentPage.assignedItems.length !== 1 ? 's' : ''} from {currentPage.daypart}. You can re-add them anytime.
+              </p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setConfirmClearPage(false)}
+                  className="flex-1 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 active:scale-[0.98] transition-all min-h-[48px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearPage}
+                  className="flex-1 py-3 text-sm font-semibold text-white rounded-xl bg-red-500 hover:bg-red-600 active:scale-[0.98] transition-all min-h-[48px]"
+                >
+                  Clear Page
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Add modal */}
       <QuickAddModal
