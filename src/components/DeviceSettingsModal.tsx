@@ -16,6 +16,7 @@ import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { isItemActiveForDaypart, DAY_ABBR } from '../lib/availability';
+import { QuickAddModal } from './QuickAddModal';
 import type { DisplayToggle } from './InlineItemPicker';
 
 interface DeviceSettingsModalProps {
