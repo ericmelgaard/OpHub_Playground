@@ -525,14 +525,15 @@ export function DeviceSettingsModal({
                                   >
                                     <div className="flex-1 min-w-0">
                                       <p className="text-xs font-medium truncate text-gray-900 dark:text-white">{item.name}</p>
-                                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                                        <span>{item.mealStation}</span>
+                                      <div className="flex items-center gap-1.5 text-[10px] text-gray-400 mb-0.5">
+                                        <span className="flex-shrink-0">{item.mealStation}</span>
                                         {item.isGrouped && item.occurrenceCount && (
-                                          <span className="text-sky-500 font-medium">{item.occurrenceCount}x</span>
+                                          <span className="text-sky-500 font-medium flex-shrink-0">{item.occurrenceCount}x</span>
                                         )}
                                       </div>
+                                      <DayPills activeDays={item.activeDays} selectedDay={selectedDay} />
                                     </div>
-                                    <span className="text-xs font-semibold flex-shrink-0 text-gray-700 dark:text-gray-300">${item.price}</span>
+                                    <span className="text-xs font-semibold flex-shrink-0 text-gray-700 dark:text-gray-300 ml-2">${item.price}</span>
                                   </div>
                                 )}
                               </Draggable>
@@ -565,12 +566,10 @@ export function DeviceSettingsModal({
                             <div key={`not-avail-${item.id}`} className="flex items-center gap-2 px-3 py-2 opacity-60 hover:opacity-100 transition-opacity">
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium truncate text-gray-700 dark:text-gray-300">{item.name}</p>
-                                <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                                  <span>{item.mealStation}</span>
-                                  {item.activeDays && item.activeDays.length > 0 && (
-                                    <span>{item.activeDays.map(d => DAY_ABBR[d]).join(', ')}</span>
-                                  )}
+                                <div className="flex items-center gap-1.5 text-[10px] text-gray-400 mb-0.5">
+                                  <span className="flex-shrink-0">{item.mealStation}</span>
                                 </div>
+                                <DayPills activeDays={item.activeDays} selectedDay={selectedDay} />
                               </div>
                               <button
                                 onClick={() => {
@@ -709,9 +708,12 @@ export function DeviceSettingsModal({
                           {availableItems.slice(0, 20).map(item => (
                             <Draggable key={`avail-${item.id}`} draggableId={`avail-${item.id}`} index={availableItems.indexOf(item)}>
                               {(p, s) => (
-                                <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className={`flex-shrink-0 px-3 py-2 text-xs font-medium rounded-md border cursor-grab active:cursor-grabbing transition-all ${
+                                <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className={`flex-shrink-0 px-3 py-2 rounded-md border cursor-grab active:cursor-grabbing transition-all ${
                                   s.isDragging ? 'shadow-lg ring-2 ring-sky-500 bg-white dark:bg-gray-800 z-50' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-300 text-gray-700 dark:text-gray-300'
-                                }`}>{item.name}</div>
+                                }`}>
+                                  <div className="text-xs font-medium truncate max-w-[120px]">{item.name}</div>
+                                  <div className="mt-1"><DayPills activeDays={item.activeDays} selectedDay={selectedDay} /></div>
+                                </div>
                               )}
                             </Draggable>
                           ))}
@@ -737,6 +739,40 @@ export function DeviceSettingsModal({
         availableMealPeriods={mealPeriods}
         availableStations={stations}
       />
+    </div>
+  );
+}
+
+function DayPills({ activeDays, selectedDay }: { activeDays?: number[]; selectedDay: number | 'every-day' }) {
+  const days = activeDays || [];
+  const today = new Date().getDay();
+
+  if (days.length === 0) {
+    return <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">Every day</span>;
+  }
+
+  return (
+    <div className="flex gap-0.5 flex-wrap">
+      {DAY_OPTIONS.map(d => {
+        const isActive = days.includes(d.value);
+        const isSel = selectedDay !== 'every-day' && selectedDay === d.value;
+        const isToday = d.value === today;
+        return (
+          <span
+            key={d.value}
+            className={`text-[9px] font-semibold px-1 py-0.5 rounded leading-none ${
+              isActive
+                ? isSel
+                  ? 'bg-sky-500 text-white'
+                  : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                : 'bg-gray-100 dark:bg-gray-700/50 text-gray-300 dark:text-gray-600'
+            }`}
+            title={`${d.label}${isActive ? ' - Active' : ' - Inactive'}${isToday ? ' (Today)' : ''}`}
+          >
+            {d.label[0]}
+          </span>
+        );
+      })}
     </div>
   );
 }
