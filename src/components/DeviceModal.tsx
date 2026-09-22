@@ -271,32 +271,31 @@ export function DeviceModal({
     );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-container">
-      <Card className="w-full h-[90vh] max-w-7xl mx-4 flex flex-col modal-content bg-white dark:bg-gray-800">
-        <CardHeader className="flex-shrink-0 p-6 border-b dark:border-gray-700 modal-header">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {title}
-              </h3>
-              {mode === 'assign' && selectedItems.length > 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Select a device to continue
-                </p>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              <X className="h-6 w-6" />
-            </Button>
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex-shrink-0 p-4 sm:p-6 border-b dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+              {title}
+            </h3>
+            {mode === 'assign' && selectedItems.length > 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Select a device to continue
+              </p>
+            )}
           </div>
-        </CardHeader>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            <X className="h-6 w-6" />
+          </Button>
+        </div>
+      </div>
 
-        <div className="flex-1 min-h-0 flex modal-body">
+      <div className="flex-1 min-h-0 flex">
           <div className="hidden md:flex flex-col w-72 min-h-0 border-r dark:border-gray-700">
             <div className="p-4 border-b dark:border-gray-700">
               <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -350,7 +349,7 @@ export function DeviceModal({
             </div>
 
             <div className="flex-1 overflow-y-auto scrollbar-thin p-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                 {displayedDevices.map((device) => (
                   <Card
                     key={device.id}
@@ -435,42 +434,39 @@ export function DeviceModal({
             </div>
           </div>
         </div>
-      </Card>
 
       {/* Mobile Placement Filter */}
       <div
-        className={`md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity ${
+        className={`md:hidden fixed inset-0 bg-black bg-opacity-50 z-[60] transition-opacity ${
           showPlacementFilter ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setShowPlacementFilter(false)}
       >
-        <Card
-          className={`absolute inset-y-0 left-0 w-full bg-white dark:bg-gray-800 transform transition-transform ${
+        <div
+          className={`absolute inset-y-0 left-0 w-full max-w-xs bg-white dark:bg-gray-900 transform transition-transform ${
             showPlacementFilter ? 'translate-x-0' : '-translate-x-full'
           }`}
           onClick={(e) => e.stopPropagation()}
         >
-          <CardHeader className="flex items-center justify-between px-3 py-2 border-b dark:border-gray-700">
-            <div className="flex items-center w-full justify-between">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Placements
-              </h4>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPlacementFilter(false)}
-                className="text-gray-500 dark:text-gray-400"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto scrollbar-thin p-4">
+          <div className="flex items-center justify-between px-3 py-3 border-b dark:border-gray-700">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Placements
+            </h4>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowPlacementFilter(false)}
+              className="text-gray-500 dark:text-gray-400"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-4">
             <div className="space-y-1">
               {placements.map((placement) => renderPlacement(placement))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

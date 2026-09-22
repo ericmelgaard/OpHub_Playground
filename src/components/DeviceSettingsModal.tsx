@@ -215,18 +215,12 @@ export function DeviceSettingsModal({
   if (!showDeviceSettingsModal || !selectedDeviceSettings) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-container">
-      <button
-        onClick={onClose}
-        className="modal-close-mobile hidden"
-        aria-label="Close"
-      >
-        <X className="h-5 w-5" />
-      </button>
-      <Card className="bg-white dark:bg-gray-800 max-w-6xl w-full h-[90vh] flex flex-col modal-content">
-        <CardHeader className="flex-shrink-0 modal-header">{header}</CardHeader>
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-20">
+        {header}
+      </div>
 
-        <CardContent className="flex-1 overflow-y-auto scrollbar-thin modal-body">
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 lg:px-8 py-4 bg-gray-50 dark:bg-gray-900">
           {/* Daypart selector */}
           <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-2 border-b border-gray-100 dark:border-gray-700">
             <button
@@ -270,7 +264,7 @@ export function DeviceSettingsModal({
               itemDisplayToggles={itemDisplayToggles}
             />
           ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <DragDropContext onDragEnd={handleDragEnd}>
               {selectedDeviceSettings.pages.filter(page => activeDaypart === null || page.daypart === activeDaypart).map((page) => {
                 const displayedItems = getDisplayedItems(page);
@@ -483,8 +477,7 @@ export function DeviceSettingsModal({
             </DragDropContext>
           </div>
           )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }
@@ -518,6 +511,7 @@ function SplitPaneView({
   onToggleItemDisplay,
   itemDisplayToggles = {},
 }: SplitPaneViewProps) {
+  const [mobileTab, setMobileTab] = useState<'assigned' | 'available'>('assigned');
   const page = device.pages.find(p => p.daypart === daypart);
   if (!page) return null;
 
@@ -537,9 +531,33 @@ function SplitPaneView({
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
+      {/* Mobile tab switcher */}
+      <div className="lg:hidden flex items-center gap-1 mb-3 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+        <button
+          onClick={() => setMobileTab('assigned')}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+            mobileTab === 'assigned'
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Assigned ({page.assignedItems.length})
+        </button>
+        <button
+          onClick={() => setMobileTab('available')}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+            mobileTab === 'available'
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Available
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[400px]">
         {/* Left: assigned items */}
-        <div className="flex flex-col">
+        <div className={`flex flex-col ${mobileTab === 'assigned' ? '' : 'hidden lg:flex'}`}>
           <div className={`px-4 py-3 rounded-t-lg border-b dark:border-gray-700 ${getDaypartBg(page.daypart)}`}>
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
@@ -650,7 +668,7 @@ function SplitPaneView({
                 {page.assignedItems.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-[200px] border-2 border-dashed dark:border-gray-700 rounded-lg gap-1">
                     <p className="text-sm text-gray-500 dark:text-gray-400">No items assigned yet</p>
-                    <p className="text-xs text-gray-400">Drag items from the right panel</p>
+                    <p className="text-xs text-gray-400">Switch to Available tab to add items</p>
                   </div>
                 )}
               </CardContent>
@@ -659,7 +677,7 @@ function SplitPaneView({
         </div>
 
         {/* Right: inline item picker */}
-        <div className="flex flex-col min-h-[400px]">
+        <div className={`flex flex-col min-h-[400px] ${mobileTab === 'available' ? '' : 'hidden lg:flex'}`}>
           <InlineItemPicker
             menuItems={menuItems}
             page={page}
