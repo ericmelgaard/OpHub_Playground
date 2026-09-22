@@ -55,8 +55,51 @@ export function DeviceFirstWorkflow({
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
   const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>({});
   const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
+  const [autoFillEnabled, setAutoFillEnabled] = useState(false);
 
   const substitutionMap = useMemo(() => buildSubstitutionMap(substitutions), [substitutions]);
+
+  const autoFillItemIds = useMemo(() => {
+    if (!autoFillEnabled || !optimisticDevice) return new Set<number>();
+    const ids = new Set<number>();
+    const daypartToMealPeriod: Record<string, string> = {
+      'Breakfast': 'Breakfast',
+      'Lunch': 'Lunch',
+      'Dinner': 'Dinner',
+      'Late Night': 'Late Night',
+    };
+    for (const page of optimisticDevice.pages) {
+      const targetPeriod = daypartToMealPeriod[page.daypart];
+      if (!targetPeriod) continue;
+      const manualIds = new Set(page.assignedItems.map(i => i.id));
+      const candidates = menuItems
+        .filter(i => i.mealPeriod === targetPeriod && !manualIds.has(i.id))
+        .slice(0, Math.max(0, page.displayCapacity - page.assignedItems.length));
+      candidates.forEach(c => ids.add(c.id));
+    }
+    return ids;
+  }, [autoFillEnabled, optimisticDevice, menuItems]);
+
+  const autoFillPages = useMemo(() => {
+    if (!autoFillEnabled || !optimisticDevice) return new Map<string, MenuItem[]>();
+    const map = new Map<string, MenuItem[]>();
+    const daypartToMealPeriod: Record<string, string> = {
+      'Breakfast': 'Breakfast',
+      'Lunch': 'Lunch',
+      'Dinner': 'Dinner',
+      'Late Night': 'Late Night',
+    };
+    for (const page of optimisticDevice.pages) {
+      const targetPeriod = daypartToMealPeriod[page.daypart];
+      if (!targetPeriod) continue;
+      const manualIds = new Set(page.assignedItems.map(i => i.id));
+      const candidates = menuItems
+        .filter(i => i.mealPeriod === targetPeriod && !manualIds.has(i.id))
+        .slice(0, Math.max(0, page.displayCapacity - page.assignedItems.length));
+      if (candidates.length > 0) map.set(page.id, candidates);
+    }
+    return map;
+  }, [autoFillEnabled, optimisticDevice, menuItems]);
 
   const handleAddSubstitution = useCallback((sub: Omit<Substitution, 'id' | 'createdAt'>) => {
     setSubstitutions(prev => [
@@ -355,6 +398,8 @@ export function DeviceFirstWorkflow({
             device={optimisticDevice}
             onClose={handleCloseModals}
             onForcePage={handleForcePage}
+            autoFillEnabled={autoFillEnabled}
+            onAutoFillToggle={() => setAutoFillEnabled(prev => !prev)}
           />
         )}
         setNotifications={setNotifications}
@@ -371,6 +416,9 @@ export function DeviceFirstWorkflow({
         substitutionMap={substitutionMap}
         onAddSubstitution={handleAddSubstitution}
         onRemoveSubstitution={handleRemoveSubstitution}
+        autoFillEnabled={autoFillEnabled}
+        autoFillItemIds={autoFillItemIds}
+        autoFillPages={autoFillPages}
       />
 
       <ItemSelectionModal

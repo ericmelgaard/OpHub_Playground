@@ -51,6 +51,9 @@ interface DeviceSettingsModalProps {
   substitutionMap?: Map<SubstitutionKey, Substitution>;
   onAddSubstitution?: (sub: Omit<Substitution, 'id' | 'createdAt'>) => void;
   onRemoveSubstitution?: (id: string) => void;
+  autoFillEnabled?: boolean;
+  autoFillItemIds?: Set<number>;
+  autoFillPages?: Map<string, MenuItem[]>;
 }
 
 const getDaypartColor = (daypart: string) => {
@@ -123,6 +126,9 @@ export function DeviceSettingsModal({
   substitutionMap = new Map(),
   onAddSubstitution,
   onRemoveSubstitution,
+  autoFillEnabled = false,
+  autoFillItemIds = new Set(),
+  autoFillPages = new Map(),
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
   const [selectedDay, setSelectedDay] = useState<number | 'every-day'>(() => new Date().getDay());
@@ -613,6 +619,39 @@ export function DeviceSettingsModal({
                         )}
                       </Droppable>
 
+                      {/* Auto-filled items */}
+                      {autoFillEnabled && (() => {
+                        const pageAutoItems = autoFillPages.get(currentPage.id) || [];
+                        if (pageAutoItems.length === 0) return null;
+                        return (
+                          <div className="border-t border-dashed border-teal-300 dark:border-teal-700 flex-shrink-0">
+                            <div className="px-3 py-2 bg-teal-50/60 dark:bg-teal-900/10 flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                              <span className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wide">Auto Fill</span>
+                              <span className="text-[10px] text-teal-500/70 dark:text-teal-400/50">{pageAutoItems.length} item{pageAutoItems.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="space-y-1.5 p-2 bg-teal-50/30 dark:bg-teal-900/5">
+                              {pageAutoItems.map(item => (
+                                <div
+                                  key={`auto-${item.id}`}
+                                  className="flex items-center justify-between p-2.5 rounded-md border border-dashed border-teal-200 dark:border-teal-800 bg-white/60 dark:bg-gray-800/40"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <div className="w-5 flex justify-center flex-shrink-0">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400/60" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium truncate text-teal-800 dark:text-teal-200">{item.name}</p>
+                                      <p className="text-xs text-teal-500/70 dark:text-teal-400/50">${item.price} &middot; {item.mealStation}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {isFilteringByDay && inactiveAssignedItems.length > 0 && (
                         <div className="border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                           <button
@@ -877,6 +916,24 @@ export function DeviceSettingsModal({
                           </CardContent>
                         )}
                       </Droppable>
+                      {/* Auto-fill items in grid view */}
+                      {autoFillEnabled && (() => {
+                        const pageAutoItems = autoFillPages.get(page.id) || [];
+                        if (pageAutoItems.length === 0) return null;
+                        return (
+                          <div className="border-t border-dashed border-teal-300 dark:border-teal-700 px-3 py-2 bg-teal-50/40 dark:bg-teal-900/10 space-y-1">
+                            {pageAutoItems.slice(0, 3).map(item => (
+                              <div key={`auto-grid-${item.id}`} className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-dashed border-teal-200 dark:border-teal-800 bg-white/50 dark:bg-gray-800/30">
+                                <span className="w-1 h-1 rounded-full bg-teal-400 flex-shrink-0" />
+                                <span className="text-[10px] font-medium text-teal-700 dark:text-teal-300 truncate">{item.name}</span>
+                              </div>
+                            ))}
+                            {pageAutoItems.length > 3 && (
+                              <p className="text-[9px] text-teal-500/60 text-center">+{pageAutoItems.length - 3} more</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </Card>
                   );
                 })}
