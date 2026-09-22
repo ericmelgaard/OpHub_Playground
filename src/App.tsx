@@ -745,6 +745,7 @@ function App() {
         />
 
         {showDeviceWorkflow && selectedDevice && (
+          <div className="fixed inset-x-0 top-16 bottom-0 z-40">
           <DeviceFirstWorkflow
             devices={devices}
             menuItems={menuItems}
@@ -793,6 +794,7 @@ function App() {
               }
             }}
           />
+          </div>
         )}
 
         {showItemWorkflow && selectedItem && (

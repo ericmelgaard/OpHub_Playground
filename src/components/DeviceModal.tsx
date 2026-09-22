@@ -271,7 +271,7 @@ export function DeviceModal({
     );
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="absolute inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="flex-shrink-0 p-4 sm:p-6 border-b dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="flex justify-between items-center">
           <div>

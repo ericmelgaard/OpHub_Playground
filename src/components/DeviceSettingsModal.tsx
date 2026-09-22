@@ -255,7 +255,7 @@ export function DeviceSettingsModal({
   }).length : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="absolute inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         {header}
