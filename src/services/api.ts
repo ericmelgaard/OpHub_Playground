@@ -87,18 +87,6 @@ export const api = {
         lastSeen: av.last_seen_date,
       }));
 
-      // Debug logging for Carrot Salad
-      if (item.mrn === '159668.2') {
-        console.log('Carrot Salad availability:', {
-          mrn: item.mrn,
-          name: item.name,
-          activeDays,
-          availability: availability.map((av: any) => ({
-            day_of_week: av.day_of_week,
-            meal_period: av.meal_period?.name
-          }))
-        });
-      }
 
       return {
         id: item.id,
@@ -152,23 +140,20 @@ export const api = {
     });
   },
 
-  // Get menu items grouped by MRN
+  // Get menu items grouped by MRN + portion (different portions stay separate)
   getGroupedMenuItems: async (): Promise<MenuItem[]> => {
     const items = await api.getMenuItems();
-    console.log(`Total items fetched: ${items.length}`);
 
-    // Group items by MRN
     const groupedMap = new Map<string, MenuItem[]>();
 
     items.forEach(item => {
-      const key = item.mrn || `no-mrn-${item.id}`;
+      const mrn = item.mrn || `no-mrn-${item.id}`;
+      const key = `${mrn}||${item.portion || ''}`;
       if (!groupedMap.has(key)) {
         groupedMap.set(key, []);
       }
       groupedMap.get(key)!.push(item);
     });
-
-    console.log(`Unique MRNs: ${groupedMap.size}`);
 
     // Convert grouped items to consolidated MenuItem objects
     const consolidatedItems: MenuItem[] = [];
@@ -221,8 +206,6 @@ export const api = {
       }
     });
 
-    console.log(`Items with duplicates grouped: ${groupedCount}`);
-    console.log(`Total items after grouping: ${consolidatedItems.length}`);
 
     return consolidatedItems.sort((a, b) => a.name.localeCompare(b.name));
   },

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
+import { Tag, Tv, Receipt, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
@@ -558,12 +558,6 @@ function App() {
                      selectedQuickAction === 'webview' ? 'Webview Kiosks' :
                      selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
                   </h2>
-                  {selectedQuickAction === 'products' && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border rounded-lg shadow-sm" style={{ borderColor: 'rgb(0, 173, 240)' }}>
-                      <Database className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
-                      <span className="text-sm font-medium" style={{ color: 'rgb(0, 173, 240)' }}>Webtrition</span>
-                    </div>
-                  )}
                 </div>
 
                 {selectedQuickAction === 'products' && (
