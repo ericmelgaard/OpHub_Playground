@@ -5,6 +5,7 @@ import { DeviceModal } from '../components/DeviceModal';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
 import { ItemSelectionModal } from '../components/ItemSelectionModal';
 import { DeviceHeader } from '../components/DeviceHeader';
+import { DeviceConfigPage } from '../components/DeviceConfigPage';
 import { DisplayToggle } from '../components/InlineItemPicker';
 import { mockPlacements } from '../services/mockData';
 import { useModalHistory } from '../hooks/useModalHistory';
@@ -39,6 +40,7 @@ export function DeviceFirstWorkflow({
   const [showDeviceModal, setShowDeviceModal] = useState(!preSelectedDevice);
   const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(!!preSelectedDevice);
   const [showItemSelectionModal, setShowItemSelectionModal] = useState(false);
+  const [showConfigPage, setShowConfigPage] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(preSelectedDevice || null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isAddingToPage, setIsAddingToPage] = useState<string | null>(null);
@@ -114,7 +116,6 @@ export function DeviceFirstWorkflow({
     setSubstitutions(prev => prev.filter(s => s.id !== id));
   }, []);
 
-  // Get unique meal periods and stations from menu items
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
   const stations = ['all', ...new Set(menuItems.map(item => item.mealStation))];
 
@@ -122,6 +123,7 @@ export function DeviceFirstWorkflow({
     setShowDeviceModal(false);
     setShowDeviceSettingsModal(false);
     setShowItemSelectionModal(false);
+    setShowConfigPage(false);
     setSelectedDevice(null);
     setOptimisticDevice(null);
     setSelectedPageId(null);
@@ -148,12 +150,10 @@ export function DeviceFirstWorkflow({
   const handleItemSelect = async (items: MenuItem[]) => {
     if (!selectedDevice || !selectedPageId || items.length === 0 || !optimisticDevice) return;
 
-    // Create optimistic update
     const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
     const page = updatedDevice.pages.find(p => p.id === selectedPageId);
     if (!page) return;
 
-    // Track which items were duplicates
     const duplicateItems = items.filter(item => 
       page.assignedItems.some(existing => existing.id === item.id)
     );
@@ -161,38 +161,30 @@ export function DeviceFirstWorkflow({
       !page.assignedItems.some(existing => existing.id === item.id)
     );
 
-    // Store duplicate count for warning message
     setDuplicateCount(duplicateItems.length);
 
-    // Add only new items to page
     newItems.forEach(item => {
       page.assignedItems.push(item);
       page.itemOrder.push(item.id);
     });
 
-    // Add new items to device if not already present
     newItems.forEach(item => {
       if (!updatedDevice.assignedItems.some(i => i.id === item.id)) {
         updatedDevice.assignedItems.push(item);
       }
     });
 
-    // Update UI immediately with optimistic state
     setOptimisticDevice(updatedDevice);
     setIsAddingToPage(selectedPageId);
     setShowItemSelectionModal(false);
     setShowDeviceSettingsModal(true);
 
     try {
-      // Make API call
       await onAddItems(selectedDevice, items, selectedPageId);
-      
-      // Keep using our optimistic update since it matches what the server will return
       setSelectedDevice(updatedDevice);
       setLastAssignedPageId(selectedPageId);
     } catch (err) {
       console.error('Error adding items:', err);
-      // Revert to last known good state
       const currentDevice = devices.find(d => d.id === selectedDevice.id);
       if (currentDevice) {
         const currentDeviceClone = JSON.parse(JSON.stringify(currentDevice));
@@ -201,7 +193,6 @@ export function DeviceFirstWorkflow({
       }
     } finally {
       setIsAddingToPage(null);
-      // Keep warning/success state visible longer
       setTimeout(() => {
         setLastAssignedPageId(null);
         setDuplicateCount(0);
@@ -301,44 +292,33 @@ export function DeviceFirstWorkflow({
   const handleForcePage = (pageId: string | null) => {
     if (!selectedDevice || !onForcePage) return;
     
-    // Create optimistic update
     const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
     updatedDevice.status.forcedPage = pageId;
     if (pageId) {
       updatedDevice.status.currentPage = pageId;
     }
     
-    // Update UI immediately
     setOptimisticDevice(updatedDevice);
-    
-    // Make API call
     onForcePage(selectedDevice.id, pageId);
   };
 
   const handleReorderItems = async (deviceId: string, pageId: string, startIndex: number, endIndex: number) => {
     if (!optimisticDevice) return;
 
-    // Create optimistic update
     const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
     const page = updatedDevice.pages.find(p => p.id === pageId);
     if (!page) return;
 
-    // Perform the reorder optimistically
     const [removed] = page.itemOrder.splice(startIndex, 1);
     page.itemOrder.splice(endIndex, 0, removed);
 
-    // Update UI immediately
     setOptimisticDevice(updatedDevice);
 
     try {
-      // Make API call
       await onReorderItems(deviceId, pageId, startIndex, endIndex);
-      
-      // Keep using our optimistic update
       setSelectedDevice(updatedDevice);
     } catch (err) {
       console.error('Error reordering items:', err);
-      // Revert to last known good state
       const currentDevice = devices.find(d => d.id === deviceId);
       if (currentDevice) {
         const currentDeviceClone = JSON.parse(JSON.stringify(currentDevice));
@@ -348,13 +328,20 @@ export function DeviceFirstWorkflow({
     }
   };
 
-  // Add modal IDs for history management after all functions are defined
+  const handleOpenConfig = () => {
+    setShowConfigPage(true);
+  };
+
+  const handleCloseConfig = () => {
+    setShowConfigPage(false);
+  };
+
   const deviceModalState = { id: 'device-select', isOpen: showDeviceModal };
   const settingsModalState = { id: 'device-settings', isOpen: showDeviceSettingsModal };
   const itemSelectionModalState = { id: 'item-selection', isOpen: showItemSelectionModal };
+  const configPageState = { id: 'device-config', isOpen: showConfigPage };
 
-  // Use the improved hook for each modal
-  useModalHistory(deviceModalState, handleCloseModals, true); // Top-level modal
+  useModalHistory(deviceModalState, handleCloseModals, true);
   useModalHistory(settingsModalState, () => {
     setShowDeviceSettingsModal(false);
     setShowDeviceModal(true);
@@ -363,6 +350,7 @@ export function DeviceFirstWorkflow({
     setShowItemSelectionModal(false);
     setShowDeviceSettingsModal(true);
   });
+  useModalHistory(configPageState, handleCloseConfig);
 
   return (
     <>
@@ -397,9 +385,7 @@ export function DeviceFirstWorkflow({
           <DeviceHeader
             device={optimisticDevice}
             onClose={handleCloseModals}
-            onForcePage={handleForcePage}
-            autoFillEnabled={autoFillEnabled}
-            onAutoFillToggle={() => setAutoFillEnabled(prev => !prev)}
+            onOpenConfig={handleOpenConfig}
           />
         )}
         setNotifications={setNotifications}
@@ -440,6 +426,16 @@ export function DeviceFirstWorkflow({
         stations={stations}
         selectedPage={selectedPageId}
       />
+
+      {optimisticDevice && (
+        <DeviceConfigPage
+          device={optimisticDevice}
+          isOpen={showConfigPage}
+          onClose={handleCloseConfig}
+          autoFillEnabled={autoFillEnabled}
+          onAutoFillToggle={() => setAutoFillEnabled(prev => !prev)}
+        />
+      )}
     </>
   );
 }

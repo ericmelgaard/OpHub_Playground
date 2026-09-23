@@ -173,8 +173,8 @@ export function ItemFirstWorkflow({
         header={optimisticDevice && (
           <DeviceHeader
             device={optimisticDevice}
-            onClose={handleCloseModals} // Changed from handleBackToDeviceModal to handleCloseModals
-            onForcePage={handleForcePage}
+            onClose={handleCloseModals}
+            onOpenConfig={() => {}}
           />
         )}
       />

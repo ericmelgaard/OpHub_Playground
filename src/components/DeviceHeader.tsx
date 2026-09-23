@@ -6,10 +6,9 @@ import {
   BatteryLow,
   BatteryMedium,
   BatteryFull,
-  Check,
   Clock,
-  ChevronLeft,
-  Sparkles,
+  X,
+  Settings,
 } from 'lucide-react';
 import { Device } from '../types';
 import { Button } from '@/components/ui/button';
@@ -18,9 +17,7 @@ import { Badge } from '@/components/ui/badge';
 interface DeviceHeaderProps {
   device: Device;
   onClose: () => void;
-  onForcePage?: (pageId: string | null) => void;
-  autoFillEnabled?: boolean;
-  onAutoFillToggle?: () => void;
+  onOpenConfig: () => void;
 }
 
 const getBatteryIcon = (level: number) => {
@@ -42,22 +39,22 @@ const formatLastUpdated = (iso: string) => {
   return date.toLocaleDateString();
 };
 
-export function DeviceHeader({ device, onClose, autoFillEnabled, onAutoFillToggle }: DeviceHeaderProps) {
+export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProps) {
   const currentPage = device.pages.find(
     (p) => p.id === (device.status.forcedPage || device.status.currentPage)
   );
 
   return (
     <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      {/* Left: back + name + status meta */}
+      {/* Left: X close + name + status meta */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <Button
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="sm:hidden flex-shrink-0 -ml-2 text-gray-600 dark:text-gray-400"
+          className="flex-shrink-0 -ml-2 h-8 w-8 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <X className="h-5 w-5" />
         </Button>
 
         <div className="min-w-0">
@@ -109,31 +106,15 @@ export function DeviceHeader({ device, onClose, autoFillEnabled, onAutoFillToggl
         </div>
       </div>
 
-      {/* Right: Auto Fill toggle + Done */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {onAutoFillToggle && (
-          <button
-            onClick={onAutoFillToggle}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 ${
-              autoFillEnabled
-                ? 'bg-teal-50 dark:bg-teal-900/40 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 shadow-sm shadow-teal-100 dark:shadow-teal-900/20'
-                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-teal-300 hover:text-teal-600 dark:hover:text-teal-400'
-            }`}
-          >
-            <Sparkles className={`h-3.5 w-3.5 transition-colors ${autoFillEnabled ? 'text-teal-500' : ''}`} />
-            <span className="hidden sm:inline">Auto Fill</span>
-            {autoFillEnabled && (
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-            )}
-          </button>
-        )}
+      {/* Right: Gear button */}
+      <div className="flex items-center flex-shrink-0">
         <Button
-          variant="outline"
-          onClick={onClose}
-          className="flex items-center gap-2 px-3 sm:px-4 py-1.5 text-sm font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/40 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors"
+          variant="ghost"
+          size="icon"
+          onClick={onOpenConfig}
+          className="h-9 w-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
         >
-          <Check className="h-4 w-4" />
-          <span className="hidden sm:inline">Done</span>
+          <Settings className="h-5 w-5" />
         </Button>
       </div>
     </div>
