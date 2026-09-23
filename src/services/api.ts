@@ -26,7 +26,7 @@ const mockChannelItems: Record<string, Set<number>> = {
 let mockRules: Rule[] = [];
 
 export const api = {
-  // Menu Items - now from Supabase
+  // Menu Items - from condensed Supabase view (pre-grouped by MRN + name)
   getMenuItems: async (): Promise<MenuItem[]> => {
     const pageSize = 1000;
     let allData: any[] = [];
@@ -35,12 +35,8 @@ export const api = {
 
     while (hasMore) {
       const { data, error } = await supabase
-        .from('menu_items')
-        .select(`
-          *,
-          meal_period:meal_periods(id, name),
-          station:stations(id, name)
-        `)
+        .from('menu_items_condensed')
+        .select('*')
         .order('name')
         .range(from, from + pageSize - 1);
 
@@ -54,30 +50,45 @@ export const api = {
       from += pageSize;
     }
 
-    const data = allData;
+    // Fetch meal periods and stations in parallel for name lookups
+    const [mpResult, stResult, avResult] = await Promise.all([
+      supabase.from('meal_periods').select('id, name'),
+      supabase.from('stations').select('id, name'),
+      (async () => {
+        let all: any[] = [];
+        let f = 0;
+        let more = true;
+        while (more) {
+          const { data: avPage } = await supabase
+            .from('product_availability')
+            .select('mrn, day_of_week, meal_period_id, last_seen_date, meal_period:meal_periods(name)')
+            .range(f, f + pageSize - 1);
+          all = all.concat(avPage || []);
+          more = (avPage?.length || 0) === pageSize;
+          f += pageSize;
+        }
+        return all;
+      })(),
+    ]);
 
-    let allAvailability: any[] = [];
-    from = 0;
-    hasMore = true;
-    while (hasMore) {
-      const { data: avPage } = await supabase
-        .from('product_availability')
-        .select('mrn, day_of_week, meal_period_id, last_seen_date, meal_period:meal_periods(name)')
-        .range(from, from + pageSize - 1);
-      allAvailability = allAvailability.concat(avPage || []);
-      hasMore = (avPage?.length || 0) === pageSize;
-      from += pageSize;
-    }
+    const mpMap = new Map((mpResult.data || []).map((mp: any) => [mp.id, mp.name]));
+    const stMap = new Map((stResult.data || []).map((st: any) => [st.id, st.name]));
 
     const availabilityByMrn = new Map<string, any[]>();
-    allAvailability.forEach((av: any) => {
+    avResult.forEach((av: any) => {
       if (!availabilityByMrn.has(av.mrn)) {
         availabilityByMrn.set(av.mrn, []);
       }
       availabilityByMrn.get(av.mrn)!.push(av);
     });
 
-    return data.map((item: any) => {
+    return allData.map((item: any) => {
+      const mealPeriodIds: number[] = item.meal_period_ids || [];
+      const stationIds: number[] = item.station_ids || [];
+
+      const mealPeriodNames = mealPeriodIds.map(id => mpMap.get(id) || 'All Day');
+      const stationNames = stationIds.map(id => stMap.get(id) || 'Uncategorized');
+
       const availability = availabilityByMrn.get(item.mrn) || [];
       const activeDays = [...new Set(availability.map((av: any) => av.day_of_week))].sort();
       const activeMealPeriods = [...new Set(availability.map((av: any) => av.meal_period?.name).filter(Boolean))];
@@ -87,10 +98,11 @@ export const api = {
         lastSeen: av.last_seen_date,
       }));
 
+      const isGrouped = (item.occurrence_count || 1) > 1;
 
       return {
         id: item.id,
-        date: item.date || new Date().toISOString().split('T')[0],
+        date: (item.dates && item.dates[0]) || new Date().toISOString().split('T')[0],
         name: item.name,
         description: item.description || null,
         enticingDescription: item.enticing_description || null,
@@ -128,86 +140,20 @@ export const api = {
         portion: item.nutrition?.portion || '',
         icons: item.icons ? (Array.isArray(item.icons) ? item.icons.map((i: any) => i.name || i) : []) : [],
         calories: item.calories || '0',
-        mealPeriodId: item.meal_period_id || 0,
-        mealStation: item.station?.name || 'Uncategorized',
-        mealPeriod: item.meal_period?.name || 'All Day',
+        mealPeriodId: mealPeriodIds[0] || 0,
+        mealStation: stationNames[0] || 'Uncategorized',
+        mealPeriod: mealPeriodNames[0] || 'All Day',
         sortOrder: item.sort_order || 0,
         isActive: true,
         activeDays,
         activeMealPeriods,
         availabilityData: availabilityDataFormatted,
+        isGrouped,
+        mealPeriods: isGrouped ? mealPeriodNames : undefined,
+        mealStations: isGrouped ? stationNames : undefined,
+        occurrenceCount: item.occurrence_count || 1,
       };
     });
-  },
-
-  // Get menu items grouped by MRN + portion (different portions stay separate)
-  getGroupedMenuItems: async (): Promise<MenuItem[]> => {
-    const items = await api.getMenuItems();
-
-    const groupedMap = new Map<string, MenuItem[]>();
-
-    items.forEach(item => {
-      const mrn = item.mrn || `no-mrn-${item.id}`;
-      const key = `${mrn}||${item.portion || ''}`;
-      if (!groupedMap.has(key)) {
-        groupedMap.set(key, []);
-      }
-      groupedMap.get(key)!.push(item);
-    });
-
-    // Convert grouped items to consolidated MenuItem objects
-    const consolidatedItems: MenuItem[] = [];
-    let groupedCount = 0;
-
-    groupedMap.forEach((groupItems, mrn) => {
-      if (groupItems.length === 1) {
-        // Single item, return as-is
-        consolidatedItems.push(groupItems[0]);
-      } else {
-        // Multiple items with same MRN - consolidate
-        groupedCount++;
-        const firstItem = groupItems[0];
-        const mealPeriods = Array.from(new Set(groupItems.map(i => i.mealPeriod)));
-        const mealStations = Array.from(new Set(groupItems.map(i => i.mealStation)));
-        const originalItemIds = groupItems.map(i => i.id);
-
-        // Merge availability data from all items in the group
-        const allAvailabilityData = groupItems.flatMap(i => i.availabilityData || []);
-        const uniqueAvailability = Array.from(
-          new Map(
-            allAvailabilityData.map(av => [
-              `${av.dayOfWeek}-${av.mealPeriod}`,
-              av
-            ])
-          ).values()
-        );
-        const mergedActiveDays = Array.from(
-          new Set(uniqueAvailability.map(av => av.dayOfWeek))
-        ).sort();
-        const mergedActiveMealPeriods = Array.from(
-          new Set(uniqueAvailability.map(av => av.mealPeriod).filter(Boolean))
-        );
-
-        consolidatedItems.push({
-          ...firstItem,
-          isGrouped: true,
-          mealPeriods,
-          mealStations,
-          originalItemIds,
-          occurrenceCount: groupItems.length,
-          // Use first item's meal period and station for backward compatibility
-          mealPeriod: mealPeriods[0],
-          mealStation: mealStations[0],
-          // Merged availability data from all items
-          activeDays: mergedActiveDays,
-          activeMealPeriods: mergedActiveMealPeriods,
-          availabilityData: uniqueAvailability,
-        });
-      }
-    });
-
-
-    return consolidatedItems.sort((a, b) => a.name.localeCompare(b.name));
   },
 
   // Devices

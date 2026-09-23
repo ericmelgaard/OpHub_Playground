@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Rows2 as Rows, Search, Camera, Layers, PanelLeftOpen, PanelLeftClose, Nfc } from 'lucide-react';
+import { LayoutGrid, Rows2 as Rows, Search, Camera, PanelLeftOpen, PanelLeftClose, Nfc } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
@@ -16,8 +16,6 @@ interface MenuFiltersProps {
   onToggleFilterSidebar: () => void;
   isFilterSidebarOpen: boolean;
   menuItems: MenuItem[];
-  groupByMrn?: boolean;
-  onToggleGroupByMrn?: () => void;
   onScanLookup?: (query: string) => boolean;
   nfcSupported?: boolean;
   nfcScanning?: boolean;
@@ -36,8 +34,6 @@ export function MenuFilters({
   activeFilters,
   onToggleFilterSidebar,
   isFilterSidebarOpen,
-  groupByMrn = false,
-  onToggleGroupByMrn,
   onScanLookup,
   nfcSupported = false,
   nfcScanning = false,
@@ -145,26 +141,6 @@ export function MenuFilters({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 order-3">
-          {showProductFilters && (
-            <>
-              {onToggleGroupByMrn && (
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  onClick={onToggleGroupByMrn}
-                  className={`p-2 rounded-lg transition-colors ${
-                    groupByMrn
-                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                  title={groupByMrn ? 'Show all items' : 'Group by MRN'}
-                >
-                  <Layers className="h-5 w-5" />
-                </Button>
-              )}
-            </>
-          )}
-
           <Button
             variant="secondary"
             size="icon"

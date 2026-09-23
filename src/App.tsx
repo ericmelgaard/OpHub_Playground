@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Tag, Tv, Receipt, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
+import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { MenuItems } from './components/MenuItems';
@@ -76,12 +76,6 @@ function App() {
 
   // Filter state
   const [activeFilters, setActiveFilters] = useState<FilterConfig[]>([]);
-
-  // MRN grouping state
-  const [groupByMrn, setGroupByMrn] = useState(() => {
-    const saved = localStorage.getItem('groupByMrn');
-    return saved ? JSON.parse(saved) : false;
-  });
 
   // Cycle Week state (0 = This Week, 1 = Next Week, etc.)
   const [selectedCycleWeek, setSelectedCycleWeek] = useState<number>(0);
@@ -246,9 +240,7 @@ function App() {
       setLoading(true);
       setError(null);
       try {
-        const items = groupByMrn
-          ? await api.getGroupedMenuItems()
-          : await api.getMenuItems();
+        const items = await api.getMenuItems();
         setMenuItems(items);
       } catch (err) {
         console.error('Error loading menu items:', err);
@@ -259,7 +251,7 @@ function App() {
     };
 
     loadMenuItems();
-  }, [groupByMrn]);
+  }, []);
 
   // Load devices
   useEffect(() => {
@@ -400,12 +392,6 @@ function App() {
   const handleFiltersChange = useCallback((filters: FilterConfig[]) => {
     setActiveFilters(filters);
   }, []);
-
-  const handleToggleGroupByMrn = useCallback(() => {
-    const newValue = !groupByMrn;
-    setGroupByMrn(newValue);
-    localStorage.setItem('groupByMrn', JSON.stringify(newValue));
-  }, [groupByMrn]);
 
   const handleQuickActionSelect = useCallback((action: QuickActionType) => {
     setSelectedQuickAction(action);
@@ -558,6 +544,12 @@ function App() {
                      selectedQuickAction === 'webview' ? 'Webview Kiosks' :
                      selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
                   </h2>
+                  {selectedQuickAction === 'products' && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border rounded-lg shadow-sm" style={{ borderColor: 'rgb(0, 173, 240)' }}>
+                      <Database className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
+                      <span className="text-sm font-medium" style={{ color: 'rgb(0, 173, 240)' }}>Webtrition</span>
+                    </div>
+                  )}
                 </div>
 
                 {selectedQuickAction === 'products' && (
@@ -582,8 +574,6 @@ function App() {
                 onToggleFilterSidebar={() => setIsFilterSidebarOpen(!isFilterSidebarOpen)}
                 isFilterSidebarOpen={isFilterSidebarOpen}
                 menuItems={menuItems}
-                groupByMrn={groupByMrn}
-                onToggleGroupByMrn={handleToggleGroupByMrn}
                 onScanLookup={selectedQuickAction === 'smart-labels' ? handleScanLookup : undefined}
                 nfcSupported={selectedQuickAction === 'smart-labels'}
                 nfcScanning={nfc.scanning}
@@ -794,7 +784,7 @@ function App() {
             onCreateMenuItem={async (data) => {
               try {
                 const item = await api.createMenuItem(data);
-                const updated = await api.getGroupedMenuItems();
+                const updated = await api.getMenuItems();
                 setMenuItems(updated);
                 return item;
               } catch (err) {
