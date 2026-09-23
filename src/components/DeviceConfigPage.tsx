@@ -12,8 +12,11 @@ import {
   Monitor,
   Sparkles,
   Tv,
+  Users,
+  Tag,
+  ImageOff,
 } from 'lucide-react';
-import { Device } from '../types';
+import { Device, DeviceGroup, Brand } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +29,8 @@ interface DeviceConfigPageProps {
   onClose: () => void;
   autoFillEnabled: boolean;
   onAutoFillToggle: () => void;
+  deviceGroup?: DeviceGroup | null;
+  groupBrands?: Brand[];
 }
 
 const getBatteryIcon = (level: number) => {
@@ -77,6 +82,8 @@ export function DeviceConfigPage({
   onClose,
   autoFillEnabled,
   onAutoFillToggle,
+  deviceGroup,
+  groupBrands,
 }: DeviceConfigPageProps) {
   if (!isOpen) return null;
 
@@ -142,6 +149,45 @@ export function DeviceConfigPage({
               </div>
             </CardContent>
           </Card>
+
+          {/* Group & Brands */}
+          {deviceGroup && (
+            <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="h-4 w-4 text-[rgb(0,173,240)]" />
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Group</h4>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{deviceGroup.name}</p>
+                {deviceGroup.description && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{deviceGroup.description}</p>
+                )}
+                {groupBrands && groupBrands.length > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Tag className="h-3.5 w-3.5 text-gray-400" />
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Allowed Brands</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {groupBrands.map((b) => (
+                        <div key={b.id} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                          {b.logoFilename ? (
+                            <img
+                              src={`${b.logoBaseUrl}${b.logoFilename}`}
+                              alt=""
+                              className="h-3.5 w-3.5 object-contain"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : null}
+                          <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">{b.displayName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Device Health */}
           <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">

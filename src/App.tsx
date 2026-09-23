@@ -16,6 +16,7 @@ import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
 import { SettingsPage } from './components/SettingsPage';
+import { GroupsPage } from './components/GroupsPage';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { LocationChangeOverlay } from './components/LocationChangeOverlay';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
@@ -51,6 +52,7 @@ function App() {
   const [notifications, setNotifications] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGroups, setShowGroups] = useState(false);
   const [selectedPage, setSelectedPage] = useState<'products' | 'devices' | 'channels'>('products');
 
   // Channel state
@@ -528,6 +530,7 @@ function App() {
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenGroups={() => setShowGroups(true)}
           quickActionConfigs={quickActionConfigs}
           selectedQuickAction={selectedQuickAction}
           onActionSelect={handleQuickActionSelect}
@@ -698,6 +701,12 @@ function App() {
             onSave={() => setShowCreateItemModal(false)}
           />
         )}
+
+        <GroupsPage
+          isOpen={showGroups}
+          onClose={() => setShowGroups(false)}
+          devices={devices}
+        />
 
         {showSettings && (
           <SettingsPage

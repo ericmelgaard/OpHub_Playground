@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { Device, MenuItem, Substitution } from '../types';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
 import { buildSubstitutionMap } from '../lib/substitutions';
 import { DeviceModal } from '../components/DeviceModal';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
@@ -9,6 +9,7 @@ import { DeviceConfigPage } from '../components/DeviceConfigPage';
 import { DisplayToggle } from '../components/InlineItemPicker';
 import { mockPlacements } from '../services/mockData';
 import { useModalHistory } from '../hooks/useModalHistory';
+import { api } from '../services/api';
 
 interface DeviceFirstWorkflowProps {
   devices: Device[];
@@ -58,6 +59,26 @@ export function DeviceFirstWorkflow({
   const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>({});
   const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
   const [autoFillEnabled, setAutoFillEnabled] = useState(false);
+  const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
+  const [allBrands, setAllBrands] = useState<Brand[]>([]);
+
+  useEffect(() => {
+    Promise.all([api.getDeviceGroups(), api.getBrands()]).then(([g, b]) => {
+      setDeviceGroups(g);
+      setAllBrands(b);
+    });
+  }, []);
+
+  const deviceGroup = useMemo(() => {
+    if (!optimisticDevice) return null;
+    return deviceGroups.find(g => g.members?.some(m => m.deviceId === optimisticDevice.id)) || null;
+  }, [optimisticDevice, deviceGroups]);
+
+  const groupBrands = useMemo(() => {
+    if (!deviceGroup) return [];
+    const brandIds = new Set(deviceGroup.brands?.map(b => b.brandId) || []);
+    return allBrands.filter(b => brandIds.has(b.id));
+  }, [deviceGroup, allBrands]);
 
   const substitutionMap = useMemo(() => buildSubstitutionMap(substitutions), [substitutions]);
 
@@ -434,6 +455,8 @@ export function DeviceFirstWorkflow({
           onClose={handleCloseConfig}
           autoFillEnabled={autoFillEnabled}
           onAutoFillToggle={() => setAutoFillEnabled(prev => !prev)}
+          deviceGroup={deviceGroup}
+          groupBrands={groupBrands}
         />
       )}
     </>

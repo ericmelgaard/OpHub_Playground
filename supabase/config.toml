@@ -1,0 +1,2 @@
+[functions.populate-menu-data]
+verify_jwt = false

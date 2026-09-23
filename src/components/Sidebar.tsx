@@ -3,6 +3,7 @@ import {
   X,
   Check,
   Settings,
+  Users,
   EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
+  onOpenGroups: () => void;
   quickActionConfigs: QuickActionConfig[];
   selectedQuickAction: QuickActionType;
   onActionSelect: (action: QuickActionType) => void;
@@ -21,6 +23,7 @@ export function Sidebar({
   isOpen,
   onClose,
   onOpenSettings,
+  onOpenGroups,
   quickActionConfigs,
   selectedQuickAction,
   onActionSelect,
@@ -112,6 +115,17 @@ export function Sidebar({
 
           {/* Footer: Settings + Version */}
           <div className="border-t dark:border-gray-700 p-4 space-y-3">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                onClose();
+                onOpenGroups();
+              }}
+              className="w-full flex justify-start gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <Users className="h-4 w-4" />
+              Device Groups
+            </Button>
             <Button
               variant="ghost"
               onClick={() => {

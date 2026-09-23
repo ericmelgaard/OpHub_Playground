@@ -1,4 +1,4 @@
-import { MenuItem, Device, Concept, Company, Store, Rule } from '../types';
+import { MenuItem, Device, Concept, Company, Store, Rule, Brand, DeviceGroup } from '../types';
 import { mockDevices, mockPlacements } from './mockData';
 import { supabase } from '../lib/supabase';
 
@@ -415,6 +415,113 @@ export const api = {
   },
 
   // Device status operations
+  // Brands
+  getBrands: async (): Promise<Brand[]> => {
+    const { data, error } = await supabase
+      .from('brands')
+      .select('*')
+      .order('display_name');
+    if (error) { console.error('Error fetching brands:', error); return []; }
+    return (data || []).map((b: any) => ({
+      id: b.id,
+      key: b.key,
+      displayName: b.display_name,
+      logoFilename: b.logo_filename,
+      logoBaseUrl: b.logo_base_url,
+    }));
+  },
+
+  // Device Groups
+  getDeviceGroups: async (): Promise<DeviceGroup[]> => {
+    const { data, error } = await supabase
+      .from('device_groups')
+      .select(`
+        *,
+        device_group_members(id, group_id, device_id),
+        device_group_brands(
+          id, group_id, brand_id,
+          brands(id, key, display_name, logo_filename, logo_base_url)
+        )
+      `)
+      .order('name');
+    if (error) { console.error('Error fetching device groups:', error); return []; }
+    return (data || []).map((g: any) => ({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      createdAt: g.created_at,
+      updatedAt: g.updated_at,
+      members: (g.device_group_members || []).map((m: any) => ({
+        id: m.id, groupId: m.group_id, deviceId: m.device_id,
+      })),
+      brands: (g.device_group_brands || []).map((gb: any) => ({
+        id: gb.id, groupId: gb.group_id, brandId: gb.brand_id,
+        brand: gb.brands ? {
+          id: gb.brands.id, key: gb.brands.key,
+          displayName: gb.brands.display_name,
+          logoFilename: gb.brands.logo_filename,
+          logoBaseUrl: gb.brands.logo_base_url,
+        } : undefined,
+      })),
+    }));
+  },
+
+  createDeviceGroup: async (name: string, description?: string): Promise<DeviceGroup | null> => {
+    const { data, error } = await supabase
+      .from('device_groups')
+      .insert({ name, description: description || null })
+      .select()
+      .maybeSingle();
+    if (error) { console.error('Error creating group:', error); return null; }
+    if (!data) return null;
+    return { id: data.id, name: data.name, description: data.description, createdAt: data.created_at, updatedAt: data.updated_at, members: [], brands: [] };
+  },
+
+  updateDeviceGroup: async (id: string, updates: { name?: string; description?: string }): Promise<boolean> => {
+    const { error } = await supabase
+      .from('device_groups')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    return !error;
+  },
+
+  deleteDeviceGroup: async (id: string): Promise<boolean> => {
+    const { error } = await supabase.from('device_groups').delete().eq('id', id);
+    return !error;
+  },
+
+  addDeviceToGroup: async (groupId: string, deviceId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('device_group_members')
+      .upsert({ group_id: groupId, device_id: deviceId }, { onConflict: 'group_id,device_id' });
+    return !error;
+  },
+
+  removeDeviceFromGroup: async (groupId: string, deviceId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('device_group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('device_id', deviceId);
+    return !error;
+  },
+
+  addBrandToGroup: async (groupId: string, brandId: number): Promise<boolean> => {
+    const { error } = await supabase
+      .from('device_group_brands')
+      .upsert({ group_id: groupId, brand_id: brandId }, { onConflict: 'group_id,brand_id' });
+    return !error;
+  },
+
+  removeBrandFromGroup: async (groupId: string, brandId: number): Promise<boolean> => {
+    const { error } = await supabase
+      .from('device_group_brands')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('brand_id', brandId);
+    return !error;
+  },
+
   updateDeviceStatus: async (deviceId: string, updates: Partial<Device['status']>): Promise<Device> => {
     await mockDelay();
     

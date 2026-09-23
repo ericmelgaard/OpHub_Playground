@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
@@ -61,12 +61,15 @@ interface ApiResponse {
   menuItems: MenuItem[];
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -75,164 +78,175 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json().catch(() => ({}));
-    const targetDate = body?.date || '2026-03-24';
-    const days = body?.days || 7;
+    const startDate = body?.date || new Date().toISOString().split("T")[0];
+    const weeks = Math.min(body?.weeks || 4, 8);
+    const sapCode = body?.sapCode || "72917";
+    const venue = body?.venue || "73103";
+    const allergenMenu = body?.allergenMenu || "all";
 
-    const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=68100&Venue=71886&mealPeriod=&MenuDate=${targetDate}T00:00:00&SourceSystem=1&Days=${days}&IncludeNutrition=true&IncludeIcons=false&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
+    const results: Array<{ week: number; date: string; items: number; error?: string }> = [];
+    let totalInserted = 0;
+    const allMealPeriodsMap = new Map<number, string>();
+    const allStationsMap = new Map<number, string>();
 
-    const response = await fetch(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
-      }
-    });
+    for (let week = 0; week < weeks; week++) {
+      const weekDate = addDays(startDate, week * 7);
+      const apiUrl = `https://api.wanddigital.com/services/webtrition/client/wds?SapCode=${sapCode}&Venue=${venue}&mealPeriod=&MenuDate=${weekDate}T00:00:00&SourceSystem=1&Days=7&IncludeNutrition=true&IncludeIcons=true&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
 
-    if (response.status === 204 || !response.ok) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'API returned no content',
-          stats: {
-            menuItems: 0,
-            mealPeriods: 0,
-            stations: 0,
-          },
-        }),
-        {
+      console.log(`Fetching week ${week + 1}/${weeks}: ${weekDate}`);
+
+      try {
+        const response = await fetch(apiUrl, {
           headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
           },
+        });
+
+        if (response.status === 204 || !response.ok) {
+          results.push({ week: week + 1, date: weekDate, items: 0, error: `HTTP ${response.status}` });
+          continue;
         }
-      );
-    }
 
-    const text = await response.text();
-    if (!text || text.trim() === '') {
-      throw new Error('API returned empty response');
-    }
+        let text = await response.text();
+        if (!text || text.trim() === "") {
+          results.push({ week: week + 1, date: weekDate, items: 0, error: "Empty response" });
+          continue;
+        }
 
-    const data: ApiResponse = JSON.parse(text);
+        // Strip invalid control characters that break JSON.parse
+        text = text.replace(/[\x00-\x1f\x7f]/g, (c) => c === "\n" || c === "\r" || c === "\t" ? c : "");
 
-    if (data.hasError) {
-      throw new Error(data.error || "API returned an error");
-    }
+        const data: ApiResponse = JSON.parse(text);
+        if (data.hasError) {
+          results.push({ week: week + 1, date: weekDate, items: 0, error: data.error || "API error" });
+          continue;
+        }
 
-    const mealPeriodsMap = new Map<number, string>();
-    const stationsMap = new Map<number, string>();
+        data.menuItems.forEach((item) => {
+          if (item.mealPeriodId && item.mealPeriod) {
+            allMealPeriodsMap.set(item.mealPeriodId, item.mealPeriod);
+          }
+          if (item.stationId && item.mealStation) {
+            allStationsMap.set(item.stationId, item.mealStation);
+          }
+        });
 
-    data.menuItems.forEach(item => {
-      if (item.mealPeriodId && item.mealPeriod) {
-        mealPeriodsMap.set(item.mealPeriodId, item.mealPeriod);
+        const uniqueItems = new Map();
+        data.menuItems.forEach((item) => {
+          const uniqueKey = `${item.id}-${item.date.split("T")[0]}`;
+          uniqueItems.set(uniqueKey, {
+            id: item.id,
+            string_id: item.stringId,
+            date: item.date.split("T")[0],
+            name: item.name,
+            description: item.description,
+            enticing_description: item.enticingDescription,
+            ingredients: item.ingredients,
+            price: item.price,
+            mrn: item.mrn,
+            calories: item.calories,
+            allergens: item.allergens,
+            nutrition: item.nutrition,
+            icons: item.icons,
+            meal_period_id: item.mealPeriodId,
+            station_id: item.stationId,
+            menu_collection_id: item.menuCollectionId,
+            menu_name: item.menuName,
+            source_name: item.sourceName,
+            sort_order: item.sortOrder,
+            updated_at: new Date().toISOString(),
+          });
+        });
+
+        const menuItems = Array.from(uniqueItems.values());
+        const batchSize = 100;
+
+        for (let i = 0; i < menuItems.length; i += batchSize) {
+          const batch = menuItems.slice(i, i + batchSize);
+          const { error: itemsError } = await supabase
+            .from("menu_items")
+            .upsert(batch, { onConflict: "id,date" });
+
+          if (itemsError) {
+            console.error(`Error inserting batch for week ${week + 1}:`, itemsError);
+            throw itemsError;
+          }
+        }
+
+        totalInserted += menuItems.length;
+        results.push({ week: week + 1, date: weekDate, items: menuItems.length });
+      } catch (weekErr) {
+        const msg = weekErr instanceof Error ? weekErr.message : JSON.stringify(weekErr);
+        console.error(`Week ${week + 1} error:`, weekErr);
+        results.push({ week: week + 1, date: weekDate, items: 0, error: msg });
       }
-      if (item.stationId && item.mealStation) {
-        stationsMap.set(item.stationId, item.mealStation);
+    }
+
+    // Upsert meal periods
+    const mealPeriods = Array.from(allMealPeriodsMap.entries()).map(([id, name]) => ({ id, name }));
+    for (const period of mealPeriods) {
+      await supabase.from("meal_periods").upsert(period, { onConflict: "id" });
+    }
+
+    // Upsert stations
+    const stations = Array.from(allStationsMap.entries()).map(([id, name]) => ({ id, name }));
+    for (const station of stations) {
+      await supabase.from("stations").upsert(station, { onConflict: "id" });
+    }
+
+    // Brand matching: assign brand_id to stations based on pattern matching
+    const { data: brandPatterns } = await supabase
+      .from("brand_station_patterns")
+      .select("brand_id, station_pattern");
+
+    if (brandPatterns && brandPatterns.length > 0) {
+      const patternMap = new Map<string, number>();
+      for (const bp of brandPatterns) {
+        patternMap.set(bp.station_pattern.toLowerCase().replace(/[^a-z0-9]/g, ""), bp.brand_id);
       }
-    });
 
-    const mealPeriods = Array.from(mealPeriodsMap.entries()).map(([id, name]) => ({
-      id,
-      name,
-    }));
+      const { data: allStations } = await supabase.from("stations").select("id, name");
+      let matchCount = 0;
 
-    const stations = Array.from(stationsMap.entries()).map(([id, name]) => ({
-      id,
-      name,
-    }));
-
-    if (mealPeriods.length > 0) {
-      for (const period of mealPeriods) {
-        const { error: mpError } = await supabase
-          .from("meal_periods")
-          .upsert(period, { onConflict: "id" });
-
-        if (mpError) {
-          console.error("Error inserting meal period:", mpError);
+      if (allStations) {
+        for (const station of allStations) {
+          const normalized = station.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+          const brandId = patternMap.get(normalized);
+          if (brandId) {
+            await supabase.from("stations").update({ brand_id: brandId }).eq("id", station.id);
+            matchCount++;
+          }
         }
       }
+
+      console.log(`Brand matching: ${matchCount} stations matched out of ${allStations?.length || 0}`);
     }
 
-    if (stations.length > 0) {
-      for (const station of stations) {
-        const { error: stError } = await supabase
-          .from("stations")
-          .upsert(station, { onConflict: "id" });
-
-        if (stError) {
-          console.error("Error inserting station:", stError);
-        }
-      }
-    }
-
-    const uniqueItems = new Map();
-    data.menuItems.forEach(item => {
-      const uniqueKey = `${item.id}-${item.date.split("T")[0]}`;
-      uniqueItems.set(uniqueKey, {
-        id: item.id,
-        string_id: item.stringId,
-        date: item.date.split("T")[0],
-        name: item.name,
-        description: item.description,
-        enticing_description: item.enticingDescription,
-        ingredients: item.ingredients,
-        price: item.price,
-        mrn: item.mrn,
-        calories: item.calories,
-        allergens: item.allergens,
-        nutrition: item.nutrition,
-        icons: item.icons,
-        meal_period_id: item.mealPeriodId,
-        station_id: item.stationId,
-        menu_collection_id: item.menuCollectionId,
-        menu_name: item.menuName,
-        source_name: item.sourceName,
-        sort_order: item.sortOrder,
-        updated_at: new Date().toISOString(),
-      });
-    });
-
-    const menuItems = Array.from(uniqueItems.values());
-    const batchSize = 100;
-    let insertedCount = 0;
-
-    for (let i = 0; i < menuItems.length; i += batchSize) {
-      const batch = menuItems.slice(i, i + batchSize);
-      const { error: itemsError } = await supabase
-        .from("menu_items")
-        .upsert(batch, { onConflict: "id,date" });
-
-      if (itemsError) {
-        console.error(`Error inserting batch ${i}-${i + batch.length}:`, itemsError);
-        throw itemsError;
-      }
-      insertedCount += batch.length;
-    }
-
+    // Get availability stats
     const { data: availabilityData } = await supabase
       .from("product_availability")
       .select("mrn, day_of_week, meal_period_id");
 
     const availabilityStats = {
-      uniqueProducts: new Set(availabilityData?.map(a => a.mrn) || []).size,
+      uniqueProducts: new Set(availabilityData?.map((a) => a.mrn) || []).size,
       totalCombinations: availabilityData?.length || 0,
     };
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Successfully populated ${menuItems.length} menu items, ${mealPeriods.length} meal periods, and ${stations.length} stations. Tracking ${availabilityStats.uniqueProducts} unique products across ${availabilityStats.totalCombinations} day/meal combinations.`,
+        message: `Fetched ${weeks} weeks starting ${startDate}. ${totalInserted} total menu items inserted.`,
         stats: {
-          menuItems: menuItems.length,
+          totalItems: totalInserted,
           mealPeriods: mealPeriods.length,
           stations: stations.length,
           productAvailability: availabilityStats,
+          weekResults: results,
         },
       }),
       {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   } catch (error) {
@@ -242,16 +256,10 @@ Deno.serve(async (req: Request) => {
       : JSON.stringify(error);
 
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: errorMessage,
-      }),
+      JSON.stringify({ success: false, error: errorMessage }),
       {
         status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   }

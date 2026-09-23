@@ -188,6 +188,37 @@ export interface ResolvedItem {
   originalItemId: number;
 }
 
+export interface Brand {
+  id: number;
+  key: string;
+  displayName: string;
+  logoFilename: string | null;
+  logoBaseUrl: string;
+}
+
+export interface DeviceGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  members?: DeviceGroupMember[];
+  brands?: DeviceGroupBrand[];
+}
+
+export interface DeviceGroupMember {
+  id: string;
+  groupId: string;
+  deviceId: string;
+}
+
+export interface DeviceGroupBrand {
+  id: string;
+  groupId: string;
+  brandId: number;
+  brand?: Brand;
+}
+
 export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement';
 
 export interface DateRange {
