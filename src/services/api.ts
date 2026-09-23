@@ -149,6 +149,7 @@ export const api = {
         activeMealPeriods,
         availabilityData: availabilityDataFormatted,
         isGrouped,
+        dates: item.dates || [],
         mealPeriods: isGrouped ? mealPeriodNames : undefined,
         mealStations: isGrouped ? stationNames : undefined,
         occurrenceCount: item.occurrence_count || 1,

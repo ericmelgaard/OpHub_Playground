@@ -31,6 +31,7 @@ interface MenuItemsProps {
   searchValue?: string;
   activeFilters?: FilterConfig[];
   onFilteredCountChange?: (count: number) => void;
+  selectedCycleWeek?: number;
 }
 
 export function MenuItems({
@@ -51,7 +52,8 @@ export function MenuItems({
   onEdit,
   searchValue = '',
   activeFilters = [],
-  onFilteredCountChange
+  onFilteredCountChange,
+  selectedCycleWeek,
 }: MenuItemsProps) {
   const applyFilters = (item: MenuItemType): boolean => {
     if (activeFilters.length === 0) return true;
@@ -166,6 +168,7 @@ export function MenuItems({
             viewMode={viewMode}
             devices={devices}
             onEdit={onEdit}
+            selectedCycleWeek={selectedCycleWeek}
           />
         ))}
       </div>
@@ -231,6 +234,7 @@ export function MenuItems({
                 viewMode={viewMode}
                 devices={devices}
                 onEdit={onEdit}
+                selectedCycleWeek={selectedCycleWeek}
               />
             ))}
           </CardContent>

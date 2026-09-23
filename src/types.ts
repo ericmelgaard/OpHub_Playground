@@ -92,6 +92,7 @@ export interface MenuItem {
   occurrenceCount?: number;
   // Day-of-week availability tracking
   activeDays?: number[];
+  dates?: string[];
   activeMealPeriods?: string[];
   availabilityData?: {
     dayOfWeek: number;

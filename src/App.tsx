@@ -657,6 +657,7 @@ function App() {
                         searchValue={searchValue}
                         activeFilters={activeFilters}
                         onFilteredCountChange={setFilteredItemCount}
+                        selectedCycleWeek={selectedCycleWeek}
                       />
                     </div>
                   ) : selectedQuickAction === 'groups' ? (

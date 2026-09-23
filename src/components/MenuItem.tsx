@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Coffee, MapPin, MoreVertical, Monitor, CreditCard as Edit, Plus, Tag, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
@@ -26,6 +26,20 @@ interface MenuItemProps {
   viewMode: 'grid' | 'tiles';
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
+  selectedCycleWeek?: number;
+}
+
+function getWeekDateRange(weekOffset: number): { start: Date; end: Date } {
+  const today = new Date();
+  const day = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
+  monday.setDate(monday.getDate() + weekOffset * 7);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
 }
 
 export function MenuItem({
@@ -42,9 +56,27 @@ export function MenuItem({
   viewMode,
   devices,
   onEdit,
+  selectedCycleWeek,
 }: MenuItemProps) {
   const [showOptions, setShowOptions] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState(false);
+
+  const weekActiveDays = useMemo(() => {
+    if (selectedCycleWeek === undefined || !item.dates || item.dates.length === 0) {
+      return item.activeDays || [];
+    }
+    const { start, end } = getWeekDateRange(selectedCycleWeek);
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    const daysInWeek = new Set<number>();
+    for (const dateStr of item.dates) {
+      if (dateStr >= startStr && dateStr <= endStr) {
+        const d = new Date(dateStr + 'T12:00:00');
+        daysInWeek.add(d.getDay());
+      }
+    }
+    return [...daysInWeek].sort();
+  }, [selectedCycleWeek, item.dates, item.activeDays]);
   const [showStationsModal, setShowStationsModal] = useState(false);
 
   const deviceCount = devices.filter((device) =>
@@ -331,7 +363,7 @@ export function MenuItem({
     // Normalize data - handle both grouped (arrays) and single (string) values
     const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
     const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
-    const activeDays = item.activeDays || [];
+    const activeDays = weekActiveDays;
 
     return (
       <div className="flex flex-col gap-2 w-full min-w-0">
