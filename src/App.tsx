@@ -53,7 +53,7 @@ function App() {
   const [notifications, setNotifications] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showGroups, setShowGroups] = useState(false);
+
   const [selectedPage, setSelectedPage] = useState<'products' | 'devices' | 'channels'>('products');
 
   // Channel state
@@ -691,16 +691,7 @@ function App() {
                       />
                     </div>
                   ) : selectedQuickAction === 'groups' ? (
-                    <div className="text-center py-20">
-                      <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">Groups</h3>
-                      <p className="text-gray-500 dark:text-gray-500 mb-4">Organize devices by brand to control which menu stations appear</p>
-                      <button
-                        onClick={() => setShowGroups(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] text-white text-sm font-medium transition-colors"
-                      >
-                        Open Device Groups
-                      </button>
-                    </div>
+                    <GroupsPage devices={devices} />
                   ) : (
                     <div className="text-center py-20">
                       <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">
@@ -722,12 +713,6 @@ function App() {
             onSave={() => setShowCreateItemModal(false)}
           />
         )}
-
-        <GroupsPage
-          isOpen={showGroups}
-          onClose={() => setShowGroups(false)}
-          devices={devices}
-        />
 
         {showSettings && (
           <SettingsPage
