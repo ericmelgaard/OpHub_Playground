@@ -678,7 +678,13 @@ function App() {
                   ) : selectedQuickAction === 'groups' ? (
                     <div className="text-center py-20">
                       <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-400 mb-2">Groups</h3>
-                      <p className="text-gray-500 dark:text-gray-500">Work in progress - coming soon</p>
+                      <p className="text-gray-500 dark:text-gray-500 mb-4">Organize devices by brand to control which menu stations appear</p>
+                      <button
+                        onClick={() => setShowGroups(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] text-white text-sm font-medium transition-colors"
+                      >
+                        Open Device Groups
+                      </button>
                     </div>
                   ) : (
                     <div className="text-center py-20">
