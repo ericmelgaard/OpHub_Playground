@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
+import { ensureWeekData, ensureCurrentAndNextWeek, WeekLoadStatus } from './services/menuDataLoader';
 import { MenuItems } from './components/MenuItems';
 import { DeviceGrid } from './components/DeviceGrid';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
@@ -80,6 +81,24 @@ function App() {
   // Cycle Week state (0 = This Week, 1 = Next Week, etc.)
   const [selectedCycleWeek, setSelectedCycleWeek] = useState<number>(0);
   const [weekTransition, setWeekTransition] = useState<'in' | 'out'>('in');
+  const [weekLoadStatus, setWeekLoadStatus] = useState<WeekLoadStatus>('idle');
+  const loadedWeeks = useRef(new Set<number>());
+
+  const loadWeekAndRefresh = useCallback(async (week: number) => {
+    if (loadedWeeks.current.has(week)) return;
+    setWeekLoadStatus('loading');
+    try {
+      const result = await ensureWeekData(week);
+      loadedWeeks.current.add(week);
+      if (result.inserted > 0) {
+        const items = await api.getMenuItems();
+        setMenuItems(items);
+      }
+      setWeekLoadStatus(result.status);
+    } catch {
+      setWeekLoadStatus('error');
+    }
+  }, []);
 
   const handleCycleWeekChange = useCallback((week: number) => {
     if (week === selectedCycleWeek) return;
@@ -87,8 +106,9 @@ function App() {
     setTimeout(() => {
       setSelectedCycleWeek(week);
       setWeekTransition('in');
+      loadWeekAndRefresh(week);
     }, 150);
-  }, [selectedCycleWeek]);
+  }, [selectedCycleWeek, loadWeekAndRefresh]);
 
   // Filter sidebar state
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(() => {
@@ -234,12 +254,16 @@ function App() {
   const [selectedSecondaryDomainId, setSelectedSecondaryDomainId] = useState<string>(demoSecondaryDomains[0]?.id || '');
   const selectedSecondaryDomain = demoSecondaryDomains.find(d => d.id === selectedSecondaryDomainId) || null;
 
-  // Load menu items
+  // Load menu items + ensure current/next week data exists
   useEffect(() => {
     const loadMenuItems = async () => {
       setLoading(true);
       setError(null);
       try {
+        // Ensure current & next week data exist, then load
+        await ensureCurrentAndNextWeek();
+        loadedWeeks.current.add(0);
+        loadedWeeks.current.add(1);
         const items = await api.getMenuItems();
         setMenuItems(items);
       } catch (err) {
@@ -627,6 +651,12 @@ function App() {
                     </div>
                   ) : selectedQuickAction === 'products' ? (
                     <div key={selectedCycleWeek} className={weekTransition === 'out' ? 'week-transition-out' : 'week-transition-in'}>
+                      {weekLoadStatus === 'loading' && (
+                        <div className="flex items-center gap-2 px-4 py-2 mb-3 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 rounded-lg text-sm">
+                          <div className="h-4 w-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                          Loading week data...
+                        </div>
+                      )}
                       <MenuItems
                         loading={loading}
                         error={error}

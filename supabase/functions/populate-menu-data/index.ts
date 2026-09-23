@@ -67,6 +67,97 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+function jsonRes(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function upsertItems(supabase: any, items: MenuItem[]) {
+  const mealPeriodsMap = new Map<number, string>();
+  const stationsMap = new Map<number, string>();
+
+  items.forEach((item) => {
+    if (item.mealPeriodId && item.mealPeriod) mealPeriodsMap.set(item.mealPeriodId, item.mealPeriod);
+    if (item.stationId && item.mealStation) stationsMap.set(item.stationId, item.mealStation);
+  });
+
+  const uniqueItems = new Map();
+  items.forEach((item) => {
+    const uniqueKey = `${item.id}-${item.date.split("T")[0]}`;
+    uniqueItems.set(uniqueKey, {
+      id: item.id,
+      string_id: item.stringId,
+      date: item.date.split("T")[0],
+      name: item.name,
+      description: item.description,
+      enticing_description: item.enticingDescription,
+      ingredients: item.ingredients,
+      price: item.price,
+      mrn: item.mrn,
+      calories: item.calories,
+      allergens: item.allergens,
+      nutrition: item.nutrition,
+      icons: item.icons,
+      meal_period_id: item.mealPeriodId,
+      station_id: item.stationId,
+      menu_collection_id: item.menuCollectionId,
+      menu_name: item.menuName,
+      source_name: item.sourceName,
+      sort_order: item.sortOrder,
+      updated_at: new Date().toISOString(),
+    });
+  });
+
+  const menuItems = Array.from(uniqueItems.values());
+
+  const mealPeriods = Array.from(mealPeriodsMap.entries()).map(([id, name]) => ({ id, name }));
+  for (const period of mealPeriods) {
+    await supabase.from("meal_periods").upsert(period, { onConflict: "id" });
+  }
+
+  const stations = Array.from(stationsMap.entries()).map(([id, name]) => ({ id, name }));
+  for (const station of stations) {
+    await supabase.from("stations").upsert(station, { onConflict: "id" });
+  }
+
+  const batchSize = 100;
+  let inserted = 0;
+  for (let i = 0; i < menuItems.length; i += batchSize) {
+    const batch = menuItems.slice(i, i + batchSize);
+    const { error: itemsError } = await supabase
+      .from("menu_items")
+      .upsert(batch, { onConflict: "id,date" });
+    if (itemsError) throw itemsError;
+    inserted += batch.length;
+  }
+
+  // Brand matching
+  const { data: brandPatterns } = await supabase
+    .from("brand_station_patterns")
+    .select("brand_id, station_pattern");
+  if (brandPatterns && brandPatterns.length > 0) {
+    const patternMap = new Map<string, number>();
+    for (const bp of brandPatterns) {
+      patternMap.set(bp.station_pattern.toLowerCase().replace(/[^a-z0-9]/g, ""), bp.brand_id);
+    }
+    const { data: allStations } = await supabase.from("stations").select("id, name");
+    if (allStations) {
+      for (const station of allStations) {
+        const normalized = station.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+        const brandId = patternMap.get(normalized);
+        if (brandId) {
+          await supabase.from("stations").update({ brand_id: brandId }).eq("id", station.id);
+        }
+      }
+    }
+  }
+
+  const dates = [...new Set(menuItems.map((m) => m.date))].sort();
+  return { inserted, dates, mealPeriods: mealPeriods.length, stations: stations.length };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -78,91 +169,52 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json().catch(() => ({}));
+    const mode = body?.mode;
 
-    // Direct insert mode: accept pre-fetched menuItems array
-    if (body?.mode === "direct-insert" && Array.isArray(body?.menuItems)) {
-      const items: MenuItem[] = body.menuItems;
-      const mealPeriodsMap = new Map<number, string>();
-      const stationsMap = new Map<number, string>();
-
-      items.forEach((item) => {
-        if (item.mealPeriodId && item.mealPeriod) mealPeriodsMap.set(item.mealPeriodId, item.mealPeriod);
-        if (item.stationId && item.mealStation) stationsMap.set(item.stationId, item.mealStation);
-      });
-
-      const uniqueItems = new Map();
-      items.forEach((item) => {
-        const uniqueKey = `${item.id}-${item.date.split("T")[0]}`;
-        uniqueItems.set(uniqueKey, {
-          id: item.id,
-          string_id: item.stringId,
-          date: item.date.split("T")[0],
-          name: item.name,
-          description: item.description,
-          enticing_description: item.enticingDescription,
-          ingredients: item.ingredients,
-          price: item.price,
-          mrn: item.mrn,
-          calories: item.calories,
-          allergens: item.allergens,
-          nutrition: item.nutrition,
-          icons: item.icons,
-          meal_period_id: item.mealPeriodId,
-          station_id: item.stationId,
-          menu_collection_id: item.menuCollectionId,
-          menu_name: item.menuName,
-          source_name: item.sourceName,
-          sort_order: item.sortOrder,
-          updated_at: new Date().toISOString(),
-        });
-      });
-
-      const menuItems = Array.from(uniqueItems.values());
-
-      // Upsert meal periods
-      const mealPeriods = Array.from(mealPeriodsMap.entries()).map(([id, name]) => ({ id, name }));
-      for (const period of mealPeriods) {
-        await supabase.from("meal_periods").upsert(period, { onConflict: "id" });
-      }
-
-      // Upsert stations
-      const stations = Array.from(stationsMap.entries()).map(([id, name]) => ({ id, name }));
-      for (const station of stations) {
-        await supabase.from("stations").upsert(station, { onConflict: "id" });
-      }
-
-      // Upsert menu items
-      const batchSize = 100;
-      let inserted = 0;
-      for (let i = 0; i < menuItems.length; i += batchSize) {
-        const batch = menuItems.slice(i, i + batchSize);
-        const { error: itemsError } = await supabase
-          .from("menu_items")
-          .upsert(batch, { onConflict: "id,date" });
-        if (itemsError) {
-          console.error("Insert error:", itemsError);
-          throw itemsError;
-        }
-        inserted += batch.length;
-      }
-
-      const dates = [...new Set(menuItems.map((m) => m.date))].sort();
-      return new Response(
-        JSON.stringify({ success: true, inserted, dates, mealPeriods: mealPeriods.length, stations: stations.length }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // --- CHECK COVERAGE: returns which dates have data ---
+    if (mode === "check-coverage") {
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select("date")
+        .order("date");
+      if (error) throw error;
+      const dates = [...new Set((data || []).map((r: any) => r.date))].sort();
+      return jsonRes({ dates });
     }
 
+    // --- CLEANUP: delete data before a given date ---
+    if (mode === "cleanup") {
+      const before = body?.before;
+      if (!before) return jsonRes({ error: "Missing 'before' date" }, 400);
+      const { error, count } = await supabase
+        .from("menu_items")
+        .delete({ count: "exact" })
+        .lt("date", before);
+      if (error) throw error;
+
+      // Also clean product_availability for old data
+      await supabase
+        .from("product_availability")
+        .delete()
+        .lt("last_seen_date", before);
+
+      return jsonRes({ deleted: count, before });
+    }
+
+    // --- DIRECT INSERT: accept pre-fetched menuItems array ---
+    if (mode === "direct-insert" && Array.isArray(body?.menuItems)) {
+      const result = await upsertItems(supabase, body.menuItems);
+      return jsonRes({ success: true, ...result });
+    }
+
+    // --- DEFAULT: fetch from Wand API and insert ---
     const startDate = body?.date || new Date().toISOString().split("T")[0];
-    const weeks = Math.min(body?.weeks || 4, 8);
+    const weeks = Math.min(body?.weeks || 1, 8);
     const sapCode = body?.sapCode || "72917";
     const venue = body?.venue || "73103";
-    const allergenMenu = body?.allergenMenu || "all";
 
     const results: Array<{ week: number; date: string; items: number; error?: string }> = [];
     let totalInserted = 0;
-    const allMealPeriodsMap = new Map<number, string>();
-    const allStationsMap = new Map<number, string>();
 
     for (let week = 0; week < weeks; week++) {
       const weekDate = addDays(startDate, week * 7);
@@ -173,8 +225,12 @@ Deno.serve(async (req: Request) => {
       try {
         const response = await fetch(apiUrl, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Cache-Control": "no-cache",
           },
         });
 
@@ -189,7 +245,6 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Strip invalid control characters that break JSON.parse
         text = text.replace(/[\x00-\x1f\x7f]/g, (c) => c === "\n" || c === "\r" || c === "\t" ? c : "");
 
         const data: ApiResponse = JSON.parse(text);
@@ -198,59 +253,9 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        data.menuItems.forEach((item) => {
-          if (item.mealPeriodId && item.mealPeriod) {
-            allMealPeriodsMap.set(item.mealPeriodId, item.mealPeriod);
-          }
-          if (item.stationId && item.mealStation) {
-            allStationsMap.set(item.stationId, item.mealStation);
-          }
-        });
-
-        const uniqueItems = new Map();
-        data.menuItems.forEach((item) => {
-          const uniqueKey = `${item.id}-${item.date.split("T")[0]}`;
-          uniqueItems.set(uniqueKey, {
-            id: item.id,
-            string_id: item.stringId,
-            date: item.date.split("T")[0],
-            name: item.name,
-            description: item.description,
-            enticing_description: item.enticingDescription,
-            ingredients: item.ingredients,
-            price: item.price,
-            mrn: item.mrn,
-            calories: item.calories,
-            allergens: item.allergens,
-            nutrition: item.nutrition,
-            icons: item.icons,
-            meal_period_id: item.mealPeriodId,
-            station_id: item.stationId,
-            menu_collection_id: item.menuCollectionId,
-            menu_name: item.menuName,
-            source_name: item.sourceName,
-            sort_order: item.sortOrder,
-            updated_at: new Date().toISOString(),
-          });
-        });
-
-        const menuItems = Array.from(uniqueItems.values());
-        const batchSize = 100;
-
-        for (let i = 0; i < menuItems.length; i += batchSize) {
-          const batch = menuItems.slice(i, i + batchSize);
-          const { error: itemsError } = await supabase
-            .from("menu_items")
-            .upsert(batch, { onConflict: "id,date" });
-
-          if (itemsError) {
-            console.error(`Error inserting batch for week ${week + 1}:`, itemsError);
-            throw itemsError;
-          }
-        }
-
-        totalInserted += menuItems.length;
-        results.push({ week: week + 1, date: weekDate, items: menuItems.length });
+        const result = await upsertItems(supabase, data.menuItems);
+        totalInserted += result.inserted;
+        results.push({ week: week + 1, date: weekDate, items: result.inserted });
       } catch (weekErr) {
         const msg = weekErr instanceof Error ? weekErr.message : JSON.stringify(weekErr);
         console.error(`Week ${week + 1} error:`, weekErr);
@@ -258,84 +263,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Upsert meal periods
-    const mealPeriods = Array.from(allMealPeriodsMap.entries()).map(([id, name]) => ({ id, name }));
-    for (const period of mealPeriods) {
-      await supabase.from("meal_periods").upsert(period, { onConflict: "id" });
-    }
-
-    // Upsert stations
-    const stations = Array.from(allStationsMap.entries()).map(([id, name]) => ({ id, name }));
-    for (const station of stations) {
-      await supabase.from("stations").upsert(station, { onConflict: "id" });
-    }
-
-    // Brand matching: assign brand_id to stations based on pattern matching
-    const { data: brandPatterns } = await supabase
-      .from("brand_station_patterns")
-      .select("brand_id, station_pattern");
-
-    if (brandPatterns && brandPatterns.length > 0) {
-      const patternMap = new Map<string, number>();
-      for (const bp of brandPatterns) {
-        patternMap.set(bp.station_pattern.toLowerCase().replace(/[^a-z0-9]/g, ""), bp.brand_id);
-      }
-
-      const { data: allStations } = await supabase.from("stations").select("id, name");
-      let matchCount = 0;
-
-      if (allStations) {
-        for (const station of allStations) {
-          const normalized = station.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-          const brandId = patternMap.get(normalized);
-          if (brandId) {
-            await supabase.from("stations").update({ brand_id: brandId }).eq("id", station.id);
-            matchCount++;
-          }
-        }
-      }
-
-      console.log(`Brand matching: ${matchCount} stations matched out of ${allStations?.length || 0}`);
-    }
-
-    // Get availability stats
-    const { data: availabilityData } = await supabase
-      .from("product_availability")
-      .select("mrn, day_of_week, meal_period_id");
-
-    const availabilityStats = {
-      uniqueProducts: new Set(availabilityData?.map((a) => a.mrn) || []).size,
-      totalCombinations: availabilityData?.length || 0,
-    };
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Fetched ${weeks} weeks starting ${startDate}. ${totalInserted} total menu items inserted.`,
-        stats: {
-          totalItems: totalInserted,
-          mealPeriods: mealPeriods.length,
-          stations: stations.length,
-          productAvailability: availabilityStats,
-          weekResults: results,
-        },
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return jsonRes({
+      success: true,
+      totalInserted,
+      weekResults: results,
+    });
   } catch (error) {
-    console.error("Detailed error:", error);
-    const errorMessage = error instanceof Error
-      ? `${error.message}\nStack: ${error.stack}`
-      : JSON.stringify(error);
-
+    console.error("Error:", error);
+    const msg = error instanceof Error ? error.message : JSON.stringify(error);
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ success: false, error: msg }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
