@@ -28,33 +28,54 @@ let mockRules: Rule[] = [];
 export const api = {
   // Menu Items - now from Supabase
   getMenuItems: async (): Promise<MenuItem[]> => {
-    const { data, error } = await supabase
-      .from('menu_items')
-      .select(`
-        *,
-        meal_period:meal_periods(id, name),
-        station:stations(id, name)
-      `)
-      .order('name');
+    const pageSize = 1000;
+    let allData: any[] = [];
+    let from = 0;
+    let hasMore = true;
 
-    if (error) {
-      console.error('Error fetching menu items:', error);
-      return [];
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select(`
+          *,
+          meal_period:meal_periods(id, name),
+          station:stations(id, name)
+        `)
+        .order('name')
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error('Error fetching menu items:', error);
+        return [];
+      }
+
+      allData = allData.concat(data || []);
+      hasMore = (data?.length || 0) === pageSize;
+      from += pageSize;
     }
 
-    const { data: availabilityData } = await supabase
-      .from('product_availability')
-      .select('mrn, day_of_week, meal_period_id, last_seen_date, meal_period:meal_periods(name)');
+    const data = allData;
+
+    let allAvailability: any[] = [];
+    from = 0;
+    hasMore = true;
+    while (hasMore) {
+      const { data: avPage } = await supabase
+        .from('product_availability')
+        .select('mrn, day_of_week, meal_period_id, last_seen_date, meal_period:meal_periods(name)')
+        .range(from, from + pageSize - 1);
+      allAvailability = allAvailability.concat(avPage || []);
+      hasMore = (avPage?.length || 0) === pageSize;
+      from += pageSize;
+    }
 
     const availabilityByMrn = new Map<string, any[]>();
-    if (availabilityData) {
-      availabilityData.forEach((av: any) => {
-        if (!availabilityByMrn.has(av.mrn)) {
-          availabilityByMrn.set(av.mrn, []);
-        }
-        availabilityByMrn.get(av.mrn)!.push(av);
-      });
-    }
+    allAvailability.forEach((av: any) => {
+      if (!availabilityByMrn.has(av.mrn)) {
+        availabilityByMrn.set(av.mrn, []);
+      }
+      availabilityByMrn.get(av.mrn)!.push(av);
+    });
 
     return data.map((item: any) => {
       const availability = availabilityByMrn.get(item.mrn) || [];
