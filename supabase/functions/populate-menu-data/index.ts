@@ -78,6 +78,81 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json().catch(() => ({}));
+
+    // Direct insert mode: accept pre-fetched menuItems array
+    if (body?.mode === "direct-insert" && Array.isArray(body?.menuItems)) {
+      const items: MenuItem[] = body.menuItems;
+      const mealPeriodsMap = new Map<number, string>();
+      const stationsMap = new Map<number, string>();
+
+      items.forEach((item) => {
+        if (item.mealPeriodId && item.mealPeriod) mealPeriodsMap.set(item.mealPeriodId, item.mealPeriod);
+        if (item.stationId && item.mealStation) stationsMap.set(item.stationId, item.mealStation);
+      });
+
+      const uniqueItems = new Map();
+      items.forEach((item) => {
+        const uniqueKey = `${item.id}-${item.date.split("T")[0]}`;
+        uniqueItems.set(uniqueKey, {
+          id: item.id,
+          string_id: item.stringId,
+          date: item.date.split("T")[0],
+          name: item.name,
+          description: item.description,
+          enticing_description: item.enticingDescription,
+          ingredients: item.ingredients,
+          price: item.price,
+          mrn: item.mrn,
+          calories: item.calories,
+          allergens: item.allergens,
+          nutrition: item.nutrition,
+          icons: item.icons,
+          meal_period_id: item.mealPeriodId,
+          station_id: item.stationId,
+          menu_collection_id: item.menuCollectionId,
+          menu_name: item.menuName,
+          source_name: item.sourceName,
+          sort_order: item.sortOrder,
+          updated_at: new Date().toISOString(),
+        });
+      });
+
+      const menuItems = Array.from(uniqueItems.values());
+
+      // Upsert meal periods
+      const mealPeriods = Array.from(mealPeriodsMap.entries()).map(([id, name]) => ({ id, name }));
+      for (const period of mealPeriods) {
+        await supabase.from("meal_periods").upsert(period, { onConflict: "id" });
+      }
+
+      // Upsert stations
+      const stations = Array.from(stationsMap.entries()).map(([id, name]) => ({ id, name }));
+      for (const station of stations) {
+        await supabase.from("stations").upsert(station, { onConflict: "id" });
+      }
+
+      // Upsert menu items
+      const batchSize = 100;
+      let inserted = 0;
+      for (let i = 0; i < menuItems.length; i += batchSize) {
+        const batch = menuItems.slice(i, i + batchSize);
+        const { error: itemsError } = await supabase
+          .from("menu_items")
+          .upsert(batch, { onConflict: "id,date" });
+        if (itemsError) {
+          console.error("Insert error:", itemsError);
+          throw itemsError;
+        }
+        inserted += batch.length;
+      }
+
+      const dates = [...new Set(menuItems.map((m) => m.date))].sort();
+      return new Response(
+        JSON.stringify({ success: true, inserted, dates, mealPeriods: mealPeriods.length, stations: stations.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const startDate = body?.date || new Date().toISOString().split("T")[0];
     const weeks = Math.min(body?.weeks || 4, 8);
     const sapCode = body?.sapCode || "72917";
