@@ -540,7 +540,7 @@ function App() {
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenGroups={() => setShowGroups(true)}
+          onOpenGroups={() => handleQuickActionSelect('groups')}
           quickActionConfigs={quickActionConfigs}
           selectedQuickAction={selectedQuickAction}
           onActionSelect={handleQuickActionSelect}
@@ -729,6 +729,7 @@ function App() {
             }}
             setIntegrationSettings={() => {}}
             onOpenRules={() => setShowCreateRuleModal(true)}
+            devices={devices}
           />
         )}
 

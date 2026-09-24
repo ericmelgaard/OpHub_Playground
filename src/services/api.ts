@@ -382,6 +382,37 @@ export const api = {
     }));
   },
 
+  // Brand Station Patterns
+  getBrandStationPatterns: async (): Promise<Record<number, string[]>> => {
+    const { data, error } = await supabase
+      .from('brand_station_patterns')
+      .select('brand_id, station_pattern')
+      .order('sort_order');
+    if (error) { console.error('Error fetching brand station patterns:', error); return {}; }
+    const map: Record<number, string[]> = {};
+    for (const row of data || []) {
+      if (!map[row.brand_id]) map[row.brand_id] = [];
+      map[row.brand_id].push(row.station_pattern);
+    }
+    return map;
+  },
+
+  addBrandStationPattern: async (brandId: number, stationPattern: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('brand_station_patterns')
+      .insert({ brand_id: brandId, station_pattern: stationPattern.toLowerCase() });
+    return !error;
+  },
+
+  removeBrandStationPattern: async (brandId: number, stationPattern: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('brand_station_patterns')
+      .delete()
+      .eq('brand_id', brandId)
+      .eq('station_pattern', stationPattern);
+    return !error;
+  },
+
   // Device Groups
   getDeviceGroups: async (): Promise<DeviceGroup[]> => {
     const { data, error } = await supabase
