@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { X, Search, Check, Monitor, Tag, ImageOff } from 'lucide-react';
+import { X, Search, Check, Monitor, Tag } from 'lucide-react';
 import { Device, Brand } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BrandAvatar } from './GroupsPage';
 
 interface AddDevicesModalProps {
   isOpen: boolean;
@@ -171,7 +172,6 @@ interface AddBrandsModalProps {
 export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm }: AddBrandsModalProps) {
   const [search, setSearch] = useState('');
   const [checked, setChecked] = useState<Set<number>>(new Set(selectedIds));
-  const [failedLogos, setFailedLogos] = useState<Set<number>>(new Set());
 
   if (!isOpen) return null;
 
@@ -203,11 +203,6 @@ export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm
     const toAdd = [...checked].filter((id) => !selectedIds.has(id));
     onConfirm(toAdd);
     onClose();
-  };
-
-  const getLogoUrl = (brand: Brand) => {
-    if (!brand.logoFilename || failedLogos.has(brand.id)) return null;
-    return `${brand.logoBaseUrl}${brand.logoFilename}`;
   };
 
   return (
@@ -284,18 +279,7 @@ export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm
                     >
                       {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
                     </div>
-                    {logoUrl ? (
-                      <img
-                        src={logoUrl}
-                        alt=""
-                        className="h-6 w-6 object-contain flex-shrink-0"
-                        onError={() => setFailedLogos((p) => new Set(p).add(b.id))}
-                      />
-                    ) : (
-                      <div className="h-6 w-6 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <ImageOff className="h-3 w-3 text-gray-400" />
-                      </div>
-                    )}
+                    <BrandAvatar brand={b} size="sm" />
                     <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{b.displayName}</span>
                   </button>
                 );

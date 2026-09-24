@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Database, ArrowLeft, Wand2, Settings2, Tag, ImageOff, Monitor, Plus, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Database, ArrowLeft, Wand2, Settings2, Tag, Monitor, Plus, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { IntegrationSettings, Theme, Brand, Device } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { api } from '../services/api';
 import { SUGGESTED_GROUP_TEMPLATES, GroupTemplate } from '../lib/groupTemplates';
+import { BrandAvatar } from './GroupsPage';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -210,7 +211,6 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [stationPatterns, setStationPatterns] = useState<Record<number, string[]>>({});
   const [loading, setLoading] = useState(true);
-  const [failedLogos, setFailedLogos] = useState<Set<number>>(new Set());
   const [expandedBrand, setExpandedBrand] = useState<number | null>(null);
   const [newPatternText, setNewPatternText] = useState<Record<number, string>>({});
 
@@ -241,11 +241,6 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
     }
   };
 
-  const getLogoUrl = (brand: Brand) => {
-    if (!brand.logoFilename || failedLogos.has(brand.id)) return null;
-    return `${brand.logoBaseUrl}${brand.logoFilename}`;
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -269,7 +264,6 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
 
           <div className="space-y-2">
             {brands.map((brand) => {
-              const logoUrl = getLogoUrl(brand);
               const patterns = stationPatterns[brand.id] || [];
               const isExpanded = expandedBrand === brand.id;
               return (
@@ -281,18 +275,7 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
                     onClick={() => setExpandedBrand(isExpanded ? null : brand.id)}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                   >
-                    {logoUrl ? (
-                      <img
-                        src={logoUrl}
-                        alt=""
-                        className="h-7 w-7 object-contain flex-shrink-0"
-                        onError={() => setFailedLogos((p) => new Set(p).add(brand.id))}
-                      />
-                    ) : (
-                      <div className="h-7 w-7 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <ImageOff className="h-3.5 w-3.5 text-gray-400" />
-                      </div>
-                    )}
+                    <BrandAvatar brand={brand} size="sm" />
                     <span className="text-sm font-medium text-gray-800 dark:text-gray-200 flex-1 text-left">{brand.displayName}</span>
                     <Badge variant="secondary" className="text-xs">{patterns.length} stations</Badge>
                     {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
@@ -373,18 +356,13 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">
                     {matchedBrands.map((b) => {
-                      const logoUrl = getLogoUrl(b);
                       return (
                         <div
                           key={b.id}
                           className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
                           title={b.displayName}
                         >
-                          {logoUrl ? (
-                            <img src={logoUrl} alt="" className="h-3.5 w-3.5 object-contain" onError={() => setFailedLogos((p) => new Set(p).add(b.id))} />
-                          ) : (
-                            <ImageOff className="h-3 w-3 text-gray-400" />
-                          )}
+                          <BrandAvatar brand={b} size="sm" />
                           <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400 max-w-[70px] truncate">{b.displayName}</span>
                         </div>
                       );

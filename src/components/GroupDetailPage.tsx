@@ -4,7 +4,6 @@ import {
   Trash2,
   Tag,
   Monitor,
-  ImageOff,
   Users,
   Plus,
   MapPin,
@@ -18,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { AddDevicesModal, AddBrandsModal } from './GroupPickers';
+import { BrandAvatar } from './GroupsPage';
 
 interface GroupDetailPageProps {
   group: DeviceGroup;
@@ -46,7 +46,6 @@ export function GroupDetailPage({
   onAddBrands,
   onRemoveBrand,
 }: GroupDetailPageProps) {
-  const [failedLogos, setFailedLogos] = useState<Set<number>>(new Set());
   const [showAddDevices, setShowAddDevices] = useState(false);
   const [showAddBrands, setShowAddBrands] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -57,11 +56,6 @@ export function GroupDetailPage({
   const memberBrandIds = new Set(group.brands?.map((b) => b.brandId) || []);
   const memberDevices = devices.filter((d) => memberDeviceIds.has(d.id));
   const memberBrands = brands.filter((b) => memberBrandIds.has(b.id));
-
-  const getLogoUrl = (brand: Brand) => {
-    if (!brand.logoFilename || failedLogos.has(brand.id)) return null;
-    return `${brand.logoBaseUrl}${brand.logoFilename}`;
-  };
 
   const handleSaveEdit = () => {
     if (editName.trim()) {
@@ -188,25 +182,13 @@ export function GroupDetailPage({
               ) : (
                 <div className="space-y-2">
                   {memberBrands.map((b) => {
-                    const logoUrl = getLogoUrl(b);
                     const patterns = stationPatterns[b.id] || [];
                     return (
                       <div
                         key={b.id}
                         className="flex items-start gap-3 px-3 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 group/brand"
                       >
-                        {logoUrl ? (
-                          <img
-                            src={logoUrl}
-                            alt=""
-                            className="h-8 w-8 object-contain flex-shrink-0 mt-0.5"
-                            onError={() => setFailedLogos((p) => new Set(p).add(b.id))}
-                          />
-                        ) : (
-                          <div className="h-8 w-8 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <ImageOff className="h-3.5 w-3.5 text-gray-400" />
-                          </div>
-                        )}
+                        <BrandAvatar brand={b} size="md" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{b.displayName}</span>
