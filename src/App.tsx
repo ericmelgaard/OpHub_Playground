@@ -7,7 +7,7 @@ import { MenuItems } from './components/MenuItems';
 import { DeviceGrid } from './components/DeviceGrid';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
-import { WeekScheduleBar, WeekActions, getWeekStartString } from './components/WeekScheduleBar';
+import { WeekScheduleBar, getWeekStartString } from './components/WeekScheduleBar';
 import { DaypartSelector } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
@@ -139,6 +139,7 @@ function App() {
   const [labelWeekOffset, setLabelWeekOffset] = useState(0);
   const [weekSchedules, setWeekSchedules] = useState<DeviceWeekSchedule[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   // Default daypart based on current time
   useEffect(() => {
@@ -317,7 +318,10 @@ function App() {
 
   const handleLabelWeekChange = useCallback((offset: number) => {
     setLabelWeekOffset(offset);
-    if (offset > 0) setLabelViewMode('list');
+  }, []);
+
+  const handleToggleSchedule = useCallback(() => {
+    setScheduleOpen(prev => !prev);
   }, []);
 
   const handleCopyWeek = useCallback(async () => {
@@ -646,6 +650,8 @@ function App() {
                 onNfcStop={nfc.stopScan}
                 selectedCycleWeek={selectedCycleWeek}
                 onCycleWeekChange={handleCycleWeekChange}
+                scheduleOpen={scheduleOpen}
+                onToggleSchedule={handleToggleSchedule}
               />
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">
@@ -674,40 +680,23 @@ function App() {
                 <div className="flex-1 min-w-0">
                   {selectedQuickAction === 'smart-labels' ? (
                     <div className="space-y-4">
-                      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                        <div className="flex-shrink-0">
-                          <DaypartSelector
-                            devices={devices}
-                            selectedDaypart={selectedDaypart}
-                            onSelectDaypart={setSelectedDaypart}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <WeekScheduleBar
-                            selectedWeekOffset={labelWeekOffset}
-                            onSelectWeek={handleLabelWeekChange}
-                          />
-                        </div>
-                      </div>
-                      {labelWeekOffset > 0 && (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                              Scheduling for week of {getWeekStartString(labelWeekOffset)}
-                            </span>
-                            {loadingSchedules && (
-                              <div className="h-4 w-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-                            )}
-                          </div>
-                          <WeekActions
-                            selectedWeekOffset={labelWeekOffset}
-                            onCopyWeek={handleCopyWeek}
-                            onSetRecurring={() => {}}
-                            onClearWeek={handleClearWeek}
-                            hasSchedule={weekSchedules.length > 0}
-                          />
-                        </div>
+                      {(scheduleOpen || labelViewMode === 'list') && (
+                        <WeekScheduleBar
+                          selectedWeekOffset={labelWeekOffset}
+                          onSelectWeek={handleLabelWeekChange}
+                          onClose={() => { setScheduleOpen(false); setLabelWeekOffset(0); }}
+                          onCopyWeek={handleCopyWeek}
+                          onSetRecurring={() => {}}
+                          onClearWeek={handleClearWeek}
+                          hasSchedule={weekSchedules.length > 0}
+                          loadingSchedules={loadingSchedules}
+                        />
                       )}
+                      <DaypartSelector
+                        devices={devices}
+                        selectedDaypart={selectedDaypart}
+                        onSelectDaypart={setSelectedDaypart}
+                      />
                       {labelViewMode === 'list' ? (
                         <SmartLabelList
                           loading={loadingDevices}
