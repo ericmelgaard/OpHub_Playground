@@ -7,8 +7,8 @@ import { QuickActionType } from './QuickActionBar';
 import { CycleWeekSelector } from './CycleWeekSelector';
 
 interface MenuFiltersProps {
-  viewMode: 'grid' | 'tiles';
-  setViewMode: (mode: 'grid' | 'tiles') => void;
+  viewMode: 'grid' | 'tiles' | 'list';
+  setViewMode: (mode: 'grid' | 'tiles' | 'list') => void;
   searchValue: string;
   setSearchValue: (value: string) => void;
   selectedQuickAction: QuickActionType;
@@ -144,7 +144,13 @@ export function MenuFilters({
           <Button
             variant="secondary"
             size="icon"
-            onClick={() => setViewMode(viewMode === 'grid' ? 'tiles' : 'grid')}
+            onClick={() => {
+              if (selectedQuickAction === 'smart-labels') {
+                setViewMode(viewMode === 'grid' ? 'list' : 'grid');
+              } else {
+                setViewMode(viewMode === 'grid' ? 'tiles' : 'grid');
+              }
+            }}
             className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
             title={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
           >

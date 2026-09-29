@@ -220,6 +220,33 @@ export interface DeviceGroupBrand {
   brand?: Brand;
 }
 
+export interface DeviceWeekSchedule {
+  id: string;
+  deviceId: string;
+  weekStart: string;
+  status: 'draft' | 'active' | 'published';
+  sourceType: 'manual' | 'copied' | 'recurring';
+  sourceWeekStart: string | null;
+  isRecurring: boolean;
+  recurrenceWeeks: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: DeviceScheduleItem[];
+}
+
+export interface DeviceScheduleItem {
+  id: string;
+  scheduleId: string;
+  daypart: string;
+  dayOfWeek: number;
+  menuItemMrn: string;
+  menuItemName: string;
+  menuItemPrice: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement';
 
 export interface DateRange {

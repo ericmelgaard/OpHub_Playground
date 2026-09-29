@@ -6,6 +6,8 @@ import { ensureWeekData, ensureCurrentAndNextWeek, WeekLoadStatus } from './serv
 import { MenuItems } from './components/MenuItems';
 import { DeviceGrid } from './components/DeviceGrid';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
+import { SmartLabelList } from './components/SmartLabelList';
+import { WeekScheduleBar, WeekActions, getWeekStartString } from './components/WeekScheduleBar';
 import { DaypartSelector } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
@@ -20,7 +22,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { GroupsPage } from './components/GroupsPage';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { LocationChangeOverlay } from './components/LocationChangeOverlay';
-import { Theme, Channel, MenuItem, Device, Rule, FilterConfig } from './types';
+import { Theme, Channel, MenuItem, Device, Rule, FilterConfig, DeviceWeekSchedule } from './types';
 import { api } from './services/api';
 import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
@@ -131,6 +133,12 @@ function App() {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [selectedDaypart, setSelectedDaypart] = useState<string>('Breakfast');
   const [workflowDaypart, setWorkflowDaypart] = useState<string | null>(null);
+
+  // Smart label view & week scheduling
+  const [labelViewMode, setLabelViewMode] = useState<'grid' | 'list'>('grid');
+  const [labelWeekOffset, setLabelWeekOffset] = useState(0);
+  const [weekSchedules, setWeekSchedules] = useState<DeviceWeekSchedule[]>([]);
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
 
   // Default daypart based on current time
   useEffect(() => {
@@ -295,6 +303,37 @@ function App() {
 
     loadDevices();
   }, []);
+
+  // Load week schedules when label week offset changes
+  useEffect(() => {
+    if (selectedQuickAction !== 'smart-labels') return;
+    const weekStart = getWeekStartString(labelWeekOffset);
+    setLoadingSchedules(true);
+    api.getWeekSchedules(weekStart)
+      .then(setWeekSchedules)
+      .catch(() => setWeekSchedules([]))
+      .finally(() => setLoadingSchedules(false));
+  }, [labelWeekOffset, selectedQuickAction]);
+
+  const handleLabelWeekChange = useCallback((offset: number) => {
+    setLabelWeekOffset(offset);
+    if (offset > 0) setLabelViewMode('list');
+  }, []);
+
+  const handleCopyWeek = useCallback(async () => {
+    if (labelWeekOffset === 0) return;
+    const currentWeekStart = getWeekStartString(0);
+    const targetWeekStart = getWeekStartString(labelWeekOffset);
+    await api.copyWeekSchedule(currentWeekStart, targetWeekStart);
+    const updated = await api.getWeekSchedules(targetWeekStart);
+    setWeekSchedules(updated);
+  }, [labelWeekOffset]);
+
+  const handleClearWeek = useCallback(async () => {
+    const weekStart = getWeekStartString(labelWeekOffset);
+    await api.clearWeekSchedule(weekStart);
+    setWeekSchedules([]);
+  }, [labelWeekOffset]);
 
   // Load location data
   useEffect(() => {
@@ -589,8 +628,10 @@ function App() {
               </div>
 
               <MenuFilters
-                viewMode={viewMode}
-                setViewMode={setViewMode}
+                viewMode={selectedQuickAction === 'smart-labels' ? labelViewMode : viewMode}
+                setViewMode={selectedQuickAction === 'smart-labels'
+                  ? (m) => setLabelViewMode(m === 'grid' ? 'grid' : 'list')
+                  : setViewMode}
                 searchValue={searchValue}
                 setSearchValue={setSearchValue}
                 selectedQuickAction={selectedQuickAction}
@@ -633,21 +674,65 @@ function App() {
                 <div className="flex-1 min-w-0">
                   {selectedQuickAction === 'smart-labels' ? (
                     <div className="space-y-4">
-                      <DaypartSelector
-                        devices={devices}
-                        selectedDaypart={selectedDaypart}
-                        onSelectDaypart={setSelectedDaypart}
-                      />
-                      <SmartLabelGrid
-                        loading={loadingDevices}
-                        error={deviceError}
-                        devices={devices}
-                        onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
-                        searchValue={searchValue}
-                        placements={placements}
-                        selectedDaypart={selectedDaypart}
-                        selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
-                      />
+                      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                        <div className="flex-shrink-0">
+                          <DaypartSelector
+                            devices={devices}
+                            selectedDaypart={selectedDaypart}
+                            onSelectDaypart={setSelectedDaypart}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <WeekScheduleBar
+                            selectedWeekOffset={labelWeekOffset}
+                            onSelectWeek={handleLabelWeekChange}
+                          />
+                        </div>
+                      </div>
+                      {labelWeekOffset > 0 && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                              Scheduling for week of {getWeekStartString(labelWeekOffset)}
+                            </span>
+                            {loadingSchedules && (
+                              <div className="h-4 w-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                            )}
+                          </div>
+                          <WeekActions
+                            selectedWeekOffset={labelWeekOffset}
+                            onCopyWeek={handleCopyWeek}
+                            onSetRecurring={() => {}}
+                            onClearWeek={handleClearWeek}
+                            hasSchedule={weekSchedules.length > 0}
+                          />
+                        </div>
+                      )}
+                      {labelViewMode === 'list' ? (
+                        <SmartLabelList
+                          loading={loadingDevices}
+                          error={deviceError}
+                          devices={devices}
+                          onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
+                          searchValue={searchValue}
+                          placements={placements}
+                          selectedDaypart={selectedDaypart}
+                          selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
+                          selectedWeekStart={labelWeekOffset > 0 ? getWeekStartString(labelWeekOffset) : null}
+                          weekSchedules={weekSchedules}
+                        />
+                      ) : (
+                        <SmartLabelGrid
+                          loading={loadingDevices}
+                          error={deviceError}
+                          devices={devices}
+                          onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
+                          searchValue={searchValue}
+                          placements={placements}
+                          selectedDaypart={selectedDaypart}
+                          selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
+                        />
+                      )}
                     </div>
                   ) : selectedQuickAction === 'products' ? (
                     <div key={selectedCycleWeek} className={weekTransition === 'out' ? 'week-transition-out' : 'week-transition-in'}>

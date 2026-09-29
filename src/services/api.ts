@@ -1,4 +1,4 @@
-import { MenuItem, Device, Concept, Company, Store, Rule, Brand, DeviceGroup } from '../types';
+import { MenuItem, Device, Concept, Company, Store, Rule, Brand, DeviceGroup, DeviceWeekSchedule, DeviceScheduleItem } from '../types';
 import { mockDevices, mockPlacements } from './mockData';
 import { supabase } from '../lib/supabase';
 
@@ -524,5 +524,93 @@ export const api = {
     
     mockDevices[deviceIndex] = device;
     return clone(device);
-  }
+  },
+
+  // Week Schedules
+  getWeekSchedules: async (weekStart: string): Promise<DeviceWeekSchedule[]> => {
+    const { data, error } = await supabase
+      .from('device_week_schedules')
+      .select(`
+        *,
+        device_schedule_items(*)
+      `)
+      .eq('week_start', weekStart);
+    if (error) { console.error('Error fetching week schedules:', error); return []; }
+    return (data || []).map((s: any) => ({
+      id: s.id,
+      deviceId: s.device_id,
+      weekStart: s.week_start,
+      status: s.status,
+      sourceType: s.source_type,
+      sourceWeekStart: s.source_week_start,
+      isRecurring: s.is_recurring,
+      recurrenceWeeks: s.recurrence_weeks,
+      notes: s.notes,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at,
+      items: (s.device_schedule_items || []).map((i: any) => ({
+        id: i.id,
+        scheduleId: i.schedule_id,
+        daypart: i.daypart,
+        dayOfWeek: i.day_of_week,
+        menuItemMrn: i.menu_item_mrn,
+        menuItemName: i.menu_item_name,
+        menuItemPrice: i.menu_item_price,
+        sortOrder: i.sort_order,
+        createdAt: i.created_at,
+      })),
+    }));
+  },
+
+  copyWeekSchedule: async (sourceWeekStart: string, targetWeekStart: string): Promise<boolean> => {
+    const sourceSchedules = await api.getWeekSchedules(sourceWeekStart);
+    if (sourceSchedules.length === 0) return false;
+
+    for (const schedule of sourceSchedules) {
+      const { data: newSched, error: schedError } = await supabase
+        .from('device_week_schedules')
+        .upsert({
+          device_id: schedule.deviceId,
+          week_start: targetWeekStart,
+          status: 'draft',
+          source_type: 'copied',
+          source_week_start: sourceWeekStart,
+        }, { onConflict: 'device_id,week_start' })
+        .select()
+        .maybeSingle();
+      if (schedError || !newSched) continue;
+
+      await supabase
+        .from('device_schedule_items')
+        .delete()
+        .eq('schedule_id', newSched.id);
+
+      if (schedule.items && schedule.items.length > 0) {
+        await supabase
+          .from('device_schedule_items')
+          .insert(schedule.items.map(item => ({
+            schedule_id: newSched.id,
+            daypart: item.daypart,
+            day_of_week: item.dayOfWeek,
+            menu_item_mrn: item.menuItemMrn,
+            menu_item_name: item.menuItemName,
+            menu_item_price: item.menuItemPrice,
+            sort_order: item.sortOrder,
+          })));
+      }
+    }
+    return true;
+  },
+
+  clearWeekSchedule: async (weekStart: string): Promise<boolean> => {
+    const { data: schedules } = await supabase
+      .from('device_week_schedules')
+      .select('id')
+      .eq('week_start', weekStart);
+    if (!schedules || schedules.length === 0) return true;
+    const ids = schedules.map((s: any) => s.id);
+    await supabase.from('device_schedule_items').delete().in('schedule_id', ids);
+    await supabase.from('device_week_schedules').delete().eq('week_start', weekStart);
+    return true;
+  },
 };
