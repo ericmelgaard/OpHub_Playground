@@ -223,7 +223,8 @@ export interface DeviceGroupBrand {
 export interface DeviceWeekSchedule {
   id: string;
   deviceId: string;
-  weekStart: string;
+  weekStart: string | null;
+  isDefault: boolean;
   status: 'draft' | 'active' | 'published';
   sourceType: 'manual' | 'copied' | 'recurring';
   sourceWeekStart: string | null;

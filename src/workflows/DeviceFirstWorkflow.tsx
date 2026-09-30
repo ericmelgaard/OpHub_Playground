@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Calendar } from 'lucide-react';
 import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
 import { buildSubstitutionMap } from '../lib/substitutions';
 import { DeviceModal } from '../components/DeviceModal';
@@ -16,6 +17,7 @@ interface DeviceFirstWorkflowProps {
   menuItems: MenuItem[];
   preSelectedDevice?: Device;
   preSelectedDaypart?: string | null;
+  weekContextLabel?: string;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
@@ -30,6 +32,7 @@ export function DeviceFirstWorkflow({
   menuItems,
   preSelectedDevice,
   preSelectedDaypart = null,
+  weekContextLabel,
   onAddItems,
   onRemoveItem,
   onReorderItems,
@@ -403,11 +406,19 @@ export function DeviceFirstWorkflow({
         lastAssignedPageId={lastAssignedPageId}
         duplicateCount={duplicateCount}
         header={optimisticDevice && (
-          <DeviceHeader
-            device={optimisticDevice}
-            onClose={handleCloseModals}
-            onOpenConfig={handleOpenConfig}
-          />
+          <>
+            {weekContextLabel && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-800/50 text-sky-700 dark:text-sky-300 text-sm">
+                <Calendar className="h-4 w-4 flex-shrink-0" />
+                <span>Editing <span className="font-semibold">{weekContextLabel}</span> — items come from this week’s schedule</span>
+              </div>
+            )}
+            <DeviceHeader
+              device={optimisticDevice}
+              onClose={handleCloseModals}
+              onOpenConfig={handleOpenConfig}
+            />
+          </>
         )}
         setNotifications={setNotifications}
         selectedDaypart={selectedDaypart}

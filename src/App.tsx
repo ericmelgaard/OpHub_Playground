@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
@@ -8,6 +8,8 @@ import { DeviceGrid } from './components/DeviceGrid';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
 import { WeekScheduleBar, getWeekStartString } from './components/WeekScheduleBar';
+import { resolveWeekSchedules } from './lib/weekSchedule';
+import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
 import { DaypartSelector } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
@@ -137,7 +139,13 @@ function App() {
   // Smart label view & week scheduling
   const [labelViewMode, setLabelViewMode] = useState<'grid' | 'list'>('grid');
   const [labelWeekOffset, setLabelWeekOffset] = useState(0);
+  const [isDefaultWeekSelected, setIsDefaultWeekSelected] = useState(false);
   const [weekSchedules, setWeekSchedules] = useState<DeviceWeekSchedule[]>([]);
+  const [defaultSchedules, setDefaultSchedules] = useState<DeviceWeekSchedule[]>([]);
+  const [recurringSchedules, setRecurringSchedules] = useState<DeviceWeekSchedule[]>([]);
+  const [overrideWeekStarts, setOverrideWeekStarts] = useState<string[]>([]);
+  const [weekClipboard, setWeekClipboard] = useState<DeviceWeekSchedule[] | null>(null);
+  const [deviceWeekContext, setDeviceWeekContext] = useState<{ isDefault: boolean; weekStart: string | null; label: string } | null>(null);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
@@ -305,7 +313,7 @@ function App() {
     loadDevices();
   }, []);
 
-  // Load week schedules when label week offset changes
+  // Load explicit overrides for the selected week
   useEffect(() => {
     if (selectedQuickAction !== 'smart-labels') return;
     const weekStart = getWeekStartString(labelWeekOffset);
@@ -316,28 +324,132 @@ function App() {
       .finally(() => setLoadingSchedules(false));
   }, [labelWeekOffset, selectedQuickAction]);
 
+  // Load default week, recurring patterns and the set of overridden weeks
+  const refreshScheduleMeta = useCallback(async () => {
+    const [defs, recs, overs] = await Promise.all([
+      api.getDefaultSchedules(),
+      api.getRecurringSchedules(),
+      api.getOverrideWeekStarts(),
+    ]);
+    setDefaultSchedules(defs);
+    setRecurringSchedules(recs);
+    setOverrideWeekStarts(overs);
+  }, []);
+
+  useEffect(() => {
+    if (selectedQuickAction !== 'smart-labels') return;
+    refreshScheduleMeta().catch(() => {});
+  }, [selectedQuickAction, refreshScheduleMeta]);
+
+  const deviceIds = useMemo(() => devices.map(d => d.id), [devices]);
+
+  // The schedules actually shown for the current selection (override -> recurring -> default)
+  const effectiveSchedules = useMemo(() => {
+    if (isDefaultWeekSelected) return defaultSchedules;
+    const weekStart = getWeekStartString(labelWeekOffset);
+    return resolveWeekSchedules(weekStart, weekSchedules, defaultSchedules, recurringSchedules, deviceIds);
+  }, [isDefaultWeekSelected, defaultSchedules, labelWeekOffset, weekSchedules, recurringSchedules, deviceIds]);
+
+  const overrideWeekStartSet = useMemo(() => new Set(overrideWeekStarts), [overrideWeekStarts]);
+
+  const refreshCurrentWeek = useCallback(async () => {
+    await refreshScheduleMeta();
+    const weekStart = getWeekStartString(labelWeekOffset);
+    const overrides = await api.getWeekSchedules(weekStart);
+    setWeekSchedules(overrides);
+  }, [refreshScheduleMeta, labelWeekOffset]);
+
   const handleLabelWeekChange = useCallback((offset: number) => {
     setLabelWeekOffset(offset);
+    setIsDefaultWeekSelected(false);
+  }, []);
+
+  const handleSelectDefaultWeek = useCallback(() => {
+    setIsDefaultWeekSelected(true);
   }, []);
 
   const handleToggleSchedule = useCallback(() => {
     setScheduleOpen(prev => !prev);
   }, []);
 
-  const handleCopyWeek = useCallback(async () => {
-    if (labelWeekOffset === 0) return;
-    const currentWeekStart = getWeekStartString(0);
-    const targetWeekStart = getWeekStartString(labelWeekOffset);
-    await api.copyWeekSchedule(currentWeekStart, targetWeekStart);
-    const updated = await api.getWeekSchedules(targetWeekStart);
-    setWeekSchedules(updated);
-  }, [labelWeekOffset]);
+  const handleCopyWeek = useCallback(() => {
+    setWeekClipboard(effectiveSchedules.map(s => ({ ...s })));
+  }, [effectiveSchedules]);
 
-  const handleClearWeek = useCallback(async () => {
+  const handlePasteWeek = useCallback(async () => {
+    if (!weekClipboard || isDefaultWeekSelected) return;
+    const targetWeekStart = getWeekStartString(labelWeekOffset);
+    await api.pasteWeekSchedule(targetWeekStart, weekClipboard, null);
+    await refreshCurrentWeek();
+  }, [weekClipboard, isDefaultWeekSelected, labelWeekOffset, refreshCurrentWeek]);
+
+  const handleSetRecurring = useCallback(async (weeks: number) => {
+    if (isDefaultWeekSelected) return;
     const weekStart = getWeekStartString(labelWeekOffset);
-    await api.clearWeekSchedule(weekStart);
-    setWeekSchedules([]);
-  }, [labelWeekOffset]);
+    await api.setWeekRecurring(weekStart, weeks, effectiveSchedules);
+    await refreshCurrentWeek();
+  }, [isDefaultWeekSelected, labelWeekOffset, effectiveSchedules, refreshCurrentWeek]);
+
+  const handleClearRecurring = useCallback(async () => {
+    const weekStart = getWeekStartString(labelWeekOffset);
+    await api.clearWeekRecurring(weekStart);
+    await refreshCurrentWeek();
+  }, [labelWeekOffset, refreshCurrentWeek]);
+
+  const handleEmptyWeek = useCallback(async () => {
+    const weekStart = getWeekStartString(labelWeekOffset);
+    await api.emptyWeekSchedule(weekStart, deviceIds);
+    await refreshCurrentWeek();
+  }, [labelWeekOffset, deviceIds, refreshCurrentWeek]);
+
+  const handleResetToDefault = useCallback(async () => {
+    const weekStart = getWeekStartString(labelWeekOffset);
+    await api.resetWeekToDefault(weekStart);
+    await refreshCurrentWeek();
+  }, [labelWeekOffset, refreshCurrentWeek]);
+
+  // Device opened for a week shows that week's resolved items (override -> recurring -> default)
+  const projectedWorkflowDevice = useMemo(() => {
+    if (!selectedDevice) return null;
+    if (!deviceWeekContext) return selectedDevice;
+    let schedule: DeviceWeekSchedule | undefined;
+    if (deviceWeekContext.isDefault) {
+      schedule = defaultSchedules.find(s => s.deviceId === selectedDevice.id);
+    } else {
+      const resolved = resolveWeekSchedules(
+        deviceWeekContext.weekStart as string,
+        weekSchedules, defaultSchedules, recurringSchedules, [selectedDevice.id],
+      );
+      schedule = resolved[0];
+    }
+    return projectScheduleOntoDevice(selectedDevice, schedule, menuItems);
+  }, [selectedDevice, deviceWeekContext, defaultSchedules, weekSchedules, recurringSchedules, menuItems]);
+
+  const persistScheduleAdd = useCallback(async (device: Device, items: MenuItem[], pageId: string) => {
+    if (!deviceWeekContext) return false;
+    const page = device.pages.find(p => p.id === pageId);
+    if (!page) return true;
+    await api.addScheduleItems(
+      { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart },
+      device.id, page.daypart, items,
+    );
+    await refreshCurrentWeek();
+    return true;
+  }, [deviceWeekContext, refreshCurrentWeek]);
+
+  const persistScheduleRemove = useCallback(async (itemId: number, deviceId: string, pageId: string) => {
+    if (!deviceWeekContext) return false;
+    const mrn = menuItems.find(i => i.id === itemId)?.mrn;
+    const page = projectedWorkflowDevice?.pages.find(p => p.id === pageId);
+    if (mrn && page) {
+      await api.removeScheduleItem(
+        { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart },
+        deviceId, page.daypart, mrn,
+      );
+      await refreshCurrentWeek();
+    }
+    return true;
+  }, [deviceWeekContext, menuItems, projectedWorkflowDevice, refreshCurrentWeek]);
 
   // Load location data
   useEffect(() => {
@@ -410,8 +522,21 @@ function App() {
   const handleDeviceSelect = useCallback((device: Device, daypart?: string) => {
     setSelectedDevice(device);
     setWorkflowDaypart(daypart || selectedDaypart);
+    if (selectedQuickAction === 'smart-labels') {
+      const isDefault = isDefaultWeekSelected;
+      const weekStart = isDefault ? null : getWeekStartString(labelWeekOffset);
+      const label = isDefault
+        ? 'Default Week'
+        : labelWeekOffset === 0 ? 'This Week'
+        : labelWeekOffset === 1 ? 'Next Week'
+        : labelWeekOffset === -1 ? 'Last Week'
+        : `Week of ${new Date(getWeekStartString(labelWeekOffset) + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+      setDeviceWeekContext({ isDefault, weekStart, label });
+    } else {
+      setDeviceWeekContext(null);
+    }
     setShowDeviceWorkflow(true);
-  }, [selectedDaypart]);
+  }, [selectedDaypart, selectedQuickAction, isDefaultWeekSelected, labelWeekOffset]);
 
   const nfc = useNfc();
 
@@ -680,23 +805,30 @@ function App() {
                 <div className="flex-1 min-w-0">
                   {selectedQuickAction === 'smart-labels' ? (
                     <div className="space-y-4">
-                      {(scheduleOpen || labelViewMode === 'list') && (
-                        <WeekScheduleBar
-                          selectedWeekOffset={labelWeekOffset}
-                          onSelectWeek={handleLabelWeekChange}
-                          onClose={() => { setScheduleOpen(false); setLabelWeekOffset(0); }}
-                          onCopyWeek={handleCopyWeek}
-                          onSetRecurring={() => {}}
-                          onClearWeek={handleClearWeek}
-                          hasSchedule={weekSchedules.length > 0}
-                          loadingSchedules={loadingSchedules}
-                        />
-                      )}
                       <DaypartSelector
                         devices={devices}
                         selectedDaypart={selectedDaypart}
                         onSelectDaypart={setSelectedDaypart}
                       />
+                      {(scheduleOpen || labelViewMode === 'list') && (
+                        <WeekScheduleBar
+                          selectedWeekOffset={labelWeekOffset}
+                          isDefaultSelected={isDefaultWeekSelected}
+                          onSelectWeek={handleLabelWeekChange}
+                          onSelectDefault={handleSelectDefaultWeek}
+                          overrideWeekStarts={overrideWeekStartSet}
+                          recurringSchedules={recurringSchedules}
+                          clipboardActive={weekClipboard !== null}
+                          onCopy={handleCopyWeek}
+                          onPaste={handlePasteWeek}
+                          onSetRecurring={handleSetRecurring}
+                          onClearRecurring={handleClearRecurring}
+                          onEmpty={handleEmptyWeek}
+                          onResetToDefault={handleResetToDefault}
+                          onClose={() => { setScheduleOpen(false); setLabelWeekOffset(0); setIsDefaultWeekSelected(false); }}
+                          loadingSchedules={loadingSchedules}
+                        />
+                      )}
                       {labelViewMode === 'list' ? (
                         <SmartLabelList
                           loading={loadingDevices}
@@ -707,8 +839,8 @@ function App() {
                           placements={placements}
                           selectedDaypart={selectedDaypart}
                           selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
-                          selectedWeekStart={labelWeekOffset > 0 ? getWeekStartString(labelWeekOffset) : null}
-                          weekSchedules={weekSchedules}
+                          selectedWeekStart={isDefaultWeekSelected ? null : getWeekStartString(labelWeekOffset)}
+                          weekSchedules={effectiveSchedules}
                         />
                       ) : (
                         <SmartLabelGrid
@@ -839,9 +971,11 @@ function App() {
           <DeviceFirstWorkflow
             devices={devices}
             menuItems={menuItems}
-            preSelectedDevice={selectedDevice}
+            preSelectedDevice={projectedWorkflowDevice ?? selectedDevice}
             preSelectedDaypart={workflowDaypart}
+            weekContextLabel={deviceWeekContext?.label}
             onAddItems={async (device, items, pageId) => {
+              if (await persistScheduleAdd(device, items, pageId)) return;
               for (const item of items) {
                 await api.assignItemToPage(item.id, device.id, pageId);
               }
@@ -849,11 +983,13 @@ function App() {
               setDevices(updatedDevices);
             }}
             onRemoveItem={async (itemId, deviceId, pageId) => {
+              if (await persistScheduleRemove(itemId, deviceId, pageId)) return;
               await api.removeItemFromPage(itemId, deviceId, pageId);
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
             }}
             onReorderItems={async (deviceId, pageId, startIndex, endIndex) => {
+              if (deviceWeekContext) return;
               const device = devices.find(d => d.id === deviceId);
               if (!device) return;
               const page = device.pages.find(p => p.id === pageId);

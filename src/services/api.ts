@@ -25,6 +25,82 @@ const mockChannelItems: Record<string, Set<number>> = {
 // Mock rules storage
 let mockRules: Rule[] = [];
 
+// Maps a raw device_week_schedules row (with nested items) to DeviceWeekSchedule
+const mapScheduleRow = (s: any): DeviceWeekSchedule => ({
+  id: s.id,
+  deviceId: s.device_id,
+  weekStart: s.week_start,
+  isDefault: s.is_default ?? false,
+  status: s.status,
+  sourceType: s.source_type,
+  sourceWeekStart: s.source_week_start,
+  isRecurring: s.is_recurring,
+  recurrenceWeeks: s.recurrence_weeks,
+  notes: s.notes,
+  createdAt: s.created_at,
+  updatedAt: s.updated_at,
+  items: (s.device_schedule_items || []).map((i: any) => ({
+    id: i.id,
+    scheduleId: i.schedule_id,
+    daypart: i.daypart,
+    dayOfWeek: i.day_of_week,
+    menuItemMrn: i.menu_item_mrn,
+    menuItemName: i.menu_item_name,
+    menuItemPrice: i.menu_item_price,
+    sortOrder: i.sort_order,
+    createdAt: i.created_at,
+  })),
+});
+
+// Identifies which schedule row to write to: the device's default or a specific week override.
+type ScheduleTarget = { isDefault: boolean; weekStart: string | null };
+
+type ScheduleItemInput = {
+  daypart: string;
+  dayOfWeek: number;
+  menuItemMrn: string;
+  menuItemName: string;
+  menuItemPrice: string;
+  sortOrder: number;
+};
+
+// Returns the id of the device's default/override row, creating it if missing.
+async function ensureScheduleRow(deviceId: string, target: ScheduleTarget): Promise<string | null> {
+  let query = supabase.from('device_week_schedules').select('id').eq('device_id', deviceId);
+  query = target.isDefault
+    ? query.eq('is_default', true)
+    : query.eq('is_default', false).eq('week_start', target.weekStart as string);
+  const { data: existing } = await query.maybeSingle();
+  if (existing) return existing.id;
+
+  const insertRow = target.isDefault
+    ? { device_id: deviceId, week_start: null, is_default: true, status: 'active', source_type: 'manual' }
+    : { device_id: deviceId, week_start: target.weekStart, is_default: false, status: 'draft', source_type: 'manual' };
+  const { data: created, error } = await supabase
+    .from('device_week_schedules')
+    .insert(insertRow)
+    .select('id')
+    .maybeSingle();
+  if (error) { console.error('ensureScheduleRow error:', error); return null; }
+  return created?.id ?? null;
+}
+
+// Replaces all items on a schedule row.
+async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput[]): Promise<void> {
+  await supabase.from('device_schedule_items').delete().eq('schedule_id', scheduleId);
+  if (items.length > 0) {
+    await supabase.from('device_schedule_items').insert(items.map(i => ({
+      schedule_id: scheduleId,
+      daypart: i.daypart,
+      day_of_week: i.dayOfWeek,
+      menu_item_mrn: i.menuItemMrn,
+      menu_item_name: i.menuItemName,
+      menu_item_price: i.menuItemPrice,
+      sort_order: i.sortOrder,
+    })));
+  }
+}
+
 export const api = {
   // Menu Items - from condensed Supabase view (pre-grouped by MRN + name)
   getMenuItems: async (): Promise<MenuItem[]> => {
@@ -534,83 +610,213 @@ export const api = {
         *,
         device_schedule_items(*)
       `)
-      .eq('week_start', weekStart);
+      .eq('week_start', weekStart)
+      .eq('is_default', false);
     if (error) { console.error('Error fetching week schedules:', error); return []; }
-    return (data || []).map((s: any) => ({
-      id: s.id,
-      deviceId: s.device_id,
-      weekStart: s.week_start,
-      status: s.status,
-      sourceType: s.source_type,
-      sourceWeekStart: s.source_week_start,
-      isRecurring: s.is_recurring,
-      recurrenceWeeks: s.recurrence_weeks,
-      notes: s.notes,
-      createdAt: s.created_at,
-      updatedAt: s.updated_at,
-      items: (s.device_schedule_items || []).map((i: any) => ({
-        id: i.id,
-        scheduleId: i.schedule_id,
-        daypart: i.daypart,
-        dayOfWeek: i.day_of_week,
-        menuItemMrn: i.menu_item_mrn,
-        menuItemName: i.menu_item_name,
-        menuItemPrice: i.menu_item_price,
-        sortOrder: i.sort_order,
-        createdAt: i.created_at,
-      })),
-    }));
+    return (data || []).map(mapScheduleRow);
   },
 
-  copyWeekSchedule: async (sourceWeekStart: string, targetWeekStart: string): Promise<boolean> => {
-    const sourceSchedules = await api.getWeekSchedules(sourceWeekStart);
+  // Persistent per-device default week (week_start IS NULL, is_default = true)
+  getDefaultSchedules: async (): Promise<DeviceWeekSchedule[]> => {
+    const { data, error } = await supabase
+      .from('device_week_schedules')
+      .select(`
+        *,
+        device_schedule_items(*)
+      `)
+      .eq('is_default', true);
+    if (error) { console.error('Error fetching default schedules:', error); return []; }
+    return (data || []).map(mapScheduleRow);
+  },
+
+  // All recurring override weeks, used to resolve which weeks a pattern repeats into
+  getRecurringSchedules: async (): Promise<DeviceWeekSchedule[]> => {
+    const { data, error } = await supabase
+      .from('device_week_schedules')
+      .select(`
+        *,
+        device_schedule_items(*)
+      `)
+      .eq('is_recurring', true)
+      .eq('is_default', false);
+    if (error) { console.error('Error fetching recurring schedules:', error); return []; }
+    return (data || []).map(mapScheduleRow);
+  },
+
+  // Distinct week_start values that have an explicit (non-default) override row.
+  getOverrideWeekStarts: async (): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('device_week_schedules')
+      .select('week_start')
+      .eq('is_default', false);
+    if (error) { console.error('Error fetching override weeks:', error); return []; }
+    return Array.from(new Set((data || []).map((r: any) => r.week_start).filter(Boolean)));
+  },
+
+  // Writes a set of schedules (device + items) into a target week as overrides.
+  // Used by copy/paste from any source week or from the default week.
+  pasteWeekSchedule: async (
+    targetWeekStart: string,
+    sourceSchedules: DeviceWeekSchedule[],
+    sourceWeekStart: string | null = null,
+  ): Promise<boolean> => {
     if (sourceSchedules.length === 0) return false;
 
     for (const schedule of sourceSchedules) {
-      const { data: newSched, error: schedError } = await supabase
-        .from('device_week_schedules')
-        .upsert({
-          device_id: schedule.deviceId,
-          week_start: targetWeekStart,
-          status: 'draft',
-          source_type: 'copied',
-          source_week_start: sourceWeekStart,
-        }, { onConflict: 'device_id,week_start' })
-        .select()
-        .maybeSingle();
-      if (schedError || !newSched) continue;
-
+      const rowId = await ensureScheduleRow(schedule.deviceId, { isDefault: false, weekStart: targetWeekStart });
+      if (!rowId) continue;
       await supabase
-        .from('device_schedule_items')
-        .delete()
-        .eq('schedule_id', newSched.id);
-
-      if (schedule.items && schedule.items.length > 0) {
-        await supabase
-          .from('device_schedule_items')
-          .insert(schedule.items.map(item => ({
-            schedule_id: newSched.id,
-            daypart: item.daypart,
-            day_of_week: item.dayOfWeek,
-            menu_item_mrn: item.menuItemMrn,
-            menu_item_name: item.menuItemName,
-            menu_item_price: item.menuItemPrice,
-            sort_order: item.sortOrder,
-          })));
-      }
+        .from('device_week_schedules')
+        .update({ source_type: 'copied', source_week_start: sourceWeekStart })
+        .eq('id', rowId);
+      await replaceScheduleItems(rowId, (schedule.items ?? []).map(i => ({
+        daypart: i.daypart,
+        dayOfWeek: i.dayOfWeek,
+        menuItemMrn: i.menuItemMrn,
+        menuItemName: i.menuItemName,
+        menuItemPrice: i.menuItemPrice,
+        sortOrder: i.sortOrder,
+      })));
     }
     return true;
   },
 
-  clearWeekSchedule: async (weekStart: string): Promise<boolean> => {
+  copyWeekSchedule: async (sourceWeekStart: string, targetWeekStart: string): Promise<boolean> => {
+    const sourceSchedules = await api.getWeekSchedules(sourceWeekStart);
+    return api.pasteWeekSchedule(targetWeekStart, sourceSchedules, sourceWeekStart);
+  },
+
+  // Persists the default week for a set of devices (used to edit the canvas).
+  saveDefaultSchedules: async (schedules: DeviceWeekSchedule[]): Promise<boolean> => {
+    for (const schedule of schedules) {
+      const rowId = await ensureScheduleRow(schedule.deviceId, { isDefault: true, weekStart: null });
+      if (!rowId) continue;
+      await replaceScheduleItems(rowId, (schedule.items ?? []).map(i => ({
+        daypart: i.daypart,
+        dayOfWeek: i.dayOfWeek,
+        menuItemMrn: i.menuItemMrn,
+        menuItemName: i.menuItemName,
+        menuItemPrice: i.menuItemPrice,
+        sortOrder: i.sortOrder,
+      })));
+    }
+    return true;
+  },
+
+  // Adds menu items to a device's schedule (default or a specific week override),
+  // creating the row if needed. Items are recorded for each of their active days.
+  addScheduleItems: async (
+    target: ScheduleTarget,
+    deviceId: string,
+    daypart: string,
+    items: MenuItem[],
+  ): Promise<boolean> => {
+    const rowId = await ensureScheduleRow(deviceId, target);
+    if (!rowId) return false;
+
+    const { data: existing } = await supabase
+      .from('device_schedule_items')
+      .select('*')
+      .eq('schedule_id', rowId);
+    const rows = existing || [];
+    let maxSort = rows.reduce((m: number, r: any) => Math.max(m, r.sort_order ?? 0), 0);
+
+    const toInsert: any[] = [];
+    for (const item of items) {
+      const days = item.activeDays && item.activeDays.length > 0 ? item.activeDays : [0, 1, 2, 3, 4, 5, 6];
+      maxSort += 1;
+      const sort = maxSort;
+      for (const d of days) {
+        const dup = rows.some((r: any) => r.daypart === daypart && r.day_of_week === d && r.menu_item_mrn === item.mrn);
+        if (dup) continue;
+        toInsert.push({
+          schedule_id: rowId,
+          daypart,
+          day_of_week: d,
+          menu_item_mrn: item.mrn,
+          menu_item_name: item.name,
+          menu_item_price: item.price,
+          sort_order: sort,
+        });
+      }
+    }
+    if (toInsert.length > 0) {
+      await supabase.from('device_schedule_items').insert(toInsert);
+    }
+    return true;
+  },
+
+  // Removes a menu item (by MRN) from a device's schedule for a daypart.
+  removeScheduleItem: async (
+    target: ScheduleTarget,
+    deviceId: string,
+    daypart: string,
+    mrn: string,
+  ): Promise<boolean> => {
+    const rowId = await ensureScheduleRow(deviceId, target);
+    if (!rowId) return false;
+    await supabase
+      .from('device_schedule_items')
+      .delete()
+      .eq('schedule_id', rowId)
+      .eq('daypart', daypart)
+      .eq('menu_item_mrn', mrn);
+    return true;
+  },
+
+  // Marks a week as recurring every N weeks. Persists the given (resolved) items
+  // first so the pattern exists even if the week was only inherited before.
+  setWeekRecurring: async (
+    weekStart: string,
+    recurrenceWeeks: number,
+    schedules: DeviceWeekSchedule[],
+  ): Promise<boolean> => {
+    await api.pasteWeekSchedule(weekStart, schedules, weekStart);
+    const { error } = await supabase
+      .from('device_week_schedules')
+      .update({ is_recurring: true, recurrence_weeks: recurrenceWeeks, source_type: 'recurring' })
+      .eq('week_start', weekStart)
+      .eq('is_default', false);
+    if (error) { console.error('Error setting recurring:', error); return false; }
+    return true;
+  },
+
+  // Clears the recurring flag for a week without deleting its items.
+  clearWeekRecurring: async (weekStart: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('device_week_schedules')
+      .update({ is_recurring: false, recurrence_weeks: null })
+      .eq('week_start', weekStart)
+      .eq('is_default', false);
+    if (error) { console.error('Error clearing recurring:', error); return false; }
+    return true;
+  },
+
+  // "Empty week": creates explicit override rows with no items so the week
+  // shows empty instead of inheriting the default.
+  emptyWeekSchedule: async (weekStart: string, deviceIds: string[]): Promise<boolean> => {
+    for (const deviceId of deviceIds) {
+      const rowId = await ensureScheduleRow(deviceId, { isDefault: false, weekStart });
+      if (rowId) await replaceScheduleItems(rowId, []);
+    }
+    return true;
+  },
+
+  // "Reset to default": removes the override rows so the week inherits again.
+  resetWeekToDefault: async (weekStart: string): Promise<boolean> => {
     const { data: schedules } = await supabase
       .from('device_week_schedules')
       .select('id')
-      .eq('week_start', weekStart);
+      .eq('week_start', weekStart)
+      .eq('is_default', false);
     if (!schedules || schedules.length === 0) return true;
     const ids = schedules.map((s: any) => s.id);
     await supabase.from('device_schedule_items').delete().in('schedule_id', ids);
-    await supabase.from('device_week_schedules').delete().eq('week_start', weekStart);
+    await supabase.from('device_week_schedules').delete().in('id', ids);
     return true;
+  },
+
+  clearWeekSchedule: async (weekStart: string): Promise<boolean> => {
+    return api.resetWeekToDefault(weekStart);
   },
 };
