@@ -399,7 +399,7 @@ export function Navigation({
                       className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors whitespace-nowrap"
                     >
                       {isWandLevel ? (
-                        <img src="/wand-level.webp" alt="WAND" className="h-4 w-4 object-contain" />
+                        <img src={`${import.meta.env.BASE_URL}wand-level.webp`} alt="WAND" className="h-4 w-4 object-contain" />
                       ) : (
                         <CurrentIcon className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
                       )}
