@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import {
-  ChevronLeft, ChevronRight, LayoutTemplate, Copy, ClipboardPaste,
+  ChevronLeft, ChevronRight, ChevronDown, LayoutTemplate, Copy, ClipboardPaste,
   Repeat, Eraser, RotateCcw, X, Check,
 } from 'lucide-react';
 import { DeviceWeekSchedule } from '../types';
@@ -31,6 +31,9 @@ interface WeekScheduleBarProps {
   onResetToDefault: () => void;
   onClose?: () => void;
   loadingSchedules?: boolean;
+  // Labels whose items differ from the Default Week, for the header summary.
+  differingLabelCount?: number;
+  totalLabelCount?: number;
 }
 
 function formatShortDate(date: Date): string {
@@ -45,15 +48,28 @@ function formatWeekLabel(offset: number): string {
   return `Week of ${formatShortDate(start)}`;
 }
 
-const stateBadge: Record<WeekState, { label: string; className: string } | null> = {
-  default: null,
+const stateChip: Record<WeekState, { label: string; className: string }> = {
+  default: {
+    label: 'Default',
+    className: 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600',
+  },
   override: {
     label: 'Override',
-    className: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400',
+    className: 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800',
   },
   recurring: {
     label: 'Recurring',
-    className: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-400',
+    className: 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800',
+  },
+};
+
+// Bottom bar on each week tile. Recurring is dashed so it reads without relying on hue.
+const stateBar: Record<WeekState, { className: string; style?: React.CSSProperties }> = {
+  default: { className: 'bg-gray-300 dark:bg-gray-600' },
+  override: { className: 'bg-teal-400' },
+  recurring: {
+    className: '',
+    style: { backgroundImage: 'repeating-linear-gradient(90deg, rgb(167 139 250) 0 6px, transparent 6px 10px)' },
   },
 };
 
@@ -73,6 +89,8 @@ export function WeekScheduleBar({
   onResetToDefault,
   onClose,
   loadingSchedules = false,
+  differingLabelCount,
+  totalLabelCount,
 }: WeekScheduleBarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
@@ -96,14 +114,21 @@ export function WeekScheduleBar({
     return list;
   }, [overrideWeekStarts, recurringSchedules]);
 
+  // Center the selected week. Measured after layout settles; jumps on first open, glides after.
+  const hasCentered = useRef(false);
   useEffect(() => {
     if (isDefaultSelected) return;
-    if (selectedRef.current && scrollRef.current) {
+    const frame = requestAnimationFrame(() => {
       const container = scrollRef.current;
       const el = selectedRef.current;
-      const left = el.offsetLeft - container.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
-      container.scrollTo({ left, behavior: 'smooth' });
-    }
+      if (!container || !el) return;
+      const cRect = container.getBoundingClientRect();
+      const eRect = el.getBoundingClientRect();
+      const left = container.scrollLeft + (eRect.left - cRect.left) - cRect.width / 2 + eRect.width / 2;
+      container.scrollTo({ left, behavior: hasCentered.current ? 'smooth' : 'auto' });
+      hasCentered.current = true;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [selectedWeekOffset, isDefaultSelected]);
 
   const scrollBy = (dir: number) => {
@@ -113,18 +138,54 @@ export function WeekScheduleBar({
   const selectedWeek = weeks.find(w => w.offset === selectedWeekOffset);
   const selectedState = selectedWeek?.state ?? 'default';
   const isPast = selectedWeekOffset < 0;
+  const chip = stateChip[selectedState];
+
+  const title = isDefaultSelected
+    ? 'Default Week'
+    : selectedWeek ? `${selectedWeek.label} · ${selectedWeek.range}` : '';
+
+  const summary = isDefaultSelected
+    ? 'Applies to every week without an override'
+    : differingLabelCount !== undefined && totalLabelCount
+      ? differingLabelCount === 0
+        ? 'Same as Default for all labels'
+        : `${differingLabelCount} of ${totalLabelCount} labels differ from Default`
+      : null;
 
   return (
-    <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40 p-3 space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          Week Schedule
-        </span>
+    <section
+      aria-label="Week schedule"
+      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60"
+    >
+      {/* Header: what is being edited */}
+      <div className="flex items-center gap-4 px-4 py-3 border-b border-gray-200 dark:border-gray-700/70">
+        <div className="flex-1 min-w-0">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Editing
+          </span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">{title}</span>
+            {!isDefaultSelected && (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${chip.className}`}>
+                {chip.label}
+              </span>
+            )}
+            {summary && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">{summary}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-3.5 text-xs text-gray-500 dark:text-gray-400">
+          <LegendSwatch state="default" label="Default" />
+          <LegendSwatch state="override" label="Override" />
+          <LegendSwatch state="recurring" label="Recurring" />
+        </div>
+
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-gray-400 hover:bg-gray-200/70 dark:hover:bg-gray-700 transition-colors"
+            className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             aria-label="Close schedule"
           >
             <X className="h-4 w-4" />
@@ -133,33 +194,30 @@ export function WeekScheduleBar({
       </div>
 
       {/* Default week + week strip */}
-      <div className="flex items-stretch gap-2">
-        {/* Default week card (always visible) */}
+      <div className="flex items-stretch gap-2 px-4 py-3">
         <button
           onClick={onSelectDefault}
           className={`
-            flex-shrink-0 flex flex-col items-start justify-center gap-0.5 px-3.5 py-2 rounded-xl border-2 transition-all duration-200 w-36
+            flex-shrink-0 flex flex-col items-start justify-center gap-0.5 px-3 py-2 rounded-xl border w-36 transition-colors
             ${isDefaultSelected
-              ? 'bg-sky-500 border-sky-500 text-white shadow-sm shadow-sky-500/20'
-              : 'bg-white dark:bg-gray-800 border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 hover:border-sky-300'
+              ? 'bg-sky-50 dark:bg-sky-900/40 border-sky-400 dark:border-sky-400 text-gray-900 dark:text-white'
+              : 'bg-gray-50 dark:bg-gray-900/60 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 hover:border-gray-300 dark:hover:border-gray-600'
             }
           `}
           title="The default week is always applied unless a specific week overrides it"
         >
-          <div className="flex items-center gap-1.5">
-            <LayoutTemplate className="h-3.5 w-3.5" />
-            <span className="text-xs font-semibold whitespace-nowrap">Default Week</span>
-          </div>
-          <span className={`text-[10px] whitespace-nowrap ${isDefaultSelected ? 'text-sky-100' : 'text-gray-400 dark:text-gray-500'}`}>
-            Always carries forward
+          <span className="flex items-center gap-1.5 text-[13px] font-semibold whitespace-nowrap">
+            <LayoutTemplate className="h-3.5 w-3.5 text-sky-500" />
+            Default Week
           </span>
+          <span className="text-[11px] whitespace-nowrap text-gray-500 dark:text-gray-400">Base for every week</span>
         </button>
 
         <div className="w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
 
         <button
           onClick={() => scrollBy(-1)}
-          className="flex-shrink-0 p-1 rounded-md hover:bg-gray-200/70 dark:hover:bg-gray-700 text-gray-400 transition-colors self-center"
+          className="flex-shrink-0 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 transition-colors self-center"
           aria-label="Scroll weeks left"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -167,13 +225,13 @@ export function WeekScheduleBar({
 
         <div
           ref={scrollRef}
-          className="flex items-center gap-1.5 overflow-x-auto scroll-smooth flex-1"
+          className="flex items-stretch gap-1.5 overflow-x-auto scroll-smooth flex-1"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {weeks.map(week => {
             const isSelected = !isDefaultSelected && week.offset === selectedWeekOffset;
             const isCurrent = week.offset === 0;
-            const badge = stateBadge[week.state];
+            const bar = stateBar[week.state];
 
             return (
               <button
@@ -181,33 +239,24 @@ export function WeekScheduleBar({
                 ref={isSelected ? selectedRef : undefined}
                 onClick={() => onSelectWeek(week.offset)}
                 className={`
-                  flex-shrink-0 flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl border-2 transition-all duration-200 min-w-[7.5rem]
+                  relative overflow-hidden flex-shrink-0 flex flex-col items-start gap-0.5 px-3 pt-2 pb-3 rounded-xl border min-w-[8rem] transition-colors
                   ${isSelected
-                    ? 'bg-sky-500 border-sky-500 text-white shadow-sm shadow-sky-500/20'
+                    ? 'bg-sky-50 dark:bg-sky-900/40 border-sky-400 dark:border-sky-400 text-gray-900 dark:text-white'
                     : isCurrent
-                      ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:border-sky-400'
+                      ? 'bg-white dark:bg-gray-900/60 border-sky-300 dark:border-sky-700 text-gray-900 dark:text-gray-100 hover:border-sky-400'
                       : week.offset < 0
-                        ? 'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                        ? 'bg-gray-50 dark:bg-gray-900/40 border-gray-200 dark:border-gray-700/70 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                        : 'bg-white dark:bg-gray-900/60 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 hover:border-gray-300 dark:hover:border-gray-600'
                   }
                 `}
+                title={stateChip[week.state].label}
               >
-                <div className="flex items-center gap-1.5">
-                  {isCurrent && !isSelected && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 flex-shrink-0" />
-                  )}
-                  <span className="text-xs font-semibold whitespace-nowrap">{week.label}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] whitespace-nowrap ${isSelected ? 'text-sky-100' : 'text-gray-400 dark:text-gray-500'}`}>
-                    {week.range}
-                  </span>
-                  {badge && (
-                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${isSelected ? 'bg-white/20 text-white' : badge.className}`}>
-                      {badge.label}
-                    </span>
-                  )}
-                </div>
+                <span className="flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap">
+                  {isCurrent && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-sky-500 flex-shrink-0" />}
+                  {week.label}
+                </span>
+                <span className="text-[11px] whitespace-nowrap opacity-75">{week.range}</span>
+                <span className={`absolute inset-x-0 bottom-0 h-1 ${bar.className}`} style={bar.style} />
               </button>
             );
           })}
@@ -215,7 +264,7 @@ export function WeekScheduleBar({
 
         <button
           onClick={() => scrollBy(1)}
-          className="flex-shrink-0 p-1 rounded-md hover:bg-gray-200/70 dark:hover:bg-gray-700 text-gray-400 transition-colors self-center"
+          className="flex-shrink-0 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 transition-colors self-center"
           aria-label="Scroll weeks right"
         >
           <ChevronRight className="h-4 w-4" />
@@ -223,28 +272,32 @@ export function WeekScheduleBar({
       </div>
 
       {/* Actions for the current selection */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 border-t border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-gray-900/40 rounded-b-xl">
         {loadingSchedules && (
-          <span className="flex items-center gap-1.5 text-xs text-gray-400">
+          <span className="flex items-center gap-1.5 text-xs text-gray-400 mr-1">
             <span className="h-3 w-3 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
             Loading…
           </span>
         )}
 
-        <ActionButton icon={Copy} label={isDefaultSelected ? 'Copy Default' : 'Copy Week'} onClick={onCopy} />
-        <ActionButton
-          icon={ClipboardPaste}
-          label="Paste"
-          onClick={onPaste}
-          disabled={!clipboardActive || isDefaultSelected}
-          title={isDefaultSelected ? 'Paste into a specific week' : clipboardActive ? 'Paste copied schedule here' : 'Nothing copied yet'}
-        />
+        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <SegmentButton icon={Copy} label={isDefaultSelected ? 'Copy default' : 'Copy week'} onClick={onCopy} />
+          <SegmentButton
+            icon={ClipboardPaste}
+            label="Paste"
+            onClick={onPaste}
+            disabled={!clipboardActive || isDefaultSelected}
+            title={isDefaultSelected ? 'Paste into a specific week' : clipboardActive ? 'Paste copied schedule here' : 'Nothing copied yet'}
+            divider
+          />
+        </div>
 
         {!isDefaultSelected && !isPast && (
           <div className="relative">
             <ActionButton
               icon={Repeat}
-              label={selectedState === 'recurring' ? 'Recurring ✓' : 'Set Recurring'}
+              label={selectedState === 'recurring' ? 'Repeating' : 'Repeat…'}
+              trailing={ChevronDown}
               onClick={() => setRecurOpen(o => !o)}
               active={selectedState === 'recurring'}
             />
@@ -257,6 +310,7 @@ export function WeekScheduleBar({
                     min={1}
                     max={12}
                     value={recurN}
+                    aria-label="Weeks between repeats"
                     onChange={e => setRecurN(Math.max(1, Math.min(12, Number(e.target.value) || 1)))}
                     className="w-16 px-2 py-1 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                   />
@@ -283,45 +337,83 @@ export function WeekScheduleBar({
           </div>
         )}
 
+        <span className="flex-1" />
+
         {!isDefaultSelected && (
           <>
-            <ActionButton icon={Eraser} label="Empty Week" onClick={onEmpty} />
+            <button
+              onClick={onEmpty}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Eraser className="h-3.5 w-3.5" />
+              Empty week
+            </button>
             {selectedState !== 'default' && (
-              <ActionButton
-                icon={RotateCcw}
-                label="Reset to Default"
-                onClick={onResetToDefault}
-                variant="danger"
-              />
+              <ActionButton icon={RotateCcw} label="Reset to Default" onClick={onResetToDefault} variant="danger" />
             )}
           </>
         )}
       </div>
-    </div>
+    </section>
+  );
+}
+
+function LegendSwatch({ state, label }: { state: WeekState; label: string }) {
+  const bar = stateBar[state];
+  return (
+    <span className="flex items-center gap-1.5 whitespace-nowrap">
+      <span className={`w-3.5 h-1 rounded-sm ${bar.className}`} style={bar.style} />
+      {label}
+    </span>
+  );
+}
+
+type IconType = React.ComponentType<{ className?: string }>;
+
+function SegmentButton({ icon: Icon, label, onClick, disabled, title, divider }: {
+  icon: IconType;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  divider?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:text-sky-600 dark:hover:text-sky-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${divider ? 'border-l border-gray-200 dark:border-gray-700' : ''}`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
   );
 }
 
 interface ActionButtonProps {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconType;
   label: string;
   onClick: () => void;
   disabled?: boolean;
   active?: boolean;
   variant?: 'default' | 'danger';
   title?: string;
+  trailing?: IconType;
 }
 
-function ActionButton({ icon: Icon, label, onClick, disabled, active, variant = 'default', title }: ActionButtonProps) {
+function ActionButton({ icon: Icon, label, onClick, disabled, active, variant = 'default', title, trailing: Trailing }: ActionButtonProps) {
   const base = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
   const styles = active
     ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
     : variant === 'danger'
-      ? 'bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
-      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-sky-300 hover:text-sky-600 dark:hover:text-sky-400';
+      ? 'bg-transparent border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-sky-300 hover:text-sky-600 dark:hover:text-sky-400';
   return (
     <button onClick={onClick} disabled={disabled} title={title} className={`${base} ${styles}`}>
       <Icon className="h-3.5 w-3.5" />
       {label}
+      {Trailing && <Trailing className="h-3 w-3 opacity-70" />}
     </button>
   );
 }

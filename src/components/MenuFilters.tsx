@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Rows2 as Rows, Search, Camera, PanelLeftOpen, PanelLeftClose, Nfc } from 'lucide-react';
+import { LayoutGrid, Rows2 as Rows, Search, Camera, PanelLeftOpen, PanelLeftClose, Nfc, CalendarDays, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
@@ -23,6 +23,9 @@ interface MenuFiltersProps {
   onNfcStop?: () => void;
   selectedCycleWeek?: number;
   onCycleWeekChange?: (week: number) => void;
+  scheduleOpen?: boolean;
+  onToggleSchedule?: () => void;
+  scheduleGapCount?: number;
 }
 
 export function MenuFilters({
@@ -41,6 +44,9 @@ export function MenuFilters({
   onNfcStop,
   selectedCycleWeek,
   onCycleWeekChange,
+  scheduleOpen = false,
+  onToggleSchedule,
+  scheduleGapCount = 0,
 }: MenuFiltersProps) {
   const handleScanBarcode = () => {
     console.log('Barcode scanning will be implemented when API is available');
@@ -141,6 +147,32 @@ export function MenuFilters({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 order-3">
+          {selectedQuickAction === 'smart-labels' && onToggleSchedule && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onToggleSchedule}
+              aria-pressed={scheduleOpen}
+              className={`flex items-center gap-2 whitespace-nowrap transition-colors ${
+                scheduleOpen
+                  ? 'bg-sky-50 dark:bg-sky-900/30 border-sky-400 dark:border-sky-500 text-sky-700 dark:text-sky-300'
+                  : ''
+              }`}
+              title={scheduleOpen ? 'Close schedule' : 'Open schedule'}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Schedule
+              {scheduleGapCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-0.5 h-4 px-1.5 text-[10px] font-semibold rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                  title={`${scheduleGapCount} empty slot${scheduleGapCount === 1 ? '' : 's'} this week`}
+                >
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  {scheduleGapCount}
+                </span>
+              )}
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="icon"

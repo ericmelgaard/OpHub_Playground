@@ -18,6 +18,10 @@ interface SmartLabelListProps {
   selectedPlacements: string[];
   selectedWeekStart: string | null;
   weekSchedules: DeviceWeekSchedule[];
+  // When given, days whose items differ from the Default Week are marked as overrides.
+  defaultSchedules?: DeviceWeekSchedule[];
+  // Day picked in the schedule day selector; highlighted in each row's strip.
+  selectedDay?: number | null;
 }
 
 const labelSizeLabels: Record<LabelSize, string> = {
@@ -61,6 +65,8 @@ export function SmartLabelList({
   selectedPlacements,
   selectedWeekStart,
   weekSchedules,
+  defaultSchedules,
+  selectedDay = null,
 }: SmartLabelListProps) {
   const filteredDevices = useMemo(() => {
     let result = devices;
@@ -82,6 +88,12 @@ export function SmartLabelList({
     weekSchedules.forEach(s => map.set(s.deviceId, s));
     return map;
   }, [weekSchedules]);
+
+  const defaultByDevice = useMemo(() => {
+    const map = new Map<string, DeviceWeekSchedule>();
+    defaultSchedules?.forEach(s => map.set(s.deviceId, s));
+    return map;
+  }, [defaultSchedules]);
 
   if (loading) {
     return (
@@ -131,7 +143,10 @@ export function SmartLabelList({
           daypart={selectedDaypart}
           onClick={() => onDeviceSelect(device, selectedDaypart)}
           schedule={scheduleByDevice.get(device.id)}
+          defaultSchedule={defaultSchedules ? defaultByDevice.get(device.id) : undefined}
+          compareToDefault={!!defaultSchedules}
           selectedWeekStart={selectedWeekStart}
+          selectedDay={selectedDay}
         />
       ))}
     </div>
@@ -143,24 +158,39 @@ interface LabelRowProps {
   daypart: string;
   onClick: () => void;
   schedule?: DeviceWeekSchedule;
+  defaultSchedule?: DeviceWeekSchedule;
+  compareToDefault: boolean;
   selectedWeekStart: string | null;
+  selectedDay: number | null;
 }
 
-function LabelRow({ device, daypart, onClick, schedule, selectedWeekStart }: LabelRowProps) {
+type DayState = 'default' | 'override' | 'missing';
+
+function mrnsFor(schedule: DeviceWeekSchedule | undefined, daypart: string, dow: number): string {
+  return (schedule?.items ?? [])
+    .filter(i => i.daypart === daypart && i.dayOfWeek === dow)
+    .map(i => i.menuItemMrn)
+    .sort()
+    .join(',');
+}
+
+function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart, selectedDay }: LabelRowProps) {
   const BattIcon = getBatteryIcon(device.status.batteryLevel);
   const page = device.pages.find(p => p.daypart === daypart);
   const items = page?.assignedItems ?? [];
   const isEmpty = items.length === 0;
   const dpColor = daypartColors[daypart] || 'bg-gray-500';
 
-  const scheduledDays = useMemo(() => {
-    if (!schedule?.items) return new Set<number>();
-    return new Set(
-      schedule.items
-        .filter(i => i.daypart === daypart)
-        .map(i => i.dayOfWeek)
-    );
-  }, [schedule, daypart]);
+  const dayStates = useMemo(() => {
+    const states = new Map<number, DayState>();
+    for (let dow = 0; dow < 7; dow++) {
+      const mrns = mrnsFor(schedule, daypart, dow);
+      if (!mrns) states.set(dow, 'missing');
+      else if (compareToDefault && mrns !== mrnsFor(defaultSchedule, daypart, dow)) states.set(dow, 'override');
+      else states.set(dow, 'default');
+    }
+    return states;
+  }, [schedule, defaultSchedule, compareToDefault, daypart]);
 
   const isFutureWeek = selectedWeekStart !== null;
 
@@ -226,9 +256,10 @@ function LabelRow({ device, daypart, onClick, schedule, selectedWeekStart }: Lab
       {/* Week schedule day strip */}
       <div className="hidden lg:block">
         <DayStrip
-          scheduledDays={scheduledDays}
+          dayStates={dayStates}
           isFutureWeek={isFutureWeek}
           hasSchedule={!!schedule}
+          selectedDay={selectedDay}
         />
       </div>
 
@@ -240,18 +271,36 @@ function LabelRow({ device, daypart, onClick, schedule, selectedWeekStart }: Lab
   );
 }
 
+const dayStateStyles: Record<DayState, { className: string; title: string }> = {
+  default: {
+    className: 'bg-gray-100 dark:bg-gray-700/70 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600',
+    title: 'Scheduled',
+  },
+  override: {
+    className: 'bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700',
+    title: 'Differs from Default Week',
+  },
+  missing: {
+    className: 'bg-transparent text-amber-600 dark:text-amber-400 border border-dashed border-amber-400 dark:border-amber-600',
+    title: 'No items',
+  },
+};
+
 function DayStrip({
-  scheduledDays,
+  dayStates,
   isFutureWeek,
   hasSchedule,
+  selectedDay,
 }: {
-  scheduledDays: Set<number>;
+  dayStates: Map<number, DayState>;
   isFutureWeek: boolean;
   hasSchedule: boolean;
+  selectedDay: number | null;
 }) {
   const days = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
   const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const today = new Date().getDay();
+  const highlighted = selectedDay ?? (isFutureWeek ? null : today);
 
   if (!isFutureWeek && !hasSchedule) {
     return (
@@ -265,23 +314,18 @@ function DayStrip({
   return (
     <div className="flex items-center gap-0.5">
       {days.map((dow, idx) => {
-        const isScheduled = scheduledDays.has(dow);
-        const isToday = !isFutureWeek && dow === today;
+        const style = dayStateStyles[dayStates.get(dow) ?? 'missing'];
+        const isHighlighted = dow === highlighted;
 
         return (
           <div
             key={dow}
             className={`
               w-6 h-6 rounded flex items-center justify-center text-[10px] font-semibold transition-colors
-              ${isToday ? 'ring-2 ring-sky-400 ring-offset-1 dark:ring-offset-gray-800' : ''}
-              ${isScheduled
-                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
-                : isFutureWeek || hasSchedule
-                  ? 'bg-red-50 dark:bg-red-900/20 text-red-400 dark:text-red-500'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
-              }
+              ${isHighlighted ? 'ring-2 ring-sky-400 ring-offset-1 ring-offset-white dark:ring-offset-gray-800' : ''}
+              ${style.className}
             `}
-            title={`${DAY_ABBR[dow]}${isScheduled ? ' - Scheduled' : ' - No items'}`}
+            title={`${DAY_ABBR[dow]} - ${style.title}`}
           >
             {labels[idx]}
           </div>

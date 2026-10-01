@@ -8,9 +8,11 @@ import { DeviceGrid } from './components/DeviceGrid';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
 import { WeekScheduleBar, getWeekStartString } from './components/WeekScheduleBar';
-import { resolveWeekSchedules } from './lib/weekSchedule';
+import { resolveWeekSchedules, getWeekStartDate } from './lib/weekSchedule';
 import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
+import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
 import { DaypartSelector } from './components/DaypartSelector';
+import { ScheduleDaySelector } from './components/ScheduleDaySelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
@@ -148,6 +150,7 @@ function App() {
   const [deviceWeekContext, setDeviceWeekContext] = useState<{ isDefault: boolean; weekStart: string | null; label: string } | null>(null);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleDay, setScheduleDay] = useState(() => new Date().getDay());
 
   // Default daypart based on current time
   useEffect(() => {
@@ -368,9 +371,35 @@ function App() {
     setIsDefaultWeekSelected(true);
   }, []);
 
-  const handleToggleSchedule = useCallback(() => {
-    setScheduleOpen(prev => !prev);
+  // Per-day fill status for the selected week; drives the day selector and the Schedule badge
+  const weekCoverage = useMemo(
+    () => getWeekCoverage(devices, effectiveSchedules),
+    [devices, effectiveSchedules],
+  );
+  const weekGapCount = useMemo(
+    () => weekCoverage.reduce((sum, c) => sum + c.gaps, 0),
+    [weekCoverage],
+  );
+
+  const differingLabelCount = useMemo(
+    () => countLabelsDifferingFromDefault(effectiveSchedules, defaultSchedules),
+    [effectiveSchedules, defaultSchedules],
+  );
+
+  const closeSchedule = useCallback(() => {
+    setScheduleOpen(false);
+    setLabelWeekOffset(0);
+    setIsDefaultWeekSelected(false);
   }, []);
+
+  const handleToggleSchedule = useCallback(() => {
+    if (scheduleOpen) {
+      closeSchedule();
+    } else {
+      setScheduleDay(new Date().getDay());
+      setScheduleOpen(true);
+    }
+  }, [scheduleOpen, closeSchedule]);
 
   const handleCopyWeek = useCallback(() => {
     setWeekClipboard(effectiveSchedules.map(s => ({ ...s })));
@@ -777,6 +806,7 @@ function App() {
                 onCycleWeekChange={handleCycleWeekChange}
                 scheduleOpen={scheduleOpen}
                 onToggleSchedule={handleToggleSchedule}
+                scheduleGapCount={weekGapCount}
               />
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">
@@ -805,12 +835,14 @@ function App() {
                 <div className="flex-1 min-w-0">
                   {selectedQuickAction === 'smart-labels' ? (
                     <div className="space-y-4">
-                      <DaypartSelector
-                        devices={devices}
-                        selectedDaypart={selectedDaypart}
-                        onSelectDaypart={setSelectedDaypart}
-                      />
-                      {(scheduleOpen || labelViewMode === 'list') && (
+                      {!scheduleOpen && (
+                        <DaypartSelector
+                          devices={devices}
+                          selectedDaypart={selectedDaypart}
+                          onSelectDaypart={setSelectedDaypart}
+                        />
+                      )}
+                      {scheduleOpen && (
                         <WeekScheduleBar
                           selectedWeekOffset={labelWeekOffset}
                           isDefaultSelected={isDefaultWeekSelected}
@@ -825,8 +857,18 @@ function App() {
                           onClearRecurring={handleClearRecurring}
                           onEmpty={handleEmptyWeek}
                           onResetToDefault={handleResetToDefault}
-                          onClose={() => { setScheduleOpen(false); setLabelWeekOffset(0); setIsDefaultWeekSelected(false); }}
+                          onClose={closeSchedule}
                           loadingSchedules={loadingSchedules}
+                          differingLabelCount={differingLabelCount}
+                          totalLabelCount={devices.length}
+                        />
+                      )}
+                      {scheduleOpen && (
+                        <ScheduleDaySelector
+                          coverage={weekCoverage}
+                          selectedDay={scheduleDay}
+                          onSelectDay={setScheduleDay}
+                          weekStart={isDefaultWeekSelected ? null : getWeekStartDate(labelWeekOffset)}
                         />
                       )}
                       {labelViewMode === 'list' ? (
@@ -841,6 +883,8 @@ function App() {
                           selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
                           selectedWeekStart={isDefaultWeekSelected ? null : getWeekStartString(labelWeekOffset)}
                           weekSchedules={effectiveSchedules}
+                          defaultSchedules={scheduleOpen && !isDefaultWeekSelected ? defaultSchedules : undefined}
+                          selectedDay={scheduleOpen ? scheduleDay : null}
                         />
                       ) : (
                         <SmartLabelGrid
