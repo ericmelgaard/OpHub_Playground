@@ -88,3 +88,20 @@ export function resolveWeekSchedules(
   }
   return resolved;
 }
+
+export type ScheduleSource = 'override' | 'recurring' | 'default';
+
+// Which schedule one label runs in the target week, with the same precedence as
+// resolveWeekSchedules. `overrides` are the target week's override rows.
+export function getScheduleSource(
+  targetWeekStart: string,
+  deviceId: string,
+  overrides: DeviceWeekSchedule[],
+  recurringSchedules: DeviceWeekSchedule[],
+): ScheduleSource {
+  // A recurring pattern's first week is stored as that week's own row
+  const own = overrides.find(s => s.deviceId === deviceId);
+  if (own) return own.isRecurring ? 'recurring' : 'override';
+  if (findRecurringMatch(targetWeekStart, recurringSchedules).some(s => s.deviceId === deviceId)) return 'recurring';
+  return 'default';
+}

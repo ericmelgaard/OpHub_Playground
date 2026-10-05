@@ -227,7 +227,7 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
             <span className="text-xs text-gray-500">{device.status.batteryLevel}%</span>
           </div>
         </div>
-        <SyncStatus sync={device.status.sync} />
+        <SyncStatus deviceId={device.id} />
       </div>
 
       {/* Current daypart items */}

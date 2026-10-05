@@ -8,9 +8,10 @@ import { DeviceGrid } from './components/DeviceGrid';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
 import { WeekScheduleBar, getWeekStartString } from './components/WeekScheduleBar';
-import { resolveWeekSchedules } from './lib/weekSchedule';
+import { resolveWeekSchedules, getScheduleSource, ScheduleSource } from './lib/weekSchedule';
 import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
 import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
+import { initLabelSync, recordLabelChange } from './lib/labelSync';
 import { DaypartSelector } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
@@ -450,6 +451,40 @@ function App() {
     }
     return projectScheduleOntoDevice(selectedDevice, schedule, menuItems);
   }, [selectedDevice, deviceWeekContext, defaultSchedules, weekSchedules, recurringSchedules, menuItems]);
+
+  // What the open label runs this week. Only needed when editing its Default Week,
+  // which reaches the label only if this week has no override or recurring schedule.
+  const [currentWeekSource, setCurrentWeekSource] = useState<ScheduleSource | null>(null);
+  const editingDeviceId = showDeviceWorkflow ? selectedDevice?.id : undefined;
+  useEffect(() => {
+    setCurrentWeekSource(null);
+    if (!editingDeviceId || !deviceWeekContext?.isDefault) return;
+    let cancelled = false;
+    const thisWeek = getWeekStartString(0);
+    api.getWeekSchedules(thisWeek).then(overrides => {
+      if (!cancelled) setCurrentWeekSource(getScheduleSource(thisWeek, editingDeviceId, overrides, recurringSchedules));
+    });
+    return () => { cancelled = true; };
+  }, [editingDeviceId, deviceWeekContext, recurringSchedules]);
+
+  // Only edits to what the label shows now get pushed; everything else is
+  // schedule-only and reaches the label when that week (or schedule) is in effect.
+  const editsReachLabel = !deviceWeekContext
+    || (deviceWeekContext.isDefault
+      ? currentWeekSource === 'default'
+      : deviceWeekContext.weekStart === getWeekStartString(0));
+
+  const weekContextNote =
+    !deviceWeekContext ? undefined :
+    !deviceWeekContext.isDefault ? (editsReachLabel ? undefined : 'changes reach the label when that week starts') :
+    currentWeekSource === 'default' ? 'this week uses the Default Week, so changes go to the label' :
+    currentWeekSource === 'override' ? 'this week has its own schedule, so changes don’t reach the label this week' :
+    currentWeekSource === 'recurring' ? 'a recurring schedule runs this week, so changes don’t reach the label this week' :
+    undefined;
+
+  useEffect(() => {
+    initLabelSync(devices);
+  }, [devices]);
 
   const persistScheduleAdd = useCallback(async (device: Device, items: MenuItem[], pageId: string) => {
     if (!deviceWeekContext) return false;
@@ -1007,19 +1042,24 @@ function App() {
             preSelectedDevice={projectedWorkflowDevice ?? selectedDevice}
             preSelectedDaypart={workflowDaypart}
             weekContextLabel={deviceWeekContext?.label}
+            weekContextNote={weekContextNote}
             onAddItems={async (device, items, pageId) => {
-              if (await persistScheduleAdd(device, items, pageId)) return;
-              for (const item of items) {
-                await api.assignItemToPage(item.id, device.id, pageId);
+              if (!(await persistScheduleAdd(device, items, pageId))) {
+                for (const item of items) {
+                  await api.assignItemToPage(item.id, device.id, pageId);
+                }
+                const updatedDevices = await api.getDevices();
+                setDevices(updatedDevices);
               }
-              const updatedDevices = await api.getDevices();
-              setDevices(updatedDevices);
+              if (editsReachLabel) recordLabelChange(device.id);
             }}
             onRemoveItem={async (itemId, deviceId, pageId) => {
-              if (await persistScheduleRemove(itemId, deviceId, pageId)) return;
-              await api.removeItemFromPage(itemId, deviceId, pageId);
-              const updatedDevices = await api.getDevices();
-              setDevices(updatedDevices);
+              if (!(await persistScheduleRemove(itemId, deviceId, pageId))) {
+                await api.removeItemFromPage(itemId, deviceId, pageId);
+                const updatedDevices = await api.getDevices();
+                setDevices(updatedDevices);
+              }
+              if (editsReachLabel) recordLabelChange(deviceId);
             }}
             onReorderItems={async (deviceId, pageId, startIndex, endIndex) => {
               if (deviceWeekContext) return;
@@ -1030,6 +1070,7 @@ function App() {
               await api.reorderPageItems(deviceId, pageId, page.itemOrder);
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
+              recordLabelChange(deviceId);
             }}
             onClose={() => {
               setShowDeviceWorkflow(false);
@@ -1039,6 +1080,7 @@ function App() {
               await api.updateDeviceStatus(deviceId, { forcedPage: pageId });
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
+              recordLabelChange(deviceId);
             }}
             setNotifications={setNotifications}
             onCreateMenuItem={async (data) => {
@@ -1067,6 +1109,7 @@ function App() {
               }
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
+              recordLabelChange(device.id);
             }}
             onClose={() => {
               setShowItemWorkflow(false);
@@ -1077,6 +1120,7 @@ function App() {
               await api.updateDeviceStatus(deviceId, { forcedPage: pageId });
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
+              recordLabelChange(deviceId);
             }}
           />
         )}

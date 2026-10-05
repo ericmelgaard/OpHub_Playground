@@ -13,6 +13,7 @@ import {
 import { Device } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SyncStatus } from './SyncStatus';
 
 interface DeviceHeaderProps {
   device: Device;
@@ -106,8 +107,9 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
         </div>
       </div>
 
-      {/* Right: Gear button */}
-      <div className="flex items-center flex-shrink-0">
+      {/* Right: sync status + gear button */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <SyncStatus deviceId={device.id} size="md" showActions />
         <Button
           variant="ghost"
           size="icon"

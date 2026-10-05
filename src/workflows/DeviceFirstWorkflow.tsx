@@ -18,6 +18,8 @@ interface DeviceFirstWorkflowProps {
   preSelectedDevice?: Device;
   preSelectedDaypart?: string | null;
   weekContextLabel?: string;
+  // Shown after the week banner, e.g. when edits there don't push to the label yet
+  weekContextNote?: string;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
@@ -33,6 +35,7 @@ export function DeviceFirstWorkflow({
   preSelectedDevice,
   preSelectedDaypart = null,
   weekContextLabel,
+  weekContextNote,
   onAddItems,
   onRemoveItem,
   onReorderItems,
@@ -410,7 +413,10 @@ export function DeviceFirstWorkflow({
             {weekContextLabel && (
               <div className="flex items-center gap-2 px-4 py-2 bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-800/50 text-sky-700 dark:text-sky-300 text-sm">
                 <Calendar className="h-4 w-4 flex-shrink-0" />
-                <span>Editing <span className="font-semibold">{weekContextLabel}</span> — items come from this week’s schedule</span>
+                <span>
+                  Editing <span className="font-semibold">{weekContextLabel}</span> — items come from this week’s schedule
+                  {weekContextNote && <span className="text-sky-600/80 dark:text-sky-400/80"> · {weekContextNote}</span>}
+                </span>
               </div>
             )}
             <DeviceHeader
