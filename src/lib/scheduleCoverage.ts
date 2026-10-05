@@ -28,28 +28,39 @@ export function countLabelsDifferingFromDefault(
 // Mon–Sun in JS day-of-week numbers.
 export const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 0];
 
+export interface SlotGap {
+  dayOfWeek: number;
+  daypart: string;
+}
+
 // A slot is one label's daypart on one day. Only dayparts a label actually has a
 // page for count, so a label without Late Night never reports a Late Night gap.
+// Returned Mon–Sun, in the label's page order within each day.
+export function getDeviceGaps(device: Device, schedule: DeviceWeekSchedule | undefined): SlotGap[] {
+  const dayparts = [...new Set(device.pages.map(p => p.daypart))];
+  const filled = new Set((schedule?.items ?? []).map(i => `${i.dayOfWeek}|${i.daypart}`));
+  return WEEK_DAYS.flatMap(dayOfWeek =>
+    dayparts
+      .filter(daypart => !filled.has(`${dayOfWeek}|${daypart}`))
+      .map(daypart => ({ dayOfWeek, daypart })),
+  );
+}
+
 export function getWeekCoverage(devices: Device[], schedules: DeviceWeekSchedule[]): DayCoverage[] {
   const scheduleByDevice = new Map(schedules.map(s => [s.deviceId, s]));
+  const gapsByDay = new Map<number, number>();
+  let slotsPerDay = 0;
+  for (const device of devices) {
+    slotsPerDay += new Set(device.pages.map(p => p.daypart)).size;
+    for (const gap of getDeviceGaps(device, scheduleByDevice.get(device.id))) {
+      gapsByDay.set(gap.dayOfWeek, (gapsByDay.get(gap.dayOfWeek) ?? 0) + 1);
+    }
+  }
 
   return WEEK_DAYS.map(dayOfWeek => {
-    let gaps = 0;
-    let totalSlots = 0;
-    for (const device of devices) {
-      const dayparts = new Set(device.pages.map(p => p.daypart));
-      const filled = new Set(
-        (scheduleByDevice.get(device.id)?.items ?? [])
-          .filter(i => i.dayOfWeek === dayOfWeek)
-          .map(i => i.daypart),
-      );
-      for (const daypart of dayparts) {
-        totalSlots++;
-        if (!filled.has(daypart)) gaps++;
-      }
-    }
+    const gaps = gapsByDay.get(dayOfWeek) ?? 0;
     const status: DayCoverageStatus =
-      gaps === 0 ? 'complete' : gaps === totalSlots ? 'empty' : 'partial';
-    return { dayOfWeek, status, gaps, totalSlots };
+      gaps === 0 ? 'complete' : gaps === slotsPerDay ? 'empty' : 'partial';
+    return { dayOfWeek, status, gaps, totalSlots: slotsPerDay };
   });
 }

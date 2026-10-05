@@ -1,4 +1,4 @@
-import { MenuItem, Device, Concept, Company, Store, Placement } from '../types';
+import { MenuItem, Device, DeviceSync, Concept, Company, Store, Placement } from '../types';
 
 // Mock menu items remain unchanged
 export const mockMenuItems: MenuItem[] = [
@@ -148,6 +148,11 @@ const makeDaypartPages = (
   return pages;
 };
 
+const minutesAgo = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+const synced = (min: number): DeviceSync => ({ state: 'synced', lastSyncedAt: minutesAgo(min) });
+const syncing = (lastMin: number): DeviceSync => ({ state: 'syncing', lastSyncedAt: minutesAgo(lastMin) });
+const failed = (lastMin: number, error: string): DeviceSync => ({ state: 'failed', lastSyncedAt: minutesAgo(lastMin), error });
+
 // Mock devices — varied ESL sizes: 2", 3", 4", 7", 11"
 export const mockDevices: Device[] = [
   // 2-inch single-item shelf labels
@@ -156,7 +161,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-DH-001',
     location: 'Main Campus - Dining Hall - Entry Display',
     labelSize: '2-inch',
-    status: { wifiStrength: 4, batteryLevel: 87, currentPage: 'device-1-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 4, batteryLevel: 87, currentPage: 'device-1-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(4) },
     placementId: 'placement-1-1-1',
     assignedItems: [breakfastItems[0]],
     pages: makeDaypartPages('device-1', 1, [breakfastItems[0]], [lunchItems[0]], [dinnerItems[0]], [lateNightItems[0]]),
@@ -166,7 +171,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-SU-002',
     location: 'Main Campus - Student Union - Food Court',
     labelSize: '2-inch',
-    status: { wifiStrength: 3, batteryLevel: 92, currentPage: 'device-2-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 3, batteryLevel: 92, currentPage: 'device-2-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: syncing(38) },
     placementId: 'placement-1-1-2',
     assignedItems: [breakfastItems[1]],
     pages: makeDaypartPages('device-2', 1, [breakfastItems[1]], [lunchItems[1]], [dinnerItems[1]], [lateNightItems[1]]),
@@ -177,7 +182,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-GR-003',
     location: 'Main Campus - Dining Hall - Grill Station',
     labelSize: '3-inch',
-    status: { wifiStrength: 4, batteryLevel: 65, currentPage: 'device-3-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 4, batteryLevel: 65, currentPage: 'device-3-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(4) },
     placementId: 'placement-1-1-1',
     assignedItems: [breakfastItems[4], lunchItems[4], dinnerItems[3]],
     pages: makeDaypartPages('device-3', 1, [breakfastItems[4]], [lunchItems[4]], [dinnerItems[3]], []),
@@ -187,7 +192,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-PIZ-004',
     location: 'Main Campus - Student Union - Pizza Station',
     labelSize: '3-inch',
-    status: { wifiStrength: 2, batteryLevel: 41, currentPage: 'device-4-lunch', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 2, batteryLevel: 41, currentPage: 'device-4-lunch', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(12) },
     placementId: 'placement-1-1-2',
     assignedItems: [lunchItems[0], lateNightItems[0]],
     pages: makeDaypartPages('device-4', 1, [], [lunchItems[0]], [dinnerItems[6]], [lateNightItems[0]]),
@@ -198,7 +203,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-CHEF-005',
     location: 'Main Campus - Dining Hall - Chef Specials',
     labelSize: '4-inch',
-    status: { wifiStrength: 5, batteryLevel: 78, currentPage: 'device-5-lunch', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 5, batteryLevel: 78, currentPage: 'device-5-lunch', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(4) },
     placementId: 'placement-1-1-1',
     assignedItems: [breakfastItems[2], lunchItems[2], dinnerItems[4]],
     pages: makeDaypartPages('device-5', 1, [breakfastItems[2]], [lunchItems[2]], [dinnerItems[4]], []),
@@ -208,7 +213,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-HOSP-006',
     location: 'Regional Hospital - Main Tower - Café Display',
     labelSize: '4-inch',
-    status: { wifiStrength: 3, batteryLevel: 55, currentPage: 'device-6-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 3, batteryLevel: 55, currentPage: 'device-6-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: syncing(41) },
     placementId: 'placement-3-1-1',
     assignedItems: [breakfastItems[3], lunchItems[5]],
     pages: makeDaypartPages('device-6', 1, [breakfastItems[3]], [lunchItems[5]], [], []),
@@ -219,7 +224,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-HOT-007',
     location: 'Main Campus - Dining Hall - Hot Line Menu Board',
     labelSize: '7-inch',
-    status: { wifiStrength: 4, batteryLevel: 72, currentPage: 'device-7-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 4, batteryLevel: 72, currentPage: 'device-7-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(4) },
     placementId: 'placement-1-1-1',
     assignedItems: [breakfastItems[3], breakfastItems[5], breakfastItems[6], lunchItems[3], lunchItems[5], lunchItems[6], dinnerItems[6], dinnerItems[2]],
     pages: makeDaypartPages('device-7', 4, [breakfastItems[3], breakfastItems[5], breakfastItems[6]], [lunchItems[3], lunchItems[5], lunchItems[6]], [dinnerItems[6], dinnerItems[2], dinnerItems[7]], [lateNightItems[2], lateNightItems[3]]),
@@ -229,7 +234,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-SALAD-008',
     location: 'Main Campus - Student Union - Salad Bar Display',
     labelSize: '7-inch',
-    status: { wifiStrength: 1, batteryLevel: 18, currentPage: 'device-8-lunch', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 1, batteryLevel: 18, currentPage: 'device-8-lunch', forcedPage: null, lastUpdated: new Date().toISOString(), sync: failed(185, 'Label did not acknowledge update (weak signal)') },
     placementId: 'placement-1-1-2',
     assignedItems: [lunchItems[1], lunchItems[5], dinnerItems[5]],
     pages: makeDaypartPages('device-8', 4, [], [lunchItems[1], lunchItems[5]], [dinnerItems[5], dinnerItems[6]], []),
@@ -239,7 +244,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-ED-009',
     location: 'Regional Hospital - Emergency Department - Vending Display',
     labelSize: '7-inch',
-    status: { wifiStrength: 0, batteryLevel: 33, currentPage: 'device-9-lunch', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 0, batteryLevel: 33, currentPage: 'device-9-lunch', forcedPage: null, lastUpdated: new Date().toISOString(), sync: failed(1440, 'Label offline') },
     placementId: 'placement-3-1-2',
     assignedItems: [lunchItems[3], lunchItems[7], lateNightItems[1]],
     pages: makeDaypartPages('device-9', 4, [], [lunchItems[3], lunchItems[7]], [], [lateNightItems[1], lateNightItems[2]]),
@@ -250,7 +255,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-ICE-010',
     location: 'Main Campus - Student Union - Ice Cream Cooler',
     labelSize: '11-inch',
-    status: { wifiStrength: 4, batteryLevel: 90, currentPage: 'device-10-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 4, batteryLevel: 90, currentPage: 'device-10-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(9) },
     placementId: 'placement-1-1-2',
     assignedItems: iceCreamItems,
     pages: [
@@ -270,7 +275,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-ICE-011',
     location: 'Regional Hospital - Main Tower - Gift Shop Cooler',
     labelSize: '11-inch',
-    status: { wifiStrength: 3, batteryLevel: 62, currentPage: 'device-11-allday', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 3, batteryLevel: 62, currentPage: 'device-11-allday', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(9) },
     placementId: 'placement-3-1-1',
     assignedItems: [iceCreamItems[0], iceCreamItems[1], iceCreamItems[2], iceCreamItems[3]],
     pages: [
@@ -291,7 +296,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-BAK-012',
     location: 'Main Campus - Dining Hall - Bakery Station',
     labelSize: '2-inch',
-    status: { wifiStrength: 4, batteryLevel: 95, currentPage: 'device-12-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 4, batteryLevel: 95, currentPage: 'device-12-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(4) },
     placementId: 'placement-1-1-1',
     assignedItems: [breakfastItems[6]],
     pages: makeDaypartPages('device-12', 1, [breakfastItems[6]], [lunchItems[3]], [dinnerItems[1]], []),
@@ -301,7 +306,7 @@ export const mockDevices: Device[] = [
     name: 'ESL-COLD-013',
     location: 'Main Campus - Dining Hall - Cold Station',
     labelSize: '3-inch',
-    status: { wifiStrength: 3, batteryLevel: 28, currentPage: 'device-13-breakfast', forcedPage: null, lastUpdated: new Date().toISOString() },
+    status: { wifiStrength: 3, batteryLevel: 28, currentPage: 'device-13-breakfast', forcedPage: null, lastUpdated: new Date().toISOString(), sync: synced(26) },
     placementId: 'placement-1-1-1',
     assignedItems: [breakfastItems[5], lunchItems[1]],
     pages: makeDaypartPages('device-13', 1, [breakfastItems[5]], [lunchItems[1]], [dinnerItems[5]], []),

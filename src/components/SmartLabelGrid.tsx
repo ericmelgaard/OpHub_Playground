@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Device, LabelSize, Placement } from '../types';
+import { Device, DeviceWeekSchedule, LabelSize, Placement } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, BatteryLow } from 'lucide-react';
+import { SyncStatus } from './SyncStatus';
+import { getDeviceGaps, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
+import { DAY_ABBR } from '../lib/availability';
 
 interface SmartLabelGridProps {
   loading: boolean;
@@ -12,6 +15,8 @@ interface SmartLabelGridProps {
   placements: Placement[];
   selectedDaypart: string;
   selectedPlacements: string[];
+  // When given, each card flags the day/daypart slots that have nothing scheduled that week.
+  weekSchedules?: DeviceWeekSchedule[];
 }
 
 const labelSizeConfig: Record<LabelSize, { label: string; aspectClass: string; fontSize: string; capacity: number }> = {
@@ -66,6 +71,7 @@ export function SmartLabelGrid({
   placements,
   selectedDaypart,
   selectedPlacements,
+  weekSchedules,
 }: SmartLabelGridProps) {
   const filteredDevices = useMemo(() => {
     let result = devices;
@@ -84,6 +90,11 @@ export function SmartLabelGrid({
 
     return result;
   }, [devices, searchValue, selectedPlacements]);
+
+  const scheduleByDevice = useMemo(
+    () => (weekSchedules ? new Map(weekSchedules.map(s => [s.deviceId, s])) : null),
+    [weekSchedules],
+  );
 
   if (loading) {
     return (
@@ -125,6 +136,7 @@ export function SmartLabelGrid({
             daypart={selectedDaypart}
             onClick={() => onDeviceSelect(device, selectedDaypart)}
             highlight={searchValue.trim() !== ''}
+            gaps={scheduleByDevice ? getDeviceGaps(device, scheduleByDevice.get(device.id)) : undefined}
           />
         ))}
       </div>
@@ -137,9 +149,10 @@ interface LabelCardProps {
   daypart: string;
   onClick: () => void;
   highlight: boolean;
+  gaps?: SlotGap[];
 }
 
-function LabelCard({ device, daypart, onClick, highlight }: LabelCardProps) {
+function LabelCard({ device, daypart, onClick, highlight, gaps }: LabelCardProps) {
   const config = labelSizeConfig[device.labelSize];
   const BatteryIcon = getBatteryIcon(device.status.batteryLevel);
   const dpStyle = getDaypartStyle(daypart);
@@ -186,9 +199,36 @@ function LabelCard({ device, daypart, onClick, highlight }: LabelCardProps) {
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-700">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-700">
         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{device.location}</p>
+        <SyncStatus sync={device.status.sync} />
       </div>
+
+      {gaps && gaps.length > 0 && <GapNotice gaps={gaps} />}
+    </div>
+  );
+}
+
+// "Breakfast every day · Dinner Thu, Sun"
+function describeGaps(gaps: SlotGap[]): string {
+  const daysByDaypart = new Map<string, number[]>();
+  for (const g of gaps) daysByDaypart.set(g.daypart, [...(daysByDaypart.get(g.daypart) ?? []), g.dayOfWeek]);
+  return [...daysByDaypart]
+    .map(([daypart, days]) =>
+      `${daypart} ${days.length === WEEK_DAYS.length ? 'every day' : days.map(d => DAY_ABBR[d]).join(', ')}`)
+    .join(' · ');
+}
+
+function GapNotice({ gaps }: { gaps: SlotGap[] }) {
+  const detail = describeGaps(gaps);
+  return (
+    <div
+      title={`Nothing scheduled: ${detail}`}
+      className="flex items-center gap-1.5 px-3 py-1.5 border-t border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-700 dark:text-amber-300"
+    >
+      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+      <span className="font-semibold whitespace-nowrap">{gaps.length} {gaps.length === 1 ? 'gap' : 'gaps'}</span>
+      <span className="truncate text-amber-600 dark:text-amber-400">{detail}</span>
     </div>
   );
 }

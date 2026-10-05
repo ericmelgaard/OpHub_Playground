@@ -41,6 +41,15 @@ export interface DevicePage {
 
 export type LabelSize = '2-inch' | '3-inch' | '4-inch' | '7-inch' | '11-inch';
 
+// Push state between us and the label partner. Mocked until the partner API reports it.
+export type SyncState = 'synced' | 'syncing' | 'failed';
+
+export interface DeviceSync {
+  state: SyncState;
+  lastSyncedAt: string; // last successful sync
+  error?: string;       // set when state is failed
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -52,6 +61,7 @@ export interface Device {
     currentPage: string;
     forcedPage: string | null;
     lastUpdated: string;
+    sync?: DeviceSync;
   };
   pages: DevicePage[];
   assignedItems: MenuItem[];

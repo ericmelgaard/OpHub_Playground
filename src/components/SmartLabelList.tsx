@@ -6,6 +6,7 @@ import {
   BatteryLow, ChevronRight, Calendar, Tag,
 } from 'lucide-react';
 import { DAY_ABBR } from '../lib/availability';
+import { SyncStatus } from './SyncStatus';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -20,8 +21,6 @@ interface SmartLabelListProps {
   weekSchedules: DeviceWeekSchedule[];
   // When given, days whose items differ from the Default Week are marked as overrides.
   defaultSchedules?: DeviceWeekSchedule[];
-  // Day picked in the schedule day selector; highlighted in each row's strip.
-  selectedDay?: number | null;
 }
 
 const labelSizeLabels: Record<LabelSize, string> = {
@@ -66,7 +65,6 @@ export function SmartLabelList({
   selectedWeekStart,
   weekSchedules,
   defaultSchedules,
-  selectedDay = null,
 }: SmartLabelListProps) {
   const filteredDevices = useMemo(() => {
     let result = devices;
@@ -146,7 +144,6 @@ export function SmartLabelList({
           defaultSchedule={defaultSchedules ? defaultByDevice.get(device.id) : undefined}
           compareToDefault={!!defaultSchedules}
           selectedWeekStart={selectedWeekStart}
-          selectedDay={selectedDay}
         />
       ))}
     </div>
@@ -161,7 +158,6 @@ interface LabelRowProps {
   defaultSchedule?: DeviceWeekSchedule;
   compareToDefault: boolean;
   selectedWeekStart: string | null;
-  selectedDay: number | null;
 }
 
 type DayState = 'default' | 'override' | 'missing';
@@ -174,7 +170,7 @@ function mrnsFor(schedule: DeviceWeekSchedule | undefined, daypart: string, dow:
     .join(',');
 }
 
-function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart, selectedDay }: LabelRowProps) {
+function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart }: LabelRowProps) {
   const BattIcon = getBatteryIcon(device.status.batteryLevel);
   const page = device.pages.find(p => p.daypart === daypart);
   const items = page?.assignedItems ?? [];
@@ -216,19 +212,22 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
       <span className="hidden lg:block text-sm text-gray-600 dark:text-gray-400 truncate">{device.location}</span>
 
       {/* Status indicators */}
-      <div className="hidden lg:flex items-center gap-3">
-        <div className="flex items-center gap-1">
-          {device.status.wifiStrength > 0 ? (
-            <Wifi className={`h-3.5 w-3.5 ${getWifiColor(device.status.wifiStrength)}`} />
-          ) : (
-            <WifiOff className="h-3.5 w-3.5 text-red-500" />
-          )}
-          <span className="text-xs text-gray-500">{device.status.wifiStrength > 0 ? 'Online' : 'Offline'}</span>
+      <div className="hidden lg:flex flex-col items-start gap-1">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            {device.status.wifiStrength > 0 ? (
+              <Wifi className={`h-3.5 w-3.5 ${getWifiColor(device.status.wifiStrength)}`} />
+            ) : (
+              <WifiOff className="h-3.5 w-3.5 text-red-500" />
+            )}
+            <span className="text-xs text-gray-500">{device.status.wifiStrength > 0 ? 'Online' : 'Offline'}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <BattIcon className={`h-3.5 w-3.5 ${getBatteryColor(device.status.batteryLevel)}`} />
+            <span className="text-xs text-gray-500">{device.status.batteryLevel}%</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <BattIcon className={`h-3.5 w-3.5 ${getBatteryColor(device.status.batteryLevel)}`} />
-          <span className="text-xs text-gray-500">{device.status.batteryLevel}%</span>
-        </div>
+        <SyncStatus sync={device.status.sync} />
       </div>
 
       {/* Current daypart items */}
@@ -259,7 +258,6 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
           dayStates={dayStates}
           isFutureWeek={isFutureWeek}
           hasSchedule={!!schedule}
-          selectedDay={selectedDay}
         />
       </div>
 
@@ -290,17 +288,15 @@ function DayStrip({
   dayStates,
   isFutureWeek,
   hasSchedule,
-  selectedDay,
 }: {
   dayStates: Map<number, DayState>;
   isFutureWeek: boolean;
   hasSchedule: boolean;
-  selectedDay: number | null;
 }) {
   const days = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
   const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const today = new Date().getDay();
-  const highlighted = selectedDay ?? (isFutureWeek ? null : today);
+  const highlighted = isFutureWeek ? null : today;
 
   if (!isFutureWeek && !hasSchedule) {
     return (
