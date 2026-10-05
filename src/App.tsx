@@ -1043,6 +1043,7 @@ function App() {
             preSelectedDaypart={workflowDaypart}
             weekContextLabel={deviceWeekContext?.label}
             weekContextNote={weekContextNote}
+            onLabelContentChange={deviceId => { if (editsReachLabel) recordLabelChange(deviceId); }}
             onAddItems={async (device, items, pageId) => {
               if (!(await persistScheduleAdd(device, items, pageId))) {
                 for (const item of items) {
@@ -1062,7 +1063,11 @@ function App() {
               if (editsReachLabel) recordLabelChange(deviceId);
             }}
             onReorderItems={async (deviceId, pageId, startIndex, endIndex) => {
-              if (deviceWeekContext) return;
+              // Week schedules don't persist order yet, but the page shows the new order
+              if (deviceWeekContext) {
+                if (editsReachLabel) recordLabelChange(deviceId);
+                return;
+              }
               const device = devices.find(d => d.id === deviceId);
               if (!device) return;
               const page = device.pages.find(p => p.id === pageId);

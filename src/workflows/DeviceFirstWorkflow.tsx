@@ -20,6 +20,8 @@ interface DeviceFirstWorkflowProps {
   weekContextLabel?: string;
   // Shown after the week banner, e.g. when edits there don't push to the label yet
   weekContextNote?: string;
+  // Edits kept on this page only (display toggles, substitutions, auto-fill) that still change the label
+  onLabelContentChange?: (deviceId: string) => void;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
@@ -36,6 +38,7 @@ export function DeviceFirstWorkflow({
   preSelectedDaypart = null,
   weekContextLabel,
   weekContextNote,
+  onLabelContentChange,
   onAddItems,
   onRemoveItem,
   onReorderItems,
@@ -137,11 +140,13 @@ export function DeviceFirstWorkflow({
       ),
       { ...sub, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
     ]);
-  }, []);
+    if (optimisticDevice) onLabelContentChange?.(optimisticDevice.id);
+  }, [optimisticDevice, onLabelContentChange]);
 
   const handleRemoveSubstitution = useCallback((id: string) => {
     setSubstitutions(prev => prev.filter(s => s.id !== id));
-  }, []);
+    if (optimisticDevice) onLabelContentChange?.(optimisticDevice.id);
+  }, [optimisticDevice, onLabelContentChange]);
 
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
   const stations = ['all', ...new Set(menuItems.map(item => item.mealStation))];
@@ -314,6 +319,7 @@ export function DeviceFirstWorkflow({
       }
       return { ...prev, [pageId]: pageToggles };
     });
+    onLabelContentChange?.(device.id);
   };
 
   const handleForcePage = (pageId: string | null) => {
@@ -471,7 +477,10 @@ export function DeviceFirstWorkflow({
           isOpen={showConfigPage}
           onClose={handleCloseConfig}
           autoFillEnabled={autoFillEnabled}
-          onAutoFillToggle={() => setAutoFillEnabled(prev => !prev)}
+          onAutoFillToggle={() => {
+            setAutoFillEnabled(prev => !prev);
+            onLabelContentChange?.(optimisticDevice.id);
+          }}
           deviceGroup={deviceGroup}
           groupBrands={groupBrands}
         />

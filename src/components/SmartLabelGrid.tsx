@@ -199,9 +199,9 @@ function LabelCard({ device, daypart, onClick, highlight, gaps }: LabelCardProps
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-700">
+      <div className="px-3 py-2 space-y-1.5 border-t border-gray-100 dark:border-gray-700">
         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{device.location}</p>
-        <SyncStatus deviceId={device.id} />
+        <SyncStatus deviceId={device.id} size="md" showActions />
       </div>
 
       {gaps && gaps.length > 0 && <GapNotice gaps={gaps} />}
