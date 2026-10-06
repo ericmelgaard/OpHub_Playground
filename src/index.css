@@ -232,3 +232,68 @@ body {
     animation: none;
   }
 }
+
+/* Product refresh */
+@keyframes refresh-flow {
+  0% { left: -12px; opacity: 0; transform: scale(0.6); }
+  15% { opacity: 1; transform: scale(1); }
+  85% { opacity: 1; transform: scale(1); }
+  100% { left: 100%; opacity: 0; transform: scale(0.6); }
+}
+
+.refresh-flow-dot {
+  left: -12px;
+  animation: refresh-flow 1.4s ease-in-out infinite;
+}
+
+@keyframes refresh-endpoint-pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.refresh-endpoint-pulse {
+  animation: refresh-endpoint-pulse 1.6s ease-out infinite;
+}
+
+@keyframes refresh-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 28px 0; }
+}
+
+.refresh-progress-stripes {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.25) 25%, transparent 25%, transparent 50%,
+    rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.25) 75%, transparent 75%, transparent
+  );
+  background-size: 28px 28px;
+  animation: refresh-stripes 0.8s linear infinite;
+}
+
+@keyframes refresh-sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.refresh-sheet-in {
+  animation: refresh-sheet-in 0.25s ease-out;
+}
+
+@keyframes refresh-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.refresh-sheet-fade {
+  animation: refresh-sheet-fade 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh-flow-dot,
+  .refresh-endpoint-pulse,
+  .refresh-progress-stripes,
+  .refresh-sheet-in,
+  .refresh-sheet-fade {
+    animation: none;
+  }
+}

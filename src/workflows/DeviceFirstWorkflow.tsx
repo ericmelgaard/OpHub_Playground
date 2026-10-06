@@ -2,21 +2,21 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
 import { buildSubstitutionMap } from '../lib/substitutions';
-import { DeviceModal } from '../components/DeviceModal';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
 import { ItemSelectionModal } from '../components/ItemSelectionModal';
 import { DeviceHeader } from '../components/DeviceHeader';
 import { DeviceConfigPage } from '../components/DeviceConfigPage';
 import { DisplayToggle } from '../components/InlineItemPicker';
-import { mockPlacements } from '../services/mockData';
 import { useModalHistory } from '../hooks/useModalHistory';
 import { api } from '../services/api';
 
 interface DeviceFirstWorkflowProps {
   devices: Device[];
   menuItems: MenuItem[];
-  preSelectedDevice?: Device;
+  preSelectedDevice: Device;
   preSelectedDaypart?: string | null;
+  // Prefills the Available Items search, e.g. with a product chosen on Products
+  initialItemSearch?: string;
   weekContextLabel?: string;
   // Shown after the week banner, e.g. when edits there don't push to the label yet
   weekContextNote?: string;
@@ -36,6 +36,7 @@ export function DeviceFirstWorkflow({
   menuItems,
   preSelectedDevice,
   preSelectedDaypart = null,
+  initialItemSearch = '',
   weekContextLabel,
   weekContextNote,
   onLabelContentChange,
@@ -47,8 +48,7 @@ export function DeviceFirstWorkflow({
   setNotifications,
   onCreateMenuItem,
 }: DeviceFirstWorkflowProps) {
-  const [showDeviceModal, setShowDeviceModal] = useState(!preSelectedDevice);
-  const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(!!preSelectedDevice);
+  const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(true);
   const [showItemSelectionModal, setShowItemSelectionModal] = useState(false);
   const [showConfigPage, setShowConfigPage] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(preSelectedDevice || null);
@@ -59,7 +59,6 @@ export function DeviceFirstWorkflow({
   const [optimisticDevice, setOptimisticDevice] = useState<Device | null>(
     preSelectedDevice ? JSON.parse(JSON.stringify(preSelectedDevice)) : null
   );
-  const [deviceSearchValue, setDeviceSearchValue] = useState('');
   const [itemSearchValue, setItemSearchValue] = useState('');
   const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
   const [selectedStation, setSelectedStation] = useState('all');
@@ -152,7 +151,6 @@ export function DeviceFirstWorkflow({
   const stations = ['all', ...new Set(menuItems.map(item => item.mealStation))];
 
   const handleCloseModals = () => {
-    setShowDeviceModal(false);
     setShowDeviceSettingsModal(false);
     setShowItemSelectionModal(false);
     setShowConfigPage(false);
@@ -163,14 +161,6 @@ export function DeviceFirstWorkflow({
     setLastAssignedPageId(null);
     setDuplicateCount(0);
     onClose();
-  };
-
-  const handleDeviceSelect = (device: Device) => {
-    const deviceClone = JSON.parse(JSON.stringify(device));
-    setSelectedDevice(deviceClone);
-    setOptimisticDevice(deviceClone);
-    setShowDeviceModal(false);
-    setShowDeviceSettingsModal(true);
   };
 
   const handleAddItems = (device: Device, pageId: string) => {
@@ -369,16 +359,13 @@ export function DeviceFirstWorkflow({
     setShowConfigPage(false);
   };
 
-  const deviceModalState = { id: 'device-select', isOpen: showDeviceModal };
   const settingsModalState = { id: 'device-settings', isOpen: showDeviceSettingsModal };
   const itemSelectionModalState = { id: 'item-selection', isOpen: showItemSelectionModal };
   const configPageState = { id: 'device-config', isOpen: showConfigPage };
 
-  useModalHistory(deviceModalState, handleCloseModals, true);
-  useModalHistory(settingsModalState, () => {
-    setShowDeviceSettingsModal(false);
-    setShowDeviceModal(true);
-  });
+  // The device page is the entry point (labels are picked on the Smart Labels
+  // grid or the label picker), so Back closes it.
+  useModalHistory(settingsModalState, handleCloseModals, true);
   useModalHistory(itemSelectionModalState, () => {
     setShowItemSelectionModal(false);
     setShowDeviceSettingsModal(true);
@@ -387,23 +374,9 @@ export function DeviceFirstWorkflow({
 
   return (
     <>
-      <DeviceModal
-        showDeviceModal={showDeviceModal}
-        deviceSearchValue={deviceSearchValue}
-        setDeviceSearchValue={setDeviceSearchValue}
-        selectedLocation="all"
-        setSelectedLocation={() => {}}
-        filteredDevices={devices}
-        locations={[]}
-        mode="manage"
-        onDeviceSelect={handleDeviceSelect}
-        selectedItems={[]}
-        onClose={handleCloseModals}
-        placements={mockPlacements}
-      />
-
       <DeviceSettingsModal
         showDeviceSettingsModal={showDeviceSettingsModal}
+        initialItemSearch={initialItemSearch}
         selectedDeviceSettings={optimisticDevice}
         setShowDeviceSettingsModal={setShowDeviceSettingsModal}
         setSelectedDeviceSettings={setOptimisticDevice}

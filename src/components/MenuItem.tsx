@@ -27,6 +27,7 @@ interface MenuItemProps {
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
   selectedCycleWeek?: number;
+  refreshTag?: 'new' | 'updated';
 }
 
 function getWeekDateRange(weekOffset: number): { start: Date; end: Date } {
@@ -57,6 +58,7 @@ export function MenuItem({
   devices,
   onEdit,
   selectedCycleWeek,
+  refreshTag,
 }: MenuItemProps) {
   const [showOptions, setShowOptions] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState(false);
@@ -517,6 +519,7 @@ export function MenuItem({
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               MRN: {item.mrn}
             </span>
+            {refreshTag && <RefreshTagBadge tag={refreshTag} />}
             {isInSelectedChannel && (
               <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
             )}
@@ -599,6 +602,7 @@ export function MenuItem({
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               MRN: {item.mrn}
             </span>
+            {refreshTag && <RefreshTagBadge tag={refreshTag} />}
             {isInSelectedChannel && (
               <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
             )}
@@ -663,5 +667,13 @@ export function MenuItem({
       </CardFooter>
     </Card>
     </>
+  );
+}
+
+function RefreshTagBadge({ tag }: { tag: 'new' | 'updated' }) {
+  return tag === 'new' ? (
+    <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold text-white">New</span>
+  ) : (
+    <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">Updated</span>
   );
 }

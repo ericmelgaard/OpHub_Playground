@@ -54,6 +54,8 @@ interface DeviceSettingsModalProps {
   autoFillEnabled?: boolean;
   autoFillItemIds?: Set<number>;
   autoFillPages?: Map<string, MenuItem[]>;
+  // Starting text for the Available Items search
+  initialItemSearch?: string;
 }
 
 const getDaypartColor = (daypart: string) => {
@@ -115,6 +117,7 @@ export function DeviceSettingsModal({
   setNotifications,
   selectedDaypart = null,
   onSelectedDaypartChange,
+  initialItemSearch = '',
   menuItems = [],
   onInlineAddItems,
   onInlineRemoveItems,
@@ -132,7 +135,7 @@ export function DeviceSettingsModal({
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
   const [selectedDay, setSelectedDay] = useState<number | 'every-day'>(() => new Date().getDay());
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState(initialItemSearch);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<number>>(new Set());
 
@@ -158,7 +161,8 @@ export function DeviceSettingsModal({
 
   const [stationFilter, setStationFilter] = useState('all');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [showNotAvailable, setShowNotAvailable] = useState(false);
+  // Open when arriving with a search, so a product not offered today still shows
+  const [showNotAvailable, setShowNotAvailable] = useState(!!initialItemSearch);
   const [showNotAvailableAssigned, setShowNotAvailableAssigned] = useState(false);
   const [confirmClearPage, setConfirmClearPage] = useState(false);
   const [actionSheetState, setActionSheetState] = useState<{

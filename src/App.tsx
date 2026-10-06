@@ -4,7 +4,6 @@ import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { ensureWeekData, ensureCurrentAndNextWeek, WeekLoadStatus } from './services/menuDataLoader';
 import { MenuItems } from './components/MenuItems';
-import { DeviceGrid } from './components/DeviceGrid';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
 import { WeekScheduleBar, getWeekStartString } from './components/WeekScheduleBar';
@@ -12,6 +11,7 @@ import { resolveWeekSchedules, getScheduleSource, ScheduleSource } from './lib/w
 import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
 import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
 import { initLabelSync, recordLabelChange } from './lib/labelSync';
+import { useProductRefresh, ProductRefreshButton, ProductRefreshSheet, RefreshAge } from './components/ProductRefresh';
 import { DaypartSelector } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
@@ -19,7 +19,7 @@ import { FilterSidebar } from './components/FilterSidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
-import { ItemFirstWorkflow } from './workflows/ItemFirstWorkflow';
+import { LabelPickerSheet } from './components/LabelPickerSheet';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
 import { SettingsPage } from './components/SettingsPage';
@@ -165,9 +165,11 @@ function App() {
   const [showCreateRuleModal, setShowCreateRuleModal] = useState(false);
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
-  const [showItemWorkflow, setShowItemWorkflow] = useState(false);
+  // Product-first placement: pick a label, then open its device page with the
+  // product's name in the Available Items search (same pattern as "Show")
+  const [showLabelPicker, setShowLabelPicker] = useState(false);
+  const [deviceItemSearch, setDeviceItemSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [workflowType, setWorkflowType] = useState<'manage' | 'assign' | null>(null);
 
   // Quick Action Configuration
   const getDefaultQuickActionConfigs = (): QuickActionConfig[] => [
@@ -653,6 +655,39 @@ function App() {
     setActiveFilters([]);
   }, []);
 
+  // Product refresh from Webtrition (simulated). Applied to the in-memory list;
+  // added/changed products are tagged in the list until the next refresh.
+  const [refreshTags, setRefreshTags] = useState<Map<number, 'new' | 'updated'>>(new Map());
+  const productRefresh = useProductRefresh(menuItems, (items, report) => {
+    setMenuItems(items);
+    setRefreshTags(new Map([
+      ...report.added.map(i => [i.id, 'new'] as const),
+      ...report.changed.map(c => [c.item.id, 'updated'] as const),
+    ]));
+  });
+
+  const handleShowRefreshedProduct = useCallback((item: MenuItem) => {
+    productRefresh.closeSheet();
+    handleQuickActionSelect('products');
+    setSearchValue(item.name);
+  }, [productRefresh.closeSheet, handleQuickActionSelect]);
+
+  const handlePlaceRefreshedProduct = useCallback((item: MenuItem) => {
+    productRefresh.closeSheet();
+    setSelectedItem(item);
+    setShowLabelPicker(true);
+  }, [productRefresh.closeSheet]);
+
+  const handleLabelPickedForItem = useCallback((device: Device, daypart: string) => {
+    setShowLabelPicker(false);
+    setDeviceItemSearch(selectedItem?.name ?? '');
+    setSelectedDevice(device);
+    setWorkflowDaypart(daypart);
+    // Same context as opening a label from Smart Labels
+    setDeviceWeekContext({ isDefault: false, weekStart: getWeekStartString(0), label: 'This Week' });
+    setShowDeviceWorkflow(true);
+  }, [selectedItem]);
+
   const handleCustomize = useCallback(() => {
     setShowCustomizeModal(true);
   }, []);
@@ -801,19 +836,23 @@ function App() {
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border rounded-lg shadow-sm" style={{ borderColor: 'rgb(0, 173, 240)' }}>
                       <Database className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
                       <span className="text-sm font-medium" style={{ color: 'rgb(0, 173, 240)' }}>Webtrition</span>
+                      <RefreshAge refresh={productRefresh} />
                     </div>
                   )}
                 </div>
 
                 {selectedQuickAction === 'products' && (
-                  <button
-                    onClick={() => setShowCreateItemModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
-                    style={{ backgroundColor: 'rgb(0, 173, 240)' }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Create Product</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <ProductRefreshButton refresh={productRefresh} />
+                    <button
+                      onClick={() => setShowCreateItemModal(true)}
+                      className="flex items-center gap-2 h-11 px-4 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
+                      style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Create Product</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -950,17 +989,14 @@ function App() {
                         setSelectedItem={(item) => {
                           setSelectedItem(item);
                         }}
-                        setShowDeviceModal={(show) => {
-                          setShowItemWorkflow(show);
-                        }}
+                        setShowDeviceModal={setShowLabelPicker}
                         setShowPageSelectionModal={() => {}}
-                        setWorkflowType={(type) => {
-                          setWorkflowType(type);
-                        }}
+                        setWorkflowType={() => {}}
                         devices={devices}
                         searchValue={searchValue}
                         activeFilters={activeFilters}
                         onFilteredCountChange={setFilteredItemCount}
+                        refreshTags={refreshTags}
                         selectedCycleWeek={selectedCycleWeek}
                       />
                     </div>
@@ -1027,6 +1063,13 @@ function App() {
           />
         )}
 
+        <ProductRefreshSheet
+          refresh={productRefresh}
+          devices={devices}
+          onShowProduct={handleShowRefreshedProduct}
+          onPlaceOnLabel={handlePlaceRefreshedProduct}
+        />
+
         <CustomizeQuickActionsModal
           isOpen={showCustomizeModal}
           onClose={() => setShowCustomizeModal(false)}
@@ -1041,6 +1084,7 @@ function App() {
             menuItems={menuItems}
             preSelectedDevice={projectedWorkflowDevice ?? selectedDevice}
             preSelectedDaypart={workflowDaypart}
+            initialItemSearch={deviceItemSearch}
             weekContextLabel={deviceWeekContext?.label}
             weekContextNote={weekContextNote}
             onLabelContentChange={deviceId => { if (editsReachLabel) recordLabelChange(deviceId); }}
@@ -1079,6 +1123,7 @@ function App() {
             }}
             onClose={() => {
               setShowDeviceWorkflow(false);
+              setDeviceItemSearch('');
               setSelectedDevice(null);
             }}
             onForcePage={async (deviceId, pageId) => {
@@ -1103,32 +1148,16 @@ function App() {
           </div>
         )}
 
-        {showItemWorkflow && selectedItem && (
-          <ItemFirstWorkflow
-            devices={devices}
-            menuItems={menuItems}
-            selectedItem={selectedItem}
-            onAssignToPage={async (device, items, pageId) => {
-              for (const item of items) {
-                await api.assignItemToPage(item.id, device.id, pageId);
-              }
-              const updatedDevices = await api.getDevices();
-              setDevices(updatedDevices);
-              recordLabelChange(device.id);
-            }}
-            onClose={() => {
-              setShowItemWorkflow(false);
-              setSelectedItem(null);
-              setWorkflowType(null);
-            }}
-            onForcePage={async (deviceId, pageId) => {
-              await api.updateDeviceStatus(deviceId, { forcedPage: pageId });
-              const updatedDevices = await api.getDevices();
-              setDevices(updatedDevices);
-              recordLabelChange(deviceId);
-            }}
-          />
-        )}
+        <LabelPickerSheet
+          item={showLabelPicker ? selectedItem : null}
+          devices={devices}
+          placements={placements}
+          loading={loadingDevices}
+          error={deviceError}
+          initialDaypart={selectedDaypart}
+          onPick={handleLabelPickedForItem}
+          onClose={() => setShowLabelPicker(false)}
+        />
       </div>
       <LocationChangeOverlay
         locationLabel={locationChangeInfo.label}

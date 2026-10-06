@@ -32,6 +32,8 @@ interface MenuItemsProps {
   activeFilters?: FilterConfig[];
   onFilteredCountChange?: (count: number) => void;
   selectedCycleWeek?: number;
+  // Products added or changed by the last refresh, shown with a badge
+  refreshTags?: Map<number, 'new' | 'updated'>;
 }
 
 export function MenuItems({
@@ -54,6 +56,7 @@ export function MenuItems({
   activeFilters = [],
   onFilteredCountChange,
   selectedCycleWeek,
+  refreshTags,
 }: MenuItemsProps) {
   const applyFilters = (item: MenuItemType): boolean => {
     if (activeFilters.length === 0) return true;
@@ -169,6 +172,7 @@ export function MenuItems({
             devices={devices}
             onEdit={onEdit}
             selectedCycleWeek={selectedCycleWeek}
+            refreshTag={refreshTags?.get(item.id)}
           />
         ))}
       </div>
@@ -235,6 +239,7 @@ export function MenuItems({
                 devices={devices}
                 onEdit={onEdit}
                 selectedCycleWeek={selectedCycleWeek}
+                refreshTag={refreshTags?.get(item.id)}
               />
             ))}
           </CardContent>
