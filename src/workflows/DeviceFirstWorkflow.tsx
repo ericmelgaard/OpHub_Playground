@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
 import { buildSubstitutionMap } from '../lib/substitutions';
+import { formatWeekRange } from '../lib/weekSchedule';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
 import { ItemSelectionModal } from '../components/ItemSelectionModal';
 import { DeviceHeader } from '../components/DeviceHeader';
@@ -17,6 +18,8 @@ interface DeviceFirstWorkflowProps {
   preSelectedDaypart?: string | null;
   // Prefills the Available Items search, e.g. with a product chosen on Products
   initialItemSearch?: string;
+  // Monday (YYYY-MM-DD) of the week being edited, if any
+  weekStart?: string | null;
   weekContextLabel?: string;
   // Shown after the week banner, e.g. when edits there don't push to the label yet
   weekContextNote?: string;
@@ -37,6 +40,7 @@ export function DeviceFirstWorkflow({
   preSelectedDevice,
   preSelectedDaypart = null,
   initialItemSearch = '',
+  weekStart = null,
   weekContextLabel,
   weekContextNote,
   onLabelContentChange,
@@ -377,6 +381,7 @@ export function DeviceFirstWorkflow({
       <DeviceSettingsModal
         showDeviceSettingsModal={showDeviceSettingsModal}
         initialItemSearch={initialItemSearch}
+        weekStart={weekStart}
         selectedDeviceSettings={optimisticDevice}
         setShowDeviceSettingsModal={setShowDeviceSettingsModal}
         setSelectedDeviceSettings={setOptimisticDevice}
@@ -393,7 +398,9 @@ export function DeviceFirstWorkflow({
               <div className="flex items-center gap-2 px-4 py-2 bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-800/50 text-sky-700 dark:text-sky-300 text-sm">
                 <Calendar className="h-4 w-4 flex-shrink-0" />
                 <span>
-                  Editing <span className="font-semibold">{weekContextLabel}</span> — items come from this week’s schedule
+                  Editing <span className="font-semibold">{weekContextLabel}</span>
+                  {weekStart && <span className="font-medium"> · {formatWeekRange(weekStart)}</span>}
+                  {' '}— items come from this week’s schedule
                   {weekContextNote && <span className="text-sky-600/80 dark:text-sky-400/80"> · {weekContextNote}</span>}
                 </span>
               </div>

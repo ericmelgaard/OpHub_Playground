@@ -8,7 +8,6 @@ import {
   Plus,
   AlertTriangle,
   Search,
-  Calendar,
   ArrowLeftRight,
 } from 'lucide-react';
 import { Device, MenuItem, DevicePage as DevicePageType, Substitution, SubstitutionKey, SubstitutionContext, ResolvedItem } from '../types';
@@ -23,6 +22,8 @@ import { ItemActionSheet } from './ItemActionSheet';
 import { SubstitutionFlow } from './SubstitutionFlow';
 import { PageActionBar } from './PageActionBar';
 import type { DisplayToggle } from './InlineItemPicker';
+import { LabelAnchor } from './LabelAnchor';
+import { getShownItems } from '../lib/labelDisplay';
 
 interface DeviceSettingsModalProps {
   showDeviceSettingsModal: boolean;
@@ -56,6 +57,8 @@ interface DeviceSettingsModalProps {
   autoFillPages?: Map<string, MenuItem[]>;
   // Starting text for the Available Items search
   initialItemSearch?: string;
+  // Monday (YYYY-MM-DD) of the week being edited, for the day strip's dates
+  weekStart?: string | null;
 }
 
 const getDaypartColor = (daypart: string) => {
@@ -118,6 +121,7 @@ export function DeviceSettingsModal({
   selectedDaypart = null,
   onSelectedDaypartChange,
   initialItemSearch = '',
+  weekStart = null,
   menuItems = [],
   onInlineAddItems,
   onInlineRemoveItems,
@@ -160,7 +164,6 @@ export function DeviceSettingsModal({
   );
 
   const [stationFilter, setStationFilter] = useState('all');
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
   // Open when arriving with a search, so a product not offered today still shows
   const [showNotAvailable, setShowNotAvailable] = useState(!!initialItemSearch);
   const [showNotAvailableAssigned, setShowNotAvailableAssigned] = useState(false);
@@ -333,10 +336,13 @@ export function DeviceSettingsModal({
     }
   };
 
-  const showingCount = currentPage ? currentPage.assignedItems.filter(item => {
-    const t = itemDisplayToggles[currentPage.id]?.[item.id] ?? 'auto';
-    return t === 'on' || (t === 'auto' && getDisplayedItems(currentPage).some(d => d.id === item.id));
-  }).length : 0;
+  // Same rule the label preview uses, so the list, counts and preview agree
+  const shownIds = new Set(
+    currentPage
+      ? getShownItems(currentPage, dayNum, itemDisplayToggles[currentPage.id], substitutionMap).map(r => r.originalItemId)
+      : [],
+  );
+  const showingCount = shownIds.size;
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -345,130 +351,46 @@ export function DeviceSettingsModal({
         {header}
       </div>
 
-      {/* Filter bar: daypart selector + day selector + more filters */}
-      <div className="flex flex-col sm:flex-row gap-3 px-4 sm:px-6 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        {/* Daypart selector */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin flex-shrink-0">
-          <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0 mr-1" />
-          <button
-            onClick={() => { setInternalDaypart(null); onSelectedDaypartChange?.(null); }}
-            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex-shrink-0 ${
-              activeDaypart === null
-                ? 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
-                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >All</button>
-          {device.pages.map(page => (
-            <button
-              key={page.id}
-              onClick={() => { setInternalDaypart(page.daypart); onSelectedDaypartChange?.(page.daypart); }}
-              className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex-shrink-0 ${
-                activeDaypart === page.daypart
-                  ? `${getDaypartBg(page.daypart)} ${getDaypartColor(page.daypart)} border-current`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >{page.daypart}</button>
-          ))}
-        </div>
-
-        {/* Divider */}
-        <div className="hidden sm:block w-px h-8 bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
-
-        {/* Day selector */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin flex-shrink-0">
-          <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0 mr-1" />
-          {DAY_OPTIONS.map(d => {
-            const isSel = selectedDay === d.value;
-            const isToday = d.value === new Date().getDay();
-            return (
-              <button
-                key={d.value}
-                onClick={() => setSelectedDay(d.value)}
-                className={`relative px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex-shrink-0 min-w-[44px] ${
-                  isSel ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
-                  : isToday ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 border-sky-300 dark:border-sky-700'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-              >
-                {d.label}
-                {isToday && !isSel && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-sky-500" />}
-              </button>
-            );
-          })}
-          <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 flex-shrink-0 mx-1" />
-          <button
-            onClick={() => setSelectedDay('every-day')}
-            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex-shrink-0 whitespace-nowrap ${
-              selectedDay === 'every-day'
-                ? 'bg-gray-600 text-white border-gray-600 shadow-sm'
-                : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >Every Day</button>
-        </div>
-
-        {/* More Filters button */}
-        <button
-          onClick={() => setShowMoreFilters(!showMoreFilters)}
-          className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex-shrink-0 whitespace-nowrap ${
-            showMoreFilters || stationFilter !== 'all'
-              ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-300 text-sky-600 dark:text-sky-400'
-              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-        >
-          More Filters
-          {stationFilter !== 'all' && (
-            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-[16px] px-1 text-[10px] font-semibold text-white rounded-full bg-sky-500">1</span>
-          )}
-        </button>
-      </div>
-
-      {/* More Filters expandable */}
-      {showMoreFilters && (
-        <div className="flex items-center gap-3 px-4 sm:px-6 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Station:</span>
-          <select
-            value={stationFilter}
-            onChange={(e) => setStationFilter(e.target.value)}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-400"
-          >
-            <option value="all">All Stations</option>
-            {stations.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      )}
-
-      {/* Main content area */}
-      <div className="flex-1 overflow-hidden">
+      {/* Main content area: the label as an anchor, then the page and products */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col lg:flex-row">
+        <LabelAnchor
+          device={device}
+          activeDaypart={activeDaypart}
+          onSelectDaypart={(d) => { setInternalDaypart(d); onSelectedDaypartChange?.(d); }}
+          selectedDay={selectedDay}
+          onSelectDay={setSelectedDay}
+          toggles={itemDisplayToggles}
+          substitutionMap={substitutionMap}
+          weekStart={weekStart}
+          highlightItemId={actionSheetState.isOpen ? actionSheetState.resolvedItem?.originalItemId : null}
+          onItemTap={handleItemTap}
+        />
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
         {currentPage ? (
           <DragDropContext onDragEnd={handleDragEnd}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full p-4 sm:px-6">
               {/* Left: Assigned items */}
               <div className="flex flex-col min-h-0">
                 <div className={`px-4 py-3 rounded-t-lg border-b dark:border-gray-700 ${getDaypartBg(currentPage.daypart)} flex-shrink-0`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <Clock className={`h-4 w-4 ${getDaypartColor(currentPage.daypart)}`} />
-                      <h4 className={`text-sm font-semibold ${getDaypartColor(currentPage.daypart)}`}>{currentPage.daypart}</h4>
-                    </div>
-                    <Badge variant="secondary">Page {currentPage.name.split(' ')[1]}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {showingCount} of {currentPage.displayCapacity} showing · {currentPage.assignedItems.length} assigned
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Clock className={`h-4 w-4 flex-shrink-0 ${getDaypartColor(currentPage.daypart)}`} />
+                    <h4 className={`text-base font-semibold ${getDaypartColor(currentPage.daypart)}`}>{currentPage.daypart}</h4>
+                    <span className="text-sm text-gray-600 dark:text-gray-300">
+                      Page {currentPage.name.split(' ')[1]}
+                      {currentPage.schedule && <> · {currentPage.schedule.startTime} – {currentPage.schedule.endTime}</>}
                     </span>
-                    <div className="flex items-center gap-2">
-                      {currentPage.schedule && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {currentPage.schedule.startTime} - {currentPage.schedule.endTime}
-                        </div>
-                      )}
-                    </div>
                   </div>
-                  {hasWarning(currentPage) && (
+                  <div className="flex items-center gap-3 mt-1 pl-6 text-xs">
+                    <span className="font-medium text-sky-700 dark:text-sky-300">
+                      {showingCount} of {currentPage.displayCapacity} showing
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400">{currentPage.assignedItems.length} assigned</span>
+                  </div>
+                  {showingCount === 0 && (
                     <div className="mt-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md">
                       <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                       <span className="text-xs">
-                        {currentPage.assignedItems.length === 0 ? 'No items assigned' : 'No active items in display range'}
+                        {currentPage.assignedItems.length === 0 ? 'No items assigned' : 'Nothing showing on the label'}
                       </span>
                     </div>
                   )}
@@ -519,7 +441,8 @@ export function DeviceSettingsModal({
                               {resolvedItems.map((resolved, index) => {
                                 const originalId = resolved.originalItemId;
                                 const item = resolved.item;
-                                const isDisplayed = getDisplayedItems(currentPage).some(d => d.id === originalId);
+                                const isDisplayed = shownIds.has(originalId);
+                                const isTapped = actionSheetState.isOpen && actionSheetState.resolvedItem?.originalItemId === originalId;
                                 const isRecentlyAdded = recentlyAddedIds?.has(originalId) || recentlyAddedItemIds?.has(originalId);
                                 const toggleState = itemDisplayToggles[currentPage.id]?.[originalId] ?? 'auto';
                                 const hasSub = !resolved.isSubstituted && selectedDay === 'every-day' && hasSubstitutionOnAnyDay(currentPage.id, originalId, substitutionMap);
@@ -531,9 +454,9 @@ export function DeviceSettingsModal({
                                         ref={prov.innerRef}
                                         {...prov.draggableProps}
                                         onClick={(e) => handleItemTap(resolved, e)}
-                                        className={`relative select-none transition-all duration-200 cursor-pointer ${
+                                        className={`relative select-none transition-all duration-200 cursor-pointer rounded-md ${
                                           snap.isDragging ? 'shadow-lg z-10' : ''
-                                        } ${isRecentlyAdded ? 'animate-in fade-in slide-in-from-right-4 duration-300' : ''}`}
+                                        } ${isTapped ? 'ring-2 ring-sky-500' : ''} ${isRecentlyAdded ? 'animate-in fade-in slide-in-from-right-4 duration-300' : ''}`}
                                       >
                                         {resolved.isSubstituted ? (
                                           <Card className={`flex items-center justify-between p-3 rounded-md border-l-4 border-l-amber-400 dark:border-l-amber-500 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 group ${
@@ -554,6 +477,7 @@ export function DeviceSettingsModal({
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                                   ${item.price}
                                                   <span className="text-[10px] text-amber-600 dark:text-amber-400">replaces {resolved.originalItem?.name}</span>
+                                                  <RowStatus toggle={toggleState} showing={isDisplayed} />
                                                 </div>
                                               </div>
                                             </div>
@@ -588,6 +512,7 @@ export function DeviceSettingsModal({
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                                   ${item.price}
                                                   {isRecentlyAdded && <span className="text-green-600 dark:text-green-400 text-[10px] font-medium">New</span>}
+                                                  <RowStatus toggle={toggleState} showing={isDisplayed} />
                                                 </div>
                                               </div>
                                             </div>
@@ -715,10 +640,11 @@ export function DeviceSettingsModal({
                 <div className="flex flex-col bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700 h-full overflow-hidden">
                   {/* Header with search + quick add */}
                   <div className="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-t-lg flex-shrink-0">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 mb-2">
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
                         <Plus className="h-4 w-4 text-sky-500" />Available Items
                       </h4>
+                      <span className="text-xs text-gray-400">{availableItems.length}</span>
                     </div>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -727,8 +653,34 @@ export function DeviceSettingsModal({
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
                         placeholder="Search products..."
-                        className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                        aria-label="Search products"
+                        className="w-full h-10 pl-8 pr-3 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
                       />
+                    </div>
+                    {/* Filters already applied from the page and day you're on */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {selectedDay !== 'every-day' && (
+                        <span className={filterChipClass(true)} title="Only products offered on the selected day">
+                          Offered {DAY_ABBR[selectedDay]}
+                        </span>
+                      )}
+                      {currentPage.daypart !== 'All Day' && currentPage.daypart !== 'Custom' && (
+                        <span className={filterChipClass(true)} title="Only products served in this daypart">
+                          {currentPage.daypart}
+                        </span>
+                      )}
+                      <label className={`${filterChipClass(stationFilter !== 'all')} relative pr-6 max-w-[11rem]`}>
+                        <span className="sr-only">Filter by station</span>
+                        <select
+                          value={stationFilter}
+                          onChange={(e) => setStationFilter(e.target.value)}
+                          className="w-full appearance-none bg-transparent outline-none cursor-pointer truncate"
+                        >
+                          <option value="all">Station: All</option>
+                          {stations.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
+                      </label>
                     </div>
                   </div>
 
@@ -771,6 +723,20 @@ export function DeviceSettingsModal({
                                       <DayPills activeDays={item.activeDays} selectedDay={selectedDay} />
                                     </div>
                                     <span className="text-xs font-semibold flex-shrink-0 text-gray-700 dark:text-gray-300 ml-2">${item.price}</span>
+                                    {onInlineAddItems && (
+                                      // Tap to add, for touch; dragging still works
+                                      <button
+                                        onClick={() => {
+                                          onInlineAddItems(device, [item], currentPage.id);
+                                          setRecentlyAddedIds(new Set([item.id]));
+                                          setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
+                                        }}
+                                        aria-label={`Add ${item.name} to ${currentPage.daypart}`}
+                                        className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-lg border border-sky-300 dark:border-sky-700 text-sky-600 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+                                      >
+                                        <Plus className="h-5 w-5" />
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </Draggable>
@@ -982,6 +948,7 @@ export function DeviceSettingsModal({
             </DragDropContext>
           </div>
         )}
+        </div>
       </div>
 
       {/* Clear Page confirmation modal */}
@@ -1112,7 +1079,7 @@ function ThreeStageToggle({ state, onChange }: { state: DisplayToggle; onChange:
         <button
           key={s.value}
           onClick={(e) => { e.stopPropagation(); onChange(s.value); }}
-          className={`px-2 py-1 text-[10px] font-semibold rounded transition-all ${
+          className={`min-w-[40px] h-9 px-2 text-xs font-semibold rounded transition-all ${
             state === s.value ? s.activeClass : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
           }`}
         >{s.label}</button>
@@ -1120,3 +1087,19 @@ function ThreeStageToggle({ state, onChange }: { state: DisplayToggle; onChange:
     </div>
   );
 }
+
+// Whether a page item is on the label, and why not when it isn't
+function RowStatus({ toggle, showing }: { toggle: DisplayToggle; showing: boolean }) {
+  if (toggle === 'off') return <span className="text-[11px] text-gray-400 dark:text-gray-500">Hidden</span>;
+  if (showing) {
+    return <span className="text-[11px] text-sky-600 dark:text-sky-300">{toggle === 'on' ? 'Always shown' : 'Showing on label'}</span>;
+  }
+  return <span className="text-[11px] text-amber-600 dark:text-amber-300">Waiting · label is full</span>;
+}
+
+const filterChipClass = (active: boolean) =>
+  `inline-flex items-center h-8 px-3 rounded-full border text-xs ${
+    active
+      ? 'border-sky-300 dark:border-cyan-800 bg-sky-50 dark:bg-cyan-950/50 text-sky-700 dark:text-cyan-200'
+      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+  }`;

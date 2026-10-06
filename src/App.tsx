@@ -1085,6 +1085,7 @@ function App() {
             preSelectedDevice={projectedWorkflowDevice ?? selectedDevice}
             preSelectedDaypart={workflowDaypart}
             initialItemSearch={deviceItemSearch}
+            weekStart={deviceWeekContext?.weekStart ?? null}
             weekContextLabel={deviceWeekContext?.label}
             weekContextNote={weekContextNote}
             onLabelContentChange={deviceId => { if (editsReachLabel) recordLabelChange(deviceId); }}

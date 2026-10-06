@@ -105,3 +105,13 @@ export function getScheduleSource(
   if (findRecurringMatch(targetWeekStart, recurringSchedules).some(s => s.deviceId === deviceId)) return 'recurring';
   return 'default';
 }
+
+// "Oct 5 – 11", or "Sep 28 – Oct 4" across a month boundary
+export function formatWeekRange(weekStart: string): string {
+  const start = new Date(weekStart + 'T00:00:00');
+  const end = getWeekEndDate(start);
+  const month = (d: Date) => d.toLocaleDateString(undefined, { month: 'short' });
+  return start.getMonth() === end.getMonth()
+    ? `${month(start)} ${start.getDate()} – ${end.getDate()}`
+    : `${month(start)} ${start.getDate()} – ${month(end)} ${end.getDate()}`;
+}
