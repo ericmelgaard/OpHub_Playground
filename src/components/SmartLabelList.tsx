@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { DAY_ABBR } from '../lib/availability';
 import { SyncStatus } from './SyncStatus';
+import { daypartColor } from '../lib/daypartColors';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -35,22 +36,15 @@ const getBatteryIcon = (level: number) => {
 };
 
 const getBatteryColor = (level: number) => {
-  if (level >= 50) return 'text-green-500';
-  if (level >= 25) return 'text-yellow-500';
+  if (level >= 50) return 'text-emerald-500';
+  if (level >= 25) return 'text-amber-500';
   return 'text-red-500';
 };
 
 const getWifiColor = (strength: number) => {
-  if (strength >= 3) return 'text-green-500';
-  if (strength > 0) return 'text-yellow-500';
+  if (strength >= 3) return 'text-emerald-500';
+  if (strength > 0) return 'text-amber-500';
   return 'text-red-500';
-};
-
-const daypartColors: Record<string, string> = {
-  'Breakfast': 'bg-amber-500',
-  'Lunch': 'bg-emerald-500',
-  'Dinner': 'bg-blue-500',
-  'Late Night': 'bg-violet-500',
 };
 
 export function SmartLabelList({
@@ -175,7 +169,7 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
   const page = device.pages.find(p => p.daypart === daypart);
   const items = page?.assignedItems ?? [];
   const isEmpty = items.length === 0;
-  const dpColor = daypartColors[daypart] || 'bg-gray-500';
+  const dpColor = daypartColor(daypart).solid;
 
   const dayStates = useMemo(() => {
     const states = new Map<number, DayState>();

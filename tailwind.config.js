@@ -5,6 +5,13 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Wand Digital brand (shop.wanddigital.com); day-to-day UI uses Tailwind `sky`
+        brand: {
+          DEFAULT: '#00adf0',
+          dark: '#0088bd',
+          light: '#8ed9f8',
+          navy: '#002e5e',
+        },
         gray: {
           750: '#2d3748',
           850: '#1a202e',

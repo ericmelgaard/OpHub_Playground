@@ -107,7 +107,7 @@ export function RulesModal({
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Wand2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                      <Wand2 className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                       <div>
                         <h4 className="font-medium text-gray-900 dark:text-white">
                           {rule.name}

@@ -97,8 +97,7 @@ export function SettingsPage({
                       onClose();
                       onOpenRules?.();
                     }}
-                    className="flex items-center gap-2 text-white"
-                    style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+                    className="flex items-center gap-2 text-white bg-brand"
                   >
                     <Wand2 className="h-4 w-4" />
                     Open Rule Builder
@@ -126,7 +125,7 @@ export function SettingsPage({
                               enabled: e.target.checked,
                             })
                           }
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700"
+                          className="rounded border-gray-300 text-sky-600 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-700"
                         />
                         <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                           Enable Webtrition Integration
@@ -148,7 +147,7 @@ export function SettingsPage({
                               setIntegrationSettings({ ...integrationSettings, businessUnit: e.target.value })
                             }
                             placeholder="Enter business unit"
-                            className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           />
                         </div>
                         <div>
@@ -163,7 +162,7 @@ export function SettingsPage({
                               setIntegrationSettings({ ...integrationSettings, location: e.target.value })
                             }
                             placeholder="Enter location"
-                            className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           />
                         </div>
                         <div className="flex items-center justify-between pt-2">
@@ -171,7 +170,7 @@ export function SettingsPage({
                             <Database className="h-4 w-4" />
                             <span>Webtrition</span>
                           </div>
-                          <span className="px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/50 rounded-full">
+                          <span className="px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/50 rounded-full">
                             Connected
                           </span>
                         </div>
@@ -195,7 +194,7 @@ function SettingsNavButton({ active, onClick, icon, label }: { active: boolean; 
       onClick={onClick}
       className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg ${
         active
-          ? 'bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-50 hover:dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+          ? 'bg-sky-50 dark:bg-sky-900/50 hover:bg-sky-50 hover:dark:bg-sky-900/50 text-sky-600 dark:text-sky-400'
           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
       }`}
     >
@@ -244,7 +243,7 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 border-2 border-[rgb(0,173,240)] border-t-transparent rounded-full animate-spin" />
+        <div className="h-8 w-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -255,7 +254,7 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
       <Card className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-1">
-            <Tag className="h-5 w-5 text-[rgb(0,173,240)]" />
+            <Tag className="h-5 w-5 text-brand" />
             <h2 className="text-lg font-medium text-gray-900 dark:text-white">Brands & Meal Stations</h2>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
@@ -314,7 +313,7 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
                         <Button
                           size="sm"
                           onClick={() => handleAddPattern(brand.id)}
-                          className="bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] text-white text-xs gap-1"
+                          className="bg-brand hover:bg-brand-dark text-white text-xs gap-1"
                         >
                           <Plus className="h-3 w-3" /> Add
                         </Button>
@@ -332,7 +331,7 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
       <Card className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-1">
-            <Settings2 className="h-5 w-5 text-[rgb(0,173,240)]" />
+            <Settings2 className="h-5 w-5 text-brand" />
             <h2 className="text-lg font-medium text-gray-900 dark:text-white">Suggested Group Templates</h2>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
@@ -382,7 +381,7 @@ function ManageDemoSection({ devices }: { devices: Device[] }) {
       <Card className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-1">
-            <Monitor className="h-5 w-5 text-[rgb(0,173,240)]" />
+            <Monitor className="h-5 w-5 text-brand" />
             <h2 className="text-lg font-medium text-gray-900 dark:text-white">Demo Devices</h2>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">

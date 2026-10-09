@@ -41,8 +41,8 @@ const getBatteryIcon = (level: number) => {
 };
 
 const getBatteryColor = (level: number) => {
-  if (level > 50) return 'text-green-500';
-  if (level > 20) return 'text-yellow-500';
+  if (level > 50) return 'text-emerald-500';
+  if (level > 20) return 'text-amber-500';
   return 'text-red-500';
 };
 
@@ -56,8 +56,8 @@ const getWifiLabel = (strength: number) => {
 
 const getWifiColor = (strength: number) => {
   if (strength === 0) return 'text-red-500';
-  if (strength <= 2) return 'text-yellow-500';
-  return 'text-green-500';
+  if (strength <= 2) return 'text-amber-500';
+  return 'text-emerald-500';
 };
 
 const formatLastUpdated = (iso: string) => {
@@ -155,7 +155,7 @@ export function DeviceConfigPage({
             <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
               <CardContent className="p-5">
                 <div className="flex items-center gap-2 mb-3">
-                  <Users className="h-4 w-4 text-[rgb(0,173,240)]" />
+                  <Users className="h-4 w-4 text-brand" />
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Group</h4>
                 </div>
                 <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{deviceGroup.name}</p>

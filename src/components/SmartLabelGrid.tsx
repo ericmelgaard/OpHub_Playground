@@ -5,6 +5,7 @@ import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, Batt
 import { SyncStatus } from './SyncStatus';
 import { getDeviceGaps, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
 import { DAY_ABBR } from '../lib/availability';
+import { daypartColor } from '../lib/daypartColors';
 
 interface SmartLabelGridProps {
   loading: boolean;
@@ -35,26 +36,21 @@ const getBatteryIcon = (level: number) => {
 };
 
 const getBatteryColor = (level: number) => {
-  if (level >= 50) return 'text-green-500 dark:text-green-400';
-  if (level >= 25) return 'text-yellow-500 dark:text-yellow-400';
+  if (level >= 50) return 'text-emerald-500 dark:text-emerald-400';
+  if (level >= 25) return 'text-amber-500 dark:text-amber-400';
   return 'text-red-500 dark:text-red-400';
 };
 
 const getWifiColor = (strength: number) => {
-  if (strength >= 3) return 'text-green-500 dark:text-green-400';
-  if (strength > 0) return 'text-yellow-500 dark:text-yellow-400';
+  if (strength >= 3) return 'text-emerald-500 dark:text-emerald-400';
+  if (strength > 0) return 'text-amber-500 dark:text-amber-400';
   return 'text-red-500 dark:text-red-400';
 };
 
-const daypartStyles: Record<string, { border: string; accent: string }> = {
-  'Breakfast': { border: 'border-amber-300 dark:border-amber-700', accent: 'bg-amber-400' },
-  'Lunch': { border: 'border-emerald-300 dark:border-emerald-700', accent: 'bg-emerald-400' },
-  'Dinner': { border: 'border-blue-300 dark:border-blue-700', accent: 'bg-blue-400' },
-  'Late Night': { border: 'border-violet-300 dark:border-violet-700', accent: 'bg-violet-400' },
-  'All Day': { border: 'border-gray-300 dark:border-gray-600', accent: 'bg-gray-400' },
+const getDaypartStyle = (daypart: string) => {
+  const c = daypartColor(daypart);
+  return { border: c.border, accent: c.dot };
 };
-
-const getDaypartStyle = (daypart: string) => daypartStyles[daypart] || daypartStyles['All Day'];
 
 const formatPrice = (price: string) => {
   const num = parseFloat(price);

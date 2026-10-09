@@ -64,12 +64,12 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
           </h3>
           <div className="flex sm:hidden items-center gap-2 mt-0.5">
             {device.status.wifiStrength > 0 ? (
-              <Wifi className={`h-3 w-3 ${device.status.wifiStrength > 2 ? 'text-green-500' : 'text-yellow-500'}`} />
+              <Wifi className={`h-3 w-3 ${device.status.wifiStrength > 2 ? 'text-emerald-500' : 'text-amber-500'}`} />
             ) : (
               <WifiOff className="h-3 w-3 text-red-500" />
             )}
             {React.createElement(getBatteryIcon(device.status.batteryLevel), {
-              className: `h-3 w-3 ${device.status.batteryLevel > 20 ? 'text-green-500' : 'text-red-500'}`,
+              className: `h-3 w-3 ${device.status.batteryLevel > 20 ? 'text-emerald-500' : 'text-red-500'}`,
             })}
             <span className="text-[10px] text-gray-500 dark:text-gray-400">{device.status.batteryLevel}%</span>
             {currentPage && (
@@ -84,14 +84,14 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
         <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
           <Badge variant="secondary" className="flex items-center gap-1.5 py-0.5">
             {device.status.wifiStrength > 0 ? (
-              <Wifi className={`h-3 w-3 ${device.status.wifiStrength > 2 ? 'text-green-500' : 'text-yellow-500'}`} />
+              <Wifi className={`h-3 w-3 ${device.status.wifiStrength > 2 ? 'text-emerald-500' : 'text-amber-500'}`} />
             ) : (
               <WifiOff className="h-3 w-3 text-red-500" />
             )}
           </Badge>
           <Badge variant="secondary" className="flex items-center gap-1.5 py-0.5">
             {React.createElement(getBatteryIcon(device.status.batteryLevel), {
-              className: `h-3 w-3 ${device.status.batteryLevel > 20 ? 'text-green-500' : 'text-red-500'}`,
+              className: `h-3 w-3 ${device.status.batteryLevel > 20 ? 'text-emerald-500' : 'text-red-500'}`,
             })}
             <span className="text-[10px]">{device.status.batteryLevel}%</span>
           </Badge>

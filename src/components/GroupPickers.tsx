@@ -60,7 +60,7 @@ export function AddDevicesModal({ isOpen, onClose, devices, selectedIds, onConfi
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2.5">
-            <Monitor className="h-5 w-5 text-[rgb(0,173,240)]" />
+            <Monitor className="h-5 w-5 text-brand" />
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">Add Devices</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
@@ -91,9 +91,9 @@ export function AddDevicesModal({ isOpen, onClose, devices, selectedIds, onConfi
             <div
               className={`h-5 w-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                 allFiltered
-                  ? 'bg-[rgb(0,173,240)] border-[rgb(0,173,240)]'
+                  ? 'bg-brand border-brand'
                   : someFiltered
-                  ? 'border-[rgb(0,173,240)] bg-[rgb(0,173,240)]/20'
+                  ? 'border-brand bg-brand/20'
                   : 'border-gray-300 dark:border-gray-600'
               }`}
             >
@@ -121,7 +121,7 @@ export function AddDevicesModal({ isOpen, onClose, devices, selectedIds, onConfi
                     <div
                       className={`h-5 w-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                         isSelected
-                          ? 'bg-[rgb(0,173,240)] border-[rgb(0,173,240)]'
+                          ? 'bg-brand border-brand'
                           : 'border-gray-300 dark:border-gray-600'
                       }`}
                     >
@@ -150,7 +150,7 @@ export function AddDevicesModal({ isOpen, onClose, devices, selectedIds, onConfi
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button
               onClick={handleConfirm}
-              className="bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] text-white"
+              className="bg-brand hover:bg-brand-dark text-white"
             >
               Confirm
             </Button>
@@ -211,7 +211,7 @@ export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2.5">
-            <Tag className="h-5 w-5 text-[rgb(0,173,240)]" />
+            <Tag className="h-5 w-5 text-brand" />
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">Add Brands</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
@@ -242,9 +242,9 @@ export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm
             <div
               className={`h-5 w-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                 allFiltered
-                  ? 'bg-[rgb(0,173,240)] border-[rgb(0,173,240)]'
+                  ? 'bg-brand border-brand'
                   : someFiltered
-                  ? 'border-[rgb(0,173,240)] bg-[rgb(0,173,240)]/20'
+                  ? 'border-brand bg-brand/20'
                   : 'border-gray-300 dark:border-gray-600'
               }`}
             >
@@ -273,7 +273,7 @@ export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm
                     <div
                       className={`h-5 w-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                         isSelected
-                          ? 'bg-[rgb(0,173,240)] border-[rgb(0,173,240)]'
+                          ? 'bg-brand border-brand'
                           : 'border-gray-300 dark:border-gray-600'
                       }`}
                     >
@@ -297,7 +297,7 @@ export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button
               onClick={handleConfirm}
-              className="bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] text-white"
+              className="bg-brand hover:bg-brand-dark text-white"
             >
               Confirm
             </Button>

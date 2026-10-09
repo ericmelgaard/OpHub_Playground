@@ -1,6 +1,7 @@
 import React from 'react';
 import { Device, DevicePage, LabelSize, ResolvedItem, Substitution, SubstitutionKey } from '../types';
 import { getShownItems, DisplayToggleState } from '../lib/labelDisplay';
+import { daypartColor } from '../lib/daypartColors';
 
 interface LabelAnchorProps {
   device: Device;
@@ -16,14 +17,7 @@ interface LabelAnchorProps {
   onItemTap?: (resolved: ResolvedItem, e: React.MouseEvent) => void;
 }
 
-const DAYPART_COLORS: Record<string, string> = {
-  'Breakfast': '#F59E0B',
-  'Lunch': '#10B981',
-  'Dinner': '#3B82F6',
-  'Late Night': '#8B5CF6',
-  'All Day': '#6B7280',
-};
-const daypartColor = (d: string) => DAYPART_COLORS[d] ?? '#0EA5E9';
+const daypartHex = (d: string) => daypartColor(d).hex;
 
 // Fits the narrow page tiles; full names are in each tile's label
 const SHORT_NAMES: Record<string, string> = { 'Breakfast': 'Bkfst', 'Late Night': 'Late', 'All Day': 'All day' };
@@ -78,7 +72,7 @@ export function LabelAnchor({
 
   const shown = shownFor(previewPage, day);
   const capacity = previewPage.displayCapacity;
-  const color = daypartColor(previewPage.daypart);
+  const color = daypartHex(previewPage.daypart);
   const thisWeek = (() => {
     const d = new Date();
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
@@ -186,7 +180,7 @@ export function LabelAnchor({
           <button onClick={() => onSelectDaypart(null)} className={tileClass(isAll)} aria-pressed={isAll}>
             <span className="grid grid-cols-2 gap-[3px] h-10">
               {device.pages.slice(0, 4).map(p => (
-                <span key={p.id} className="rounded-sm bg-[#F3F3EE] border-t-[3px]" style={{ borderTopColor: daypartColor(p.daypart) }} />
+                <span key={p.id} className="rounded-sm bg-[#F3F3EE] border-t-[3px]" style={{ borderTopColor: daypartHex(p.daypart) }} />
               ))}
             </span>
             <span className="mt-1 text-xs font-semibold text-gray-800 dark:text-slate-200">All</span>
@@ -202,10 +196,10 @@ export function LabelAnchor({
                 className={tileClass(activeDaypart === p.daypart)}
                 aria-pressed={activeDaypart === p.daypart}
                 aria-label={`${p.daypart}, ${s.length} of ${p.displayCapacity} showing`}
-                style={activeDaypart === p.daypart ? { borderColor: daypartColor(p.daypart) } : undefined}
+                style={activeDaypart === p.daypart ? { borderColor: daypartHex(p.daypart) } : undefined}
               >
                 <span className="flex flex-col h-10 rounded-sm bg-[#F3F3EE] overflow-hidden">
-                  <span className="h-1 flex-shrink-0" style={{ backgroundColor: daypartColor(p.daypart) }} />
+                  <span className="h-1 flex-shrink-0" style={{ backgroundColor: daypartHex(p.daypart) }} />
                   <span className="flex-1 flex flex-col justify-center gap-[3px] px-1">
                     {Array.from({ length: bars }, (_, i) => (
                       <span

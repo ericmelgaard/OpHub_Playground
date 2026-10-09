@@ -1,6 +1,7 @@
 import React from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { Device } from '../types';
+import { daypartColor } from '../lib/daypartColors';
 
 interface DaypartSelectorProps {
   devices: Device[];
@@ -11,18 +12,8 @@ interface DaypartSelectorProps {
 const daypartOrder = ['Breakfast', 'Lunch', 'Dinner', 'Late Night', 'All Day'];
 
 const getDaypartColor = (daypart: string) => {
-  switch (daypart) {
-    case 'Breakfast':
-      return { text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500', ring: 'ring-amber-400', softBg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-300 dark:border-amber-700' };
-    case 'Lunch':
-      return { text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500', ring: 'ring-emerald-400', softBg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-300 dark:border-emerald-700' };
-    case 'Dinner':
-      return { text: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500', ring: 'ring-blue-400', softBg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-300 dark:border-blue-700' };
-    case 'Late Night':
-      return { text: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-500', ring: 'ring-violet-400', softBg: 'bg-violet-50 dark:bg-violet-900/20', border: 'border-violet-300 dark:border-violet-700' };
-    default:
-      return { text: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-500', ring: 'ring-gray-400', softBg: 'bg-gray-50 dark:bg-gray-900/20', border: 'border-gray-300 dark:border-gray-700' };
-  }
+  const c = daypartColor(daypart);
+  return { text: c.text, bg: c.solid, ring: c.ring, softBg: c.softBg, border: c.border };
 };
 
 export function DaypartSelector({ devices, selectedDaypart, onSelectDaypart }: DaypartSelectorProps) {

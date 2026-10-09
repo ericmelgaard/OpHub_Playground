@@ -117,7 +117,7 @@ export function ItemSelectionModal({
       onClick={() => toggleItemSelection(item)}
       className={`px-4 py-3 transition-colors cursor-pointer group relative ${
         selectedItems.has(item.id)
-          ? 'bg-indigo-50 dark:bg-indigo-900/50 border-l-4 border-indigo-500 dark:border-indigo-400'
+          ? 'bg-sky-50 dark:bg-sky-900/50 border-l-4 border-sky-500 dark:border-sky-400'
           : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-l-4 border-transparent'
       }`}
     >
@@ -128,7 +128,7 @@ export function ItemSelectionModal({
               <div
                 className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
                   selectedItems.has(item.id)
-                    ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-500 dark:bg-indigo-400'
+                    ? 'border-sky-500 dark:border-sky-400 bg-sky-500 dark:bg-sky-400'
                     : 'border-gray-300 dark:border-gray-600'
                 }`}
               >
@@ -142,7 +142,7 @@ export function ItemSelectionModal({
             </div>
             <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
               <span>{item.calories} cal</span>
-              <span className="font-medium text-indigo-600 dark:text-indigo-400">
+              <span className="font-medium text-sky-600 dark:text-sky-400">
                 ${item.price}
               </span>
             </div>
@@ -154,7 +154,7 @@ export function ItemSelectionModal({
               variant="ghost"
               size="sm"
               onClick={(e) => toggleItemExpansion(e, item.id)}
-              className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+              className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400"
             >
               <AlertCircle className="h-4 w-4" />
               <ChevronDown
@@ -191,7 +191,7 @@ export function ItemSelectionModal({
                       {item.allergens.split(', ').map((allergen) => (
                         <span
                           key={allergen}
-                          className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-xs rounded-full"
+                          className="px-2 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 text-xs rounded-full"
                         >
                           {allergen}
                         </span>
@@ -224,7 +224,7 @@ export function ItemSelectionModal({
       onClick={() => toggleItemSelection(item)}
       className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 cursor-pointer ${
         selectedItems.has(item.id)
-          ? 'ring-2 ring-indigo-500 dark:ring-indigo-400'
+          ? 'ring-2 ring-sky-500 dark:ring-sky-400'
           : ''
       }`}
     >
@@ -233,7 +233,7 @@ export function ItemSelectionModal({
           <div
             className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
               selectedItems.has(item.id)
-                ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-500 dark:bg-indigo-400'
+                ? 'border-sky-500 dark:border-sky-400 bg-sky-500 dark:bg-sky-400'
                 : 'border-gray-300 dark:border-gray-600'
             }`}
           >
@@ -252,7 +252,7 @@ export function ItemSelectionModal({
               {item.enticingDescription || item.description}
             </p>
           </div>
-          <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400 ml-4 whitespace-nowrap">
+          <span className="text-lg font-bold text-sky-600 dark:text-sky-400 ml-4 whitespace-nowrap">
             ${item.price}
           </span>
         </div>
@@ -301,7 +301,7 @@ export function ItemSelectionModal({
                 disabled={selectedItems.size === 0}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   selectedItems.size > 0
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    ? 'bg-sky-600 text-white hover:bg-sky-700'
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                 }`}
               >
@@ -328,7 +328,7 @@ export function ItemSelectionModal({
                     placeholder="Search items..."
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-400"
                   />
                   <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
                 </div>
@@ -337,7 +337,7 @@ export function ItemSelectionModal({
                 value={selectedMealPeriod}
                 onValueChange={setSelectedMealPeriod}
               >
-                <SelectTrigger className="w-1/5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                <SelectTrigger className="w-1/5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-400">
                   <SelectValue placeholder="Select meal period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -352,7 +352,7 @@ export function ItemSelectionModal({
                 value={selectedStation}
                 onValueChange={setSelectedStation}
               >
-                <SelectTrigger className="w-1/5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                <SelectTrigger className="w-1/5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-400">
                   <SelectValue placeholder="Select station" />
                 </SelectTrigger>
                 <SelectContent>
@@ -371,7 +371,7 @@ export function ItemSelectionModal({
                   title="List view"
                   className={`p-2 rounded-lg transition-colors ${
                     viewMode === 'list'
-                      ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -384,7 +384,7 @@ export function ItemSelectionModal({
                   title="Tile view"
                   className={`p-2 rounded-lg transition-colors ${
                     viewMode === 'tiles'
-                      ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
                 >

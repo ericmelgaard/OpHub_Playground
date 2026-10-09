@@ -425,8 +425,7 @@ function ReportView({ refresh, devices, onShowProduct, onPlaceOnLabel }: Omit<Sh
       <div className="p-6 sm:px-8 pt-4 border-t border-gray-100 dark:border-gray-800">
         <button
           onClick={refresh.closeSheet}
-          className="w-full h-12 rounded-xl text-base font-semibold text-white transition-colors hover:bg-[rgb(0,153,220)]"
-          style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+          className="w-full h-12 rounded-xl text-base font-semibold text-white transition-colors hover:bg-brand-dark bg-brand"
         >
           Done
         </button>

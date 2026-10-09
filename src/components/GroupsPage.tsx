@@ -194,7 +194,7 @@ export function GroupsPage({ devices }: GroupsPageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 border-2 border-[rgb(0,173,240)] border-t-transparent rounded-full animate-spin" />
+        <div className="h-8 w-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -205,7 +205,7 @@ export function GroupsPage({ devices }: GroupsPageProps) {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[rgb(0,173,240)]" />
+            <Sparkles className="h-4 w-4 text-brand" />
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Suggested Groups</h3>
             <span className="text-xs text-gray-400 dark:text-gray-500">Quick-start templates</span>
           </div>
@@ -216,7 +216,7 @@ export function GroupsPage({ devices }: GroupsPageProps) {
             return (
               <Card
                 key={template.id}
-                className="border border-gray-200 dark:border-gray-700 hover:border-[rgb(0,173,240)] dark:hover:border-[rgb(0,173,240)]/50 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                className="border border-gray-200 dark:border-gray-700 hover:border-brand dark:hover:border-brand/50 hover:shadow-md transition-all duration-200 cursor-pointer group"
                 onClick={() => handleCreateFromTemplate(template)}
               >
                 <CardContent className="p-3.5">
@@ -233,7 +233,7 @@ export function GroupsPage({ devices }: GroupsPageProps) {
                     )}
                   </div>
                   <div className="flex items-center justify-end pt-2 border-t border-gray-100 dark:border-gray-800">
-                    <span className="text-[11px] font-medium text-[rgb(0,173,240)] flex items-center gap-0.5 group-hover:gap-1 transition-all">
+                    <span className="text-[11px] font-medium text-brand flex items-center gap-0.5 group-hover:gap-1 transition-all">
                       Create group <ArrowRight className="h-3 w-3" />
                     </span>
                   </div>
@@ -266,7 +266,7 @@ export function GroupsPage({ devices }: GroupsPageProps) {
         </div>
 
         {showCreateForm && (
-          <Card className="border-2 border-[rgb(0,173,240)]/30 dark:border-[rgb(0,173,240)]/20 mb-4">
+          <Card className="border-2 border-brand/30 dark:border-brand/20 mb-4">
             <CardContent className="p-5">
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">New Custom Group</h4>
               <div className="space-y-3">
@@ -296,7 +296,7 @@ export function GroupsPage({ devices }: GroupsPageProps) {
                     size="sm"
                     onClick={handleCreate}
                     disabled={!newGroupName.trim()}
-                    className="bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] text-white"
+                    className="bg-brand hover:bg-brand-dark text-white"
                   >
                     Create
                   </Button>
@@ -352,7 +352,7 @@ function GroupCard({
 
   return (
     <Card
-      className="border border-gray-200 dark:border-gray-700 hover:border-[rgb(0,173,240)] dark:hover:border-[rgb(0,173,240)]/50 hover:shadow-md transition-all duration-200 cursor-pointer group overflow-hidden"
+      className="border border-gray-200 dark:border-gray-700 hover:border-brand dark:hover:border-brand/50 hover:shadow-md transition-all duration-200 cursor-pointer group overflow-hidden"
       onClick={onClick}
     >
       <CardContent className="p-0">
@@ -365,7 +365,7 @@ function GroupCard({
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{group.description}</p>
               )}
             </div>
-            <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 flex-shrink-0 ml-2 group-hover:text-[rgb(0,173,240)] group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 flex-shrink-0 ml-2 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
           </div>
 
           {/* Brand avatars */}

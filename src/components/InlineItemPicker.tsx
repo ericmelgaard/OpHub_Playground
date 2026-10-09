@@ -224,7 +224,7 @@ export function InlineItemPicker({
                             <p
                               className={`text-xs font-medium truncate ${
                                 isRecentlyAdded
-                                  ? 'text-green-600 dark:text-green-400'
+                                  ? 'text-emerald-600 dark:text-emerald-400'
                                   : 'text-gray-900 dark:text-white'
                               }`}
                             >

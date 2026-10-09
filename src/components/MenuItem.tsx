@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StationsModal } from './StationsModal';
 import { DAY_ABBR } from '../lib/availability';
+import { daypartColor } from '../lib/daypartColors';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -132,18 +133,7 @@ export function MenuItem({
     }
   };
 
-  const getDaypartColor = (daypart: string) => {
-    switch (daypart.toLowerCase()) {
-      case 'breakfast':
-        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-      case 'lunch':
-        return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-      case 'dinner':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
-      default:
-        return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
-    }
-  };
+  const getDaypartColor = (daypart: string) => daypartColor(daypart).chip;
 
   // Option 1: Expandable with all details
   const renderExpandableInfo = () => (
@@ -322,7 +312,7 @@ export function MenuItem({
         </div>
         <button
           onClick={() => setExpandedDetails(!expandedDetails)}
-          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+          className="text-xs text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
         >
           {expandedDetails ? 'Hide' : 'Show all'}
           {expandedDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -381,7 +371,7 @@ export function MenuItem({
                     key={day}
                     className={`text-xs px-1 py-0.5 rounded ${
                       isActive
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'
                     }`}
                     title={DAY_ABBR[day]}
@@ -423,7 +413,7 @@ export function MenuItem({
                     e.stopPropagation();
                     setShowStationsModal(true);
                   }}
-                  className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap flex-shrink-0"
+                  className="flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap flex-shrink-0"
                 >
                   +{stations.length - 1} more
                   <ChevronRight className="h-3 w-3" />
@@ -460,7 +450,7 @@ export function MenuItem({
                 className={`w-full justify-start ${
                   isInSelectedChannel
                     ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
-                    : 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                    : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
                 }`}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -470,7 +460,7 @@ export function MenuItem({
             <Button
               variant="ghost"
               onClick={() => handleOptionClick('assign')}
-              className="w-full justify-start text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+              className="w-full justify-start text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
             >
               <Monitor className="h-4 w-4 mr-2" />
               Assign to Pages
@@ -504,7 +494,7 @@ export function MenuItem({
       <div
         className={`px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group ${
           isInSelectedChannel
-            ? 'border-l-4 border-indigo-500 dark:border-indigo-400'
+            ? 'border-l-4 border-sky-500 dark:border-sky-400'
             : 'border-l-4 border-transparent'
         } ${!isActive ? 'opacity-50' : ''} relative`}
       >
@@ -512,7 +502,7 @@ export function MenuItem({
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3 flex-wrap">
             {isActive ? (
-              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
             ) : (
               <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
             )}
@@ -521,20 +511,20 @@ export function MenuItem({
             </span>
             {refreshTag && <RefreshTagBadge tag={refreshTag} />}
             {isInSelectedChannel && (
-              <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+              <Tag className="h-4 w-4 text-sky-500 dark:text-sky-400 flex-shrink-0" />
             )}
             <div className="flex items-center gap-4 text-sm">
               <span className="text-gray-500 dark:text-gray-400">
                 {item.calories} cal
               </span>
-              <span className="font-medium text-indigo-600 dark:text-indigo-400">
+              <span className="font-medium text-sky-600 dark:text-sky-400">
                 ${item.price}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2 relative z-10">
             {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
-              <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+              <Badge variant="secondary" className="text-xs bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300">
                 {item.occurrenceCount}x
               </Badge>
             )}
@@ -545,8 +535,8 @@ export function MenuItem({
                 onClick={handleAssignClick}
                 className={`flex items-center gap-1 relative ${
                   isInSelectedChannel
-                    ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
-                    : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
+                    ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/70'
+                    : 'bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
                 }`}
               >
                 {isInSelectedChannel ? (
@@ -587,7 +577,7 @@ export function MenuItem({
       />
       <Card
         className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${
-          isInSelectedChannel ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''
+          isInSelectedChannel ? 'ring-2 ring-sky-500 dark:ring-sky-400' : ''
         } ${!isActive ? 'opacity-50' : ''} relative overflow-hidden`}
       >
       {/* Top row with status, MRN, and actions */}
@@ -595,7 +585,7 @@ export function MenuItem({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 flex-wrap">
             {isActive ? (
-              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
             ) : (
               <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
             )}
@@ -604,12 +594,12 @@ export function MenuItem({
             </span>
             {refreshTag && <RefreshTagBadge tag={refreshTag} />}
             {isInSelectedChannel && (
-              <Tag className="h-4 w-4 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+              <Tag className="h-4 w-4 text-sky-500 dark:text-sky-400 flex-shrink-0" />
             )}
           </div>
           <div className="flex items-center gap-2 relative z-10">
             {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
-              <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+              <Badge variant="secondary" className="text-xs bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300">
                 {item.occurrenceCount}x
               </Badge>
             )}
@@ -620,8 +610,8 @@ export function MenuItem({
                 onClick={handleAssignClick}
                 className={`flex items-center gap-1 relative ${
                   isInSelectedChannel
-                    ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/70'
-                    : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/70'
+                    ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/70'
+                    : 'bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
                 }`}
               >
                 {isInSelectedChannel ? (
@@ -658,7 +648,7 @@ export function MenuItem({
             <span className="text-gray-500 dark:text-gray-400">
               {item.calories} cal
             </span>
-            <span className="font-medium text-indigo-600 dark:text-indigo-400">
+            <span className="font-medium text-sky-600 dark:text-sky-400">
               ${item.price}
             </span>
           </div>

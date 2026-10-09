@@ -153,7 +153,7 @@ export function CustomizeQuickActionsModal({
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           className={`bg-gray-800 dark:bg-gray-900 border border-gray-700 dark:border-gray-800 rounded-lg p-4 transition-all ${
-                            snapshot.isDragging ? 'shadow-lg ring-2 ring-[rgb(0,173,240)]' : ''
+                            snapshot.isDragging ? 'shadow-lg ring-2 ring-brand' : ''
                           }`}
                         >
                           <div className="flex items-center gap-4">
@@ -269,8 +269,7 @@ export function CustomizeQuickActionsModal({
           </Button>
           <Button
             onClick={handleSave}
-            className="flex items-center gap-2 px-6 py-2 text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
-            style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+            className="flex items-center gap-2 px-6 py-2 text-white rounded-lg hover:bg-brand-dark transition-colors bg-brand"
           >
             <Save className="h-5 w-5" />
             Save Changes

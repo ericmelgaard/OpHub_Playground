@@ -186,8 +186,8 @@ export function Navigation({
       
       return (
         <div className="flex items-center gap-2">
-          <ChannelIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-          <span className="font-medium text-indigo-600 dark:text-indigo-400">
+          <ChannelIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+          <span className="font-medium text-sky-600 dark:text-sky-400">
             {channelInfo.name}
           </span>
         </div>
@@ -196,8 +196,8 @@ export function Navigation({
 
     return (
       <div className="flex items-center gap-2">
-        <PageIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-        <span className="font-medium text-indigo-600 dark:text-indigo-400">
+        <PageIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+        <span className="font-medium text-sky-600 dark:text-sky-400">
           {pageInfo.name}
         </span>
       </div>
@@ -401,7 +401,7 @@ export function Navigation({
                       {isWandLevel ? (
                         <img src={`${import.meta.env.BASE_URL}wand-level.webp`} alt="WAND" className="h-4 w-4 object-contain" />
                       ) : (
-                        <CurrentIcon className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
+                        <CurrentIcon className="h-4 w-4 text-brand" />
                       )}
                       {getCurrentLabel()}
                       <ChevronDown className="h-4 w-4" />
@@ -459,7 +459,7 @@ export function Navigation({
                                 onClick={() => handleSiblingSelect(sibling)}
                                 className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
                                   isActive
-                                    ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] dark:bg-gray-600 dark:hover:bg-gray-500'
+                                    ? 'text-white bg-brand hover:bg-brand-dark dark:bg-gray-600 dark:hover:bg-gray-500'
                                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                               >
@@ -467,7 +467,7 @@ export function Navigation({
                                   isActive
                                     ? ''
                                     : sibling.type === 'concept'
-                                      ? 'text-[rgb(0,173,240)]'
+                                      ? 'text-brand'
                                       : sibling.type === 'company'
                                         ? 'text-gray-500 dark:text-gray-400'
                                         : 'text-red-500'
@@ -496,7 +496,7 @@ export function Navigation({
                                     onClick={() => handleOtherSelect(s)}
                                     className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
                                       isActive
-                                        ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] dark:bg-gray-600 dark:hover:bg-gray-500'
+                                        ? 'text-white bg-brand hover:bg-brand-dark dark:bg-gray-600 dark:hover:bg-gray-500'
                                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                                   >
@@ -504,7 +504,7 @@ export function Navigation({
                                       isActive
                                         ? ''
                                         : s.type === 'concept'
-                                          ? 'text-[rgb(0,173,240)]'
+                                          ? 'text-brand'
                                           : s.type === 'company'
                                             ? 'text-gray-500 dark:text-gray-400'
                                             : 'text-red-500'
@@ -524,9 +524,8 @@ export function Navigation({
 
                 <button
                   onClick={() => setShowLocationModal(true)}
-                  className="p-2 hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                  className="p-2 text-brand hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
                   title="Full Location Selector"
-                  style={{ color: 'rgb(0, 173, 240)' }}
                 >
                   <MapPin className="h-5 w-5" />
                 </button>
@@ -539,8 +538,7 @@ export function Navigation({
                 <Button
                   variant="secondary"
                   onClick={() => setShowDemoMenu(!showDemoMenu)}
-                  className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
-                  style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+                  className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 text-sm font-medium text-white rounded-lg hover:bg-brand-dark transition-colors bg-brand"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
                   <span className="hidden sm:inline">Manage Demo</span>
@@ -563,7 +561,7 @@ export function Navigation({
                             aria-checked={isMultiDomainUser}
                             onClick={() => onToggleMultiDomain?.(!isMultiDomainUser)}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              isMultiDomainUser ? 'bg-[rgb(0,173,240)]' : 'bg-gray-300 dark:bg-gray-600'
+                              isMultiDomainUser ? 'bg-brand' : 'bg-gray-300 dark:bg-gray-600'
                             }`}
                           >
                             <span
@@ -587,7 +585,7 @@ export function Navigation({
                                 onClick={() => onSelectSecondaryDomain?.(domain.id)}
                                 className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md transition-colors ${
                                   domain.id === selectedSecondaryDomain?.id
-                                    ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                                    ? 'text-white bg-brand hover:bg-brand-dark'
                                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                               >
@@ -654,7 +652,7 @@ export function Navigation({
                         </Button>
                       )}
                       {showDismissAllConfirm && (
-                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                        <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                           <CheckCircle className="h-4 w-4" />
                           <span className="text-xs font-medium">
                             All Dismissed
@@ -697,7 +695,7 @@ export function Navigation({
                           }}
                           className={`flex justify-start gap-2 w-full px-3 py-2 text-sm rounded-md ${
                             theme === value
-                              ? 'text-white bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)]'
+                              ? 'text-white bg-brand hover:bg-brand-dark'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                           }`}
                         >

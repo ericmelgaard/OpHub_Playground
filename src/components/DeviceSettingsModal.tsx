@@ -24,6 +24,7 @@ import { PageActionBar } from './PageActionBar';
 import type { DisplayToggle } from './InlineItemPicker';
 import { LabelAnchor } from './LabelAnchor';
 import { getShownItems } from '../lib/labelDisplay';
+import { daypartColor } from '../lib/daypartColors';
 
 interface DeviceSettingsModalProps {
   showDeviceSettingsModal: boolean;
@@ -61,27 +62,9 @@ interface DeviceSettingsModalProps {
   weekStart?: string | null;
 }
 
-const getDaypartColor = (daypart: string) => {
-  switch (daypart) {
-    case 'Breakfast': return 'text-yellow-600 dark:text-yellow-400';
-    case 'Lunch': return 'text-green-600 dark:text-green-400';
-    case 'Dinner': return 'text-blue-600 dark:text-blue-400';
-    case 'Late Night': return 'text-purple-600 dark:text-purple-400';
-    case 'Custom': return 'text-gray-600 dark:text-gray-400';
-    default: return 'text-sky-600 dark:text-sky-400';
-  }
-};
+const getDaypartColor = (daypart: string) => daypartColor(daypart).text;
 
-const getDaypartBg = (daypart: string) => {
-  switch (daypart) {
-    case 'Breakfast': return 'bg-yellow-50 dark:bg-yellow-900/20';
-    case 'Lunch': return 'bg-green-50 dark:bg-green-900/20';
-    case 'Dinner': return 'bg-blue-50 dark:bg-blue-900/20';
-    case 'Late Night': return 'bg-purple-50 dark:bg-purple-900/20';
-    case 'Custom': return 'bg-gray-50 dark:bg-gray-900/20';
-    default: return 'bg-sky-50 dark:bg-sky-900/20';
-  }
-};
+const getDaypartBg = (daypart: string) => daypartColor(daypart).softBg;
 
 const getDisplayedItems = (page: DevicePageType): MenuItem[] => {
   return page.itemOrder
@@ -492,8 +475,8 @@ export function DeviceSettingsModal({
                                           <Card className={`flex items-center justify-between p-3 border dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 group ${
                                             snap.isDragging ? 'ring-2 ring-sky-500 dark:ring-sky-400 shadow-xl' : ''
                                           } ${
-                                            isRecentlyAdded ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
-                                            : toggleState === 'on' ? 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
+                                            isRecentlyAdded ? 'border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
+                                            : toggleState === 'on' ? 'border-emerald-300 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
                                             : toggleState === 'off' ? 'border-gray-200 dark:border-gray-700 opacity-60'
                                             : isDisplayed ? 'border-sky-300 dark:border-sky-500 bg-sky-50 dark:bg-sky-900/30'
                                             : ''
@@ -511,7 +494,7 @@ export function DeviceSettingsModal({
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                                   ${item.price}
-                                                  {isRecentlyAdded && <span className="text-green-600 dark:text-green-400 text-[10px] font-medium">New</span>}
+                                                  {isRecentlyAdded && <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-medium">New</span>}
                                                   <RowStatus toggle={toggleState} showing={isDisplayed} />
                                                 </div>
                                               </div>
@@ -1054,7 +1037,7 @@ function DayPills({ activeDays, selectedDay }: { activeDays?: number[]; selected
               isActive
                 ? isSel
                   ? 'bg-sky-500 text-white'
-                  : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                  : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
                 : 'bg-gray-100 dark:bg-gray-700/50 text-gray-300 dark:text-gray-600'
             }`}
             title={`${d.label}${isActive ? ' - Active' : ' - Inactive'}${isToday ? ' (Today)' : ''}`}
@@ -1071,7 +1054,7 @@ function ThreeStageToggle({ state, onChange }: { state: DisplayToggle; onChange:
   const states: { value: DisplayToggle; label: string; activeClass: string }[] = [
     { value: 'off', label: 'Off', activeClass: 'bg-gray-400 text-white' },
     { value: 'auto', label: 'Auto', activeClass: 'bg-sky-500 text-white' },
-    { value: 'on', label: 'On', activeClass: 'bg-green-500 text-white' },
+    { value: 'on', label: 'On', activeClass: 'bg-emerald-500 text-white' },
   ];
   return (
     <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-md p-0.5 flex-shrink-0">
@@ -1100,6 +1083,6 @@ function RowStatus({ toggle, showing }: { toggle: DisplayToggle; showing: boolea
 const filterChipClass = (active: boolean) =>
   `inline-flex items-center h-8 px-3 rounded-full border text-xs ${
     active
-      ? 'border-sky-300 dark:border-cyan-800 bg-sky-50 dark:bg-cyan-950/50 text-sky-700 dark:text-cyan-200'
+      ? 'border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-200'
       : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
   }`;

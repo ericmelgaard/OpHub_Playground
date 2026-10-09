@@ -78,7 +78,7 @@ export function GroupDetailPage({
             <X className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-2 min-w-0">
-            <Users className="h-4 w-4 text-[rgb(0,173,240)] flex-shrink-0" />
+            <Users className="h-4 w-4 text-brand flex-shrink-0" />
             <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">
               {group.name}
             </h2>
@@ -123,7 +123,7 @@ export function GroupDetailPage({
                     <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setEditName(group.name); setEditDesc(group.description || ''); }}>
                       Cancel
                     </Button>
-                    <Button size="sm" onClick={handleSaveEdit} className="bg-[rgb(0,173,240)] hover:bg-[rgb(0,153,220)] text-white">
+                    <Button size="sm" onClick={handleSaveEdit} className="bg-brand hover:bg-brand-dark text-white">
                       <Check className="h-3.5 w-3.5 mr-1" /> Save
                     </Button>
                   </div>
@@ -162,7 +162,7 @@ export function GroupDetailPage({
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Tag className="h-4 w-4 text-[rgb(0,173,240)]" /> Brands
+                  <Tag className="h-4 w-4 text-brand" /> Brands
                   <Badge variant="secondary" className="text-xs">{memberBrands.length}</Badge>
                 </h3>
                 <Button
@@ -225,7 +225,7 @@ export function GroupDetailPage({
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Monitor className="h-4 w-4 text-[rgb(0,173,240)]" /> Devices
+                  <Monitor className="h-4 w-4 text-brand" /> Devices
                   <Badge variant="secondary" className="text-xs">{memberDevices.length}</Badge>
                 </h3>
                 <Button

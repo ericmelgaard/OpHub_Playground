@@ -329,7 +329,7 @@ export function EditItemModal({
               type="text"
               value={value}
               onChange={onChange}
-              className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           ) : (
             <Textarea
@@ -337,7 +337,7 @@ export function EditItemModal({
               value={value}
               onChange={onChange}
               rows={2}
-              className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           )}
           {showRevert && (
@@ -348,7 +348,7 @@ export function EditItemModal({
               title="Revert to original value"
               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors flex-shrink-0"
             >
-              <RotateCcw className="h-4 w-4 text-blue-500" />
+              <RotateCcw className="h-4 w-4 text-sky-500" />
             </Button>
           )}
         </div>
@@ -447,7 +447,7 @@ export function EditItemModal({
                             title="Revert to original value"
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                           >
-                            <RotateCcw className="h-4 w-4 text-blue-500" />
+                            <RotateCcw className="h-4 w-4 text-sky-500" />
                           </Button>
                         )}
                         {value.language && (
@@ -634,7 +634,7 @@ export function EditItemModal({
             <div className="w-full flex justify-end">
               <Button
                 onClick={() => onSave(editedItem, modifiedFields)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 dark:bg-indigo-600 text-white dark:text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-sky-600 dark:bg-sky-600 text-white dark:text-white rounded-lg hover:bg-sky-700 dark:hover:bg-sky-700 transition-colors"
               >
                 <Save className="h-4 w-4" />
                 Save Changes

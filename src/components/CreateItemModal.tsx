@@ -131,7 +131,7 @@ export function CreateItemModal({
           value={value}
           onChange={(e) => handleChange(field, e.target.value)}
           required={required}
-          className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         />
       ) : (
         <Textarea
@@ -139,7 +139,7 @@ export function CreateItemModal({
           value={value}
           onChange={(e) => handleChange(field, e.target.value)}
           rows={2}
-          className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         />
       )}
     </div>
@@ -162,7 +162,7 @@ export function CreateItemModal({
           onChange={(e) =>
             handleNutritionChange(key as keyof Nutrition, e.target.value)
           }
-          className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         />
       </div>
     ));
@@ -249,7 +249,7 @@ export function CreateItemModal({
               // className="flex items-center gap-2"
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 newItem.name.length > 0
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  ? 'bg-sky-600 text-white hover:bg-sky-700'
                   : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}
             >

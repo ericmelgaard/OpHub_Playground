@@ -118,7 +118,7 @@ export function MenuItems({
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 dark:border-sky-400 mx-auto"></div>
         <p className="mt-4 text-gray-600 dark:text-gray-400">Loading menu items...</p>
       </div>
     );
@@ -204,18 +204,18 @@ export function MenuItems({
     <div className="space-y-6">
       {sortedGroups.map(([key, group]) => (
         <Card key={`group-${key}`} className="bg-white dark:bg-gray-800 overflow-hidden transition-colors">
-          <div className="bg-indigo-50 dark:bg-indigo-900/50 px-4 py-3 border-b border-indigo-100 dark:border-indigo-900">
+          <div className="bg-sky-50 dark:bg-sky-900/50 px-4 py-3 border-b border-sky-100 dark:border-sky-900">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="font-medium text-indigo-900 dark:text-indigo-200">
+                <Clock className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                <h3 className="font-medium text-sky-900 dark:text-sky-200">
                   {group.mealPeriod}
                 </h3>
               </div>
-              <div className="w-px h-4 bg-indigo-200 dark:bg-indigo-700" />
+              <div className="w-px h-4 bg-sky-200 dark:bg-sky-700" />
               <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="font-medium text-indigo-900 dark:text-indigo-200">
+                <MapPin className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                <h3 className="font-medium text-sky-900 dark:text-sky-200">
                   {group.mealStation}
                 </h3>
               </div>

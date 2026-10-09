@@ -47,7 +47,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded px-0.5">
+      <mark className="bg-amber-200 dark:bg-amber-500/40 text-inherit rounded px-0.5">
         {text.slice(idx, idx + q.length)}
       </mark>
       {text.slice(idx + q.length)}
@@ -310,8 +310,7 @@ export function LocationSelectionModal({
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <button
             onClick={handleReset}
-            className="flex items-center gap-2 text-sm font-medium mb-2 transition-colors hover:opacity-80"
-            style={{ color: 'rgb(0, 173, 240)' }}
+            className="flex items-center gap-2 text-sm font-medium mb-2 transition-colors hover:opacity-80 text-brand"
           >
             <Home className="h-4 w-4" />
             Return to WAND
@@ -322,9 +321,8 @@ export function LocationSelectionModal({
               className={`font-medium transition-colors ${
                 viewLevel === 'wand'
                   ? 'text-gray-900 dark:text-white'
-                  : 'hover:opacity-80'
+                  : 'text-brand hover:opacity-80'
               }`}
-              style={viewLevel === 'wand' ? {} : { color: 'rgb(0, 173, 240)' }}
             >
               WAND
             </button>
@@ -336,9 +334,8 @@ export function LocationSelectionModal({
                   className={`font-medium transition-colors ${
                     viewLevel === 'concept'
                       ? 'text-gray-900 dark:text-white'
-                      : 'hover:opacity-80'
+                      : 'text-brand hover:opacity-80'
                   }`}
-                  style={viewLevel === 'concept' ? {} : { color: 'rgb(0, 173, 240)' }}
                 >
                   {getConceptName(viewConcept)}
                 </button>
@@ -352,13 +349,8 @@ export function LocationSelectionModal({
                   className={`font-medium transition-colors ${
                     viewLevel === 'company' || viewLevel === 'store'
                       ? 'text-gray-900 dark:text-white'
-                      : 'hover:opacity-80'
+                      : 'text-brand hover:opacity-80'
                   }`}
-                  style={
-                    viewLevel === 'company' || viewLevel === 'store'
-                      ? {}
-                      : { color: 'rgb(0, 173, 240)' }
-                  }
                 >
                   {getCompanyName(viewCompany)}
                 </button>
@@ -423,8 +415,7 @@ export function LocationSelectionModal({
                     <div className="w-full flex items-center justify-between p-4 flex-1">
                       <div className="flex items-center gap-3">
                         <Building2
-                          className="h-5 w-5 flex-shrink-0"
-                          style={{ color: 'rgb(0, 173, 240)' }}
+                          className="h-5 w-5 flex-shrink-0 text-brand"
                         />
                         <span className="font-medium text-gray-900 dark:text-white">
                           {concept.name}
@@ -439,8 +430,7 @@ export function LocationSelectionModal({
                         onSelectConcept(concept.id);
                         onClose();
                       }}
-                      className="px-4 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      style={{ color: 'rgb(0, 173, 240)' }}
+                      className="px-4 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-brand"
                     >
                       Go
                     </button>
@@ -474,7 +464,7 @@ export function LocationSelectionModal({
                               key={store.id}
                               ref={showStoreHighlight ? activeRowRef : undefined}
                               className={`rounded-lg scroll-mt-4 ${
-                                showStoreHighlight ? 'bg-blue-50/50 dark:bg-gray-700/70' : ''
+                                showStoreHighlight ? 'bg-sky-50/50 dark:bg-gray-700/70' : ''
                               }`}
                             >
                               <button
@@ -486,8 +476,8 @@ export function LocationSelectionModal({
                                 }}
                                 className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
                               >
-                                <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-[rgb(0,173,240)]' : 'text-red-500'}`} />
-                                <span className={showStoreHighlight ? 'text-[rgb(0,173,240)] dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
+                                <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-brand' : 'text-red-500'}`} />
+                                <span className={showStoreHighlight ? 'text-brand dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
                                   {store.name}
                                 </span>
                               </button>
@@ -517,7 +507,7 @@ export function LocationSelectionModal({
                   ref={showConceptHighlight ? activeRowRef : undefined}
                   className={`border rounded-lg overflow-hidden transition-colors scroll-mt-4 ${
                     showConceptHighlight
-                      ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-gray-700/70'
+                      ? 'border-brand bg-sky-50/50 dark:bg-gray-700/70'
                       : 'border-gray-200 dark:border-gray-700'
                   }`}
                 >
@@ -536,12 +526,11 @@ export function LocationSelectionModal({
                           <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                         )}
                         <Building2
-                          className="h-5 w-5 flex-shrink-0"
-                          style={{ color: 'rgb(0, 173, 240)' }}
+                          className="h-5 w-5 flex-shrink-0 text-brand"
                         />
                         <span className={`font-medium ${
                           showConceptHighlight
-                            ? 'text-[rgb(0,173,240)] dark:text-white'
+                            ? 'text-brand dark:text-white'
                             : 'text-gray-900 dark:text-white'
                         }`}>
                           {concept.name}
@@ -558,8 +547,7 @@ export function LocationSelectionModal({
                         onExpandConcept(isExpanded ? null : concept.id);
                         onClose();
                       }}
-                      className="px-4 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      style={{ color: 'rgb(0, 173, 240)' }}
+                      className="px-4 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-brand"
                     >
                       Go
                     </button>
@@ -589,7 +577,7 @@ export function LocationSelectionModal({
                                 ref={showCompanyHighlight ? activeRowRef : undefined}
                                 className={`flex items-stretch rounded-lg overflow-hidden border scroll-mt-4 ${
                                   showCompanyHighlight
-                                    ? 'border-[rgb(0,173,240)] bg-blue-50/50 dark:bg-gray-700/70'
+                                    ? 'border-brand bg-sky-50/50 dark:bg-gray-700/70'
                                     : 'border-gray-200 dark:border-gray-700'
                                 }`}
                               >
@@ -608,7 +596,7 @@ export function LocationSelectionModal({
                                       <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                     )}
                                     <Building className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                    <span className={showCompanyHighlight ? 'text-[rgb(0,173,240)] dark:text-white' : 'text-gray-900 dark:text-white'}>
+                                    <span className={showCompanyHighlight ? 'text-brand dark:text-white' : 'text-gray-900 dark:text-white'}>
                                       {company.name}
                                     </span>
                                   </div>
@@ -625,8 +613,7 @@ export function LocationSelectionModal({
                                     );
                                     onClose();
                                   }}
-                                  className="px-3 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800 transition-colors"
-                                  style={{ color: 'rgb(0, 173, 240)' }}
+                                  className="px-3 text-sm font-medium border-l border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800 transition-colors text-brand"
                                 >
                                   Go
                                 </button>
@@ -648,7 +635,7 @@ export function LocationSelectionModal({
                                         ref={showStoreHighlight ? activeRowRef : undefined}
                                         className={`rounded-lg scroll-mt-4 ${
                                           showStoreHighlight
-                                            ? 'bg-blue-50/50 dark:bg-gray-700/70'
+                                            ? 'bg-sky-50/50 dark:bg-gray-700/70'
                                             : ''
                                         }`}
                                       >
@@ -661,8 +648,8 @@ export function LocationSelectionModal({
                                           }}
                                           className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
                                         >
-                                          <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-[rgb(0,173,240)]' : 'text-red-500'}`} />
-                                          <span className={showStoreHighlight ? 'text-[rgb(0,173,240)] dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
+                                          <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-brand' : 'text-red-500'}`} />
+                                          <span className={showStoreHighlight ? 'text-brand dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
                                             {store.name}
                                           </span>
                                         </button>

@@ -94,10 +94,9 @@ export function Sidebar({
                     onClick={() => handleActionClick(action.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'text-white'
+                        ? 'bg-brand text-white'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
-                    style={isActive ? { backgroundColor: 'rgb(0, 173, 240)' } : undefined}
                   >
                     <Icon className="h-4 w-4 flex-shrink-0" />
                     <span className="flex-1 text-left">{action.name}</span>

@@ -27,8 +27,8 @@ export function LocationChangeOverlay({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm location-overlay-enter">
       <div className="location-overlay-card bg-white dark:bg-gray-900 rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center max-w-md mx-4">
         <div className="relative mb-4">
-          <div className="absolute inset-0 rounded-full bg-[rgb(0,173,240)]/20 animate-ping" />
-          <div className="relative h-16 w-16 rounded-full bg-[rgb(0,173,240)] flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full bg-brand/20 animate-ping" />
+          <div className="relative h-16 w-16 rounded-full bg-brand flex items-center justify-center">
             <MapPin className="h-8 w-8 text-white" />
           </div>
         </div>
@@ -43,7 +43,7 @@ export function LocationChangeOverlay({
             {locationPath.join(' › ')}
           </p>
         )}
-        <div className="mt-4 flex items-center gap-1.5 text-[rgb(0,173,240)]">
+        <div className="mt-4 flex items-center gap-1.5 text-brand">
           <Check className="h-4 w-4" />
           <span className="text-sm font-medium">Location updated</span>
         </div>

@@ -833,9 +833,9 @@ function App() {
                      selectedQuickAction === 'activity' ? 'Activity' : 'Displays'}
                   </h2>
                   {selectedQuickAction === 'products' && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border rounded-lg shadow-sm" style={{ borderColor: 'rgb(0, 173, 240)' }}>
-                      <Database className="h-4 w-4" style={{ color: 'rgb(0, 173, 240)' }} />
-                      <span className="text-sm font-medium" style={{ color: 'rgb(0, 173, 240)' }}>Webtrition</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border rounded-lg shadow-sm border-brand">
+                      <Database className="h-4 w-4 text-brand" />
+                      <span className="text-sm font-medium text-brand">Webtrition</span>
                       <RefreshAge refresh={productRefresh} />
                     </div>
                   )}
@@ -846,8 +846,7 @@ function App() {
                     <ProductRefreshButton refresh={productRefresh} />
                     <button
                       onClick={() => setShowCreateItemModal(true)}
-                      className="flex items-center gap-2 h-11 px-4 text-sm font-medium text-white rounded-lg hover:bg-[rgb(0,153,220)] transition-colors"
-                      style={{ backgroundColor: 'rgb(0, 173, 240)' }}
+                      className="flex items-center gap-2 h-11 px-4 text-sm font-medium text-white rounded-lg hover:bg-brand-dark transition-colors bg-brand"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Create Product</span>
