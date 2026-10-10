@@ -1,8 +1,18 @@
-# Converge — AI Style Guide
+# WAND Digital — AI Style Guide
 
-Rules for any AI (or person) adding or changing UI in this prototype. The goal is that new
-screens look like they were always part of the app. **When in doubt, find the closest existing
-component and copy its patterns.**
+Rules for any AI (or person) adding or changing UI in WAND Digital prototypes. The goal is that
+new screens look like they were always part of the app. **When in doubt, find the closest
+existing component and copy its patterns.**
+
+## Rules for AI
+- Copy the closest existing pattern before creating anything new.
+- Use the colors, components, icons, and daypart colors defined below.
+- Stay within the spacing, icon sizes, and type sizes already used in the app.
+- Never invent brand names, product names, or marketing terms. Use the terms already in the
+  UI, or ask.
+- **Ask before deviating.** If something new is needed (a color, component, pattern, or term),
+  stop and propose it with a reason. Don't just add it.
+- When a deviation is approved, add it to this guide so it becomes the standard.
 
 Stack: React + TypeScript + Vite, Tailwind CSS, shadcn/ui (`src/components/ui/`), Lucide icons.
 Do not add other UI kits, icon sets, or CSS frameworks.
