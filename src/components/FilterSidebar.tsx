@@ -324,7 +324,7 @@ export function FilterSidebar({
                   onClick={clearAll}
                   className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline"
                 >
-                  Clear All
+                  Clear all
                 </button>
               )}
               <Button
@@ -505,7 +505,7 @@ export function FilterSidebar({
                           }}
                           className="rounded border-gray-300 dark:border-gray-600 text-sky-500 focus:ring-sky-500 h-3.5 w-3.5"
                         />
-                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Select All</span>
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Select all</span>
                       </label>
                       <div className="max-h-48 overflow-y-auto space-y-0.5">
                         {filteredStations.map(station => (
@@ -532,7 +532,7 @@ export function FilterSidebar({
             {/* Menu Item Name Section */}
             <div className="border-b border-gray-100 dark:border-gray-800">
               <SectionHeader
-                title="Item Name"
+                title="Item name"
                 icon={Type}
                 sectionKey="menu_item_name"
                 hasActive={hasActiveFilter('menu_item_name')}
@@ -606,7 +606,7 @@ export function FilterSidebar({
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      Single Date
+                      Single date
                     </button>
                     <button
                       onClick={() => setDateMode('range')}
@@ -616,13 +616,13 @@ export function FilterSidebar({
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      Date Range
+                      Date range
                     </button>
                   </div>
 
                   {dateMode === 'single' && (
                     <div className="space-y-2">
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Quick Select</p>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Quick select</p>
                       <div className="flex flex-wrap gap-1.5">
                         <button
                           onClick={() => handleDateSelect(today)}
@@ -683,7 +683,7 @@ export function FilterSidebar({
                         size="sm"
                         className="w-full h-7 text-xs"
                       >
-                        Apply Range
+                        Apply range
                       </Button>
                     </div>
                   )}
@@ -705,9 +705,9 @@ export function FilterSidebar({
           <div className="md:hidden flex-shrink-0 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
             <Button
               onClick={onClose}
-              className="w-full bg-sky-500 hover:bg-sky-600 text-white"
+              className="w-full"
             >
-              Show Results
+              Show results
             </Button>
           </div>
         </div>

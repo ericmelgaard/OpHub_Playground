@@ -25,6 +25,36 @@ Do not add other UI kits, icon sets, or CSS frameworks.
 - Mobile-first. Modals go full screen under `md` using the `.modal-*` classes in `src/index.css`.
   Respect safe areas (`.safe-area-top` / `.safe-area-bottom`).
 
+## Layout patterns
+Reuse these instead of inventing new layouts. Each one has a reference implementation to copy.
+
+### Filters → side panel
+Reference: `src/components/FilterSidebar.tsx` (Products page), opened from the toolbar in
+`src/components/MenuFilters.tsx`. Every list or grid that needs filtering uses this pattern.
+- **Trigger:** an outline `Button` labeled "Filters" in the toolbar, with
+  `PanelLeftOpen` / `PanelLeftClose` icons. Show a `sky-500` count pill when filters are active,
+  and a sky selected state while the panel is open.
+- **Panel:** docks on the left beside the content (`flex gap-6`, content `flex-1 min-w-0`), so
+  results update live while it's open. Width `w-80` (`md:w-72 lg:w-80`); it collapses to `w-0`.
+  Under `md` it becomes a full-screen overlay with a `bg-black/40` backdrop and a sticky
+  "Show results" button in the footer.
+- **Header:** `Filter` icon + "Filters" title + active count pill, "Clear all", and a close (`X`).
+- **Results count:** "Showing X of Y items" under the header, with a thin `sky-500` progress bar
+  when the results are narrowed.
+- **Active filter chips:** one removable chip per active filter (soft `sky` fill). Summarize
+  multi-selects ("3 stations") instead of listing every value.
+- **Sections:** one collapsible section per filter dimension, each with a Lucide icon, a
+  `sky-500` dot when that section has a selection, and its own "Clear" link. Open the most-used
+  sections by default; collapse the rest.
+- **Show every option that makes sense.** Build the choices from the data (e.g. distinct
+  dayparts/stations in the items) instead of a hard-coded list. Use checkboxes for multi-select.
+  When a list is longer than ~8, add a search input and a "Select all", and cap the list
+  height (`max-h-48 overflow-y-auto`).
+- **Free text** (name, ID) filters use an `Input` with a 300ms debounce. Dates offer quick picks
+  (Today, days of the week) plus a date input, with a single / range toggle.
+- Filters apply immediately; there is no "Apply" step (except a date range, which needs both ends).
+- Remember open/closed state per user (`localStorage`, as `filterSidebarOpen` in `App.tsx`).
+
 ## Color
 Use Tailwind's palette. Every color has a job — don't pick one for looks.
 
