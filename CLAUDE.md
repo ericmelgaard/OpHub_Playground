@@ -55,6 +55,25 @@ Reference: `src/components/FilterSidebar.tsx` (Products page), opened from the t
 - Filters apply immediately; there is no "Apply" step (except a date range, which needs both ends).
 - Remember open/closed state per user (`localStorage`, as `filterSidebarOpen` in `App.tsx`).
 
+### Long detail pages → section bookmark nav
+Reference: the "Sections" sidebar in `src/pages/ProductEdit.tsx` (viewing/editing a product).
+Any full detail or edit page long enough to scroll past a couple of screens gets a left-side
+bookmark nav so people can jump to what they're looking for.
+- **When:** the page has roughly 4+ distinct sections or scrolls well past one screen. Short
+  pages and modals don't need it.
+- **Layout:** `aside` on the left beside the content (`flex gap-6`, content `flex-1 min-w-0`),
+  `w-56 flex-shrink-0`, with a `sticky top-4` card inside so it stays in view while scrolling.
+  Hidden under `lg` (`hidden lg:block`).
+- **Header:** small uppercase "Sections" label (`text-xs font-semibold uppercase tracking-wide`).
+- **Items:** one button per section, each with a Lucide icon (`h-4 w-4`) and a short sentence-case
+  label that matches the section's heading. Clicking smooth-scrolls to the section, offset so the
+  heading isn't hidden under the top bar.
+- **Active state:** highlight the section currently in view as you scroll (scroll-spy) with the
+  sky selected style: `bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300` and a
+  `border-l-2 border-sky-500` marker. Others are `text-gray-600 dark:text-gray-400` with a gray hover.
+- **Sections:** mark each target with a stable id (`data-section="..."`) and build the nav list
+  from the same array that renders the sections, so they never drift apart.
+
 ## Color
 Use Tailwind's palette. Every color has a job — don't pick one for looks.
 
