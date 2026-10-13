@@ -98,8 +98,8 @@ Color the icon only, never the name or row. Always get colors from `levelIconCol
 
 | Level | Icon | Color | Why |
 |---|---|---|---|
-| Concept | `Building2` | `gray` | Least used — most passive |
-| Company | `Building` | `brand` | |
+| Concept | `Building2` | `brand` | Placeholder — eventually the concept's own brand logo |
+| Company | `Building` | `gray` | Most passive |
 | Store | `Store` (import as `Store as StoreIcon`) | `orange` | Lowest override level — most prominent |
 | Placement / station | `MapPin` | `lime` | Same thing today (to be reconciled) — one icon, one color |
 
