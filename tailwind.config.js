@@ -11,6 +11,10 @@ export default {
           dark: '#0088bd',
           light: '#8ed9f8',
           navy: '#002e5e',
+          // wanddigital.com shop button (--color-magenta / -hover); light = logo magenta
+          magenta: '#c42ec4',
+          'magenta-dark': '#a626a6',
+          'magenta-light': '#dd37dd',
         },
         gray: {
           750: '#2d3748',

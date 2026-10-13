@@ -82,6 +82,7 @@ Use Tailwind's palette. Every color has a job — don't pick one for looks.
 | **Primary action** | `bg-brand hover:bg-brand-dark` (`#00ADF0`) | Filled primary buttons — the `Button` default variant already does this |
 | **Primary / accent** | `sky` (600/400 text, 50/900 soft bg, 500 ring) | Links, selected state, focus, "in progress", info |
 | Brand navy | `brand-navy` (`#002E5E`) | Brand headers only |
+| Brand magenta | `brand-magenta` (`#C42EC4`) | Store-level icons only (see Location levels) |
 | Neutrals | `gray` | Surfaces, borders, body text |
 | Success | `emerald` | Synced, done, complete, "New" |
 | Warning | `amber` | Pending, partial, substitution, "Updated", needs attention |
@@ -100,14 +101,14 @@ Color the icon only, never the name or row. Always get colors from `levelIconCol
 |---|---|---|---|
 | Concept | `Building2` | `gray` | Most passive. Placeholder for a future brand-specific icon (concept ↔ brand is a future topic) |
 | Company | `Building` | `brand` (`#00ADF0` blue) | |
-| Store | `Store` (import as `Store as StoreIcon`) | `orange` | Lowest override level — most prominent |
+| Store | `Store` (import as `Store as StoreIcon`) | `brand-magenta` (`#C42EC4`, dark `brand-magenta-light`) | Lowest override level — most prominent. WAND shop-button magenta |
 | Placement / station | `MapPin` | `lime` | Same thing today (to be reconciled) — one icon, one color |
 
 - When the row is selected, drop the level color and let the selected style win.
 - Don't use `MapPin` for a store, or `Store` for a placement.
 - `MapPin` (on `brand`, no level color) also means "location" in general: the full location
   selector button in `Navigation.tsx` and the location change overlay.
-- `orange` and `lime` are reserved for this — don't use them elsewhere (beyond the
+- `brand-magenta` and `lime` are reserved for this — don't use them elsewhere (beyond the
   categorical palettes below).
 
 Don't use `indigo`, `purple`, `cyan`, `green`, or `yellow` — use the roles above. `blue` is

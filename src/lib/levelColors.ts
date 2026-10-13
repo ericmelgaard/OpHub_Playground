@@ -8,7 +8,7 @@ export type LocationLevel = 'concept' | 'company' | 'store' | 'placement';
 const LEVEL_ICON_COLORS: Record<LocationLevel, string> = {
   concept: 'text-gray-400 dark:text-gray-500',
   company: 'text-brand',
-  store: 'text-orange-500 dark:text-orange-400',
+  store: 'text-brand-magenta dark:text-brand-magenta-light',
   placement: 'text-lime-600 dark:text-lime-400',
 };
 
