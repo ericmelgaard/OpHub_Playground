@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LocationSelectionModal } from './LocationSelectionModal';
+import { levelIconColor } from '@/lib/levelColors';
 import type { DemoSecondaryDomain } from '../services/mockData';
 
 interface NavigationProps {
@@ -401,7 +402,7 @@ export function Navigation({
                       {isWandLevel ? (
                         <img src={`${import.meta.env.BASE_URL}wand-level.webp`} alt="WAND" className="h-4 w-4 object-contain" />
                       ) : (
-                        <CurrentIcon className="h-4 w-4 text-brand" />
+                        <CurrentIcon className={`h-4 w-4 ${levelIconColor(currentLevel)}`} />
                       )}
                       {getCurrentLabel()}
                       <ChevronDown className="h-4 w-4" />
@@ -464,13 +465,7 @@ export function Navigation({
                                 }`}
                               >
                                 <SibIcon className={`h-4 w-4 flex-shrink-0 ${
-                                  isActive
-                                    ? ''
-                                    : sibling.type === 'concept'
-                                      ? 'text-brand'
-                                      : sibling.type === 'company'
-                                        ? 'text-gray-500 dark:text-gray-400'
-                                        : 'text-red-500'
+                                  isActive ? '' : levelIconColor(sibling.type)
                                 }`} />
                                 <span className="truncate">{sibling.name}</span>
                               </Button>
@@ -501,13 +496,7 @@ export function Navigation({
                                     }`}
                                   >
                                     <SibIcon className={`h-4 w-4 flex-shrink-0 ${
-                                      isActive
-                                        ? ''
-                                        : s.type === 'concept'
-                                          ? 'text-brand'
-                                          : s.type === 'company'
-                                            ? 'text-gray-500 dark:text-gray-400'
-                                            : 'text-red-500'
+                                      isActive ? '' : levelIconColor(s.type)
                                     }`} />
                                     <span className="truncate">{s.name}</span>
                                   </Button>

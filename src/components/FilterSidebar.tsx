@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { levelIconColor } from '@/lib/levelColors';
 import { FilterConfig, FilterType, MenuItem, Placement } from '../types';
 
 interface FilterSidebarProps {
@@ -261,9 +262,11 @@ export function FilterSidebar({
     icon: Icon,
     sectionKey,
     hasActive,
+    iconClassName = 'text-gray-500 dark:text-gray-400',
   }: {
     title: string;
     icon: React.ElementType;
+    iconClassName?: string;
     sectionKey: keyof SectionState;
     hasActive: boolean;
   }) => (
@@ -272,7 +275,7 @@ export function FilterSidebar({
       className="w-full flex items-center justify-between py-3 px-1 text-left group"
     >
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+        <Icon className={`h-4 w-4 ${iconClassName}`} />
         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{title}</span>
         {hasActive && (
           <span className="w-2 h-2 rounded-full bg-sky-500" />
@@ -451,6 +454,7 @@ export function FilterSidebar({
               <SectionHeader
                 title="Stations"
                 icon={MapPin}
+                iconClassName={levelIconColor('placement')}
                 sectionKey="station"
                 hasActive={hasActiveFilter('station')}
               />

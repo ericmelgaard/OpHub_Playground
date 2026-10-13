@@ -2,6 +2,7 @@ import React from 'react';
 import { X, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { levelIconColor } from '@/lib/levelColors';
 
 interface StationsModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ export function StationsModal({ isOpen, onClose, stations, itemName }: StationsM
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b dark:border-gray-700">
           <div className="flex items-center gap-3">
-            <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            <MapPin className={`h-5 w-5 ${levelIconColor('placement')}`} />
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Stations

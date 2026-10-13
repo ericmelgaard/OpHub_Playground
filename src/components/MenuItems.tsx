@@ -3,6 +3,7 @@ import { AlertCircle, Clock, MapPin } from 'lucide-react';
 import { MenuItem as MenuItemComponent } from './MenuItem';
 import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
 import { Card, CardContent } from '@/components/ui/card';
+import { levelIconColor } from '@/lib/levelColors';
 
 interface GroupedItems {
   [key: string]: {
@@ -214,7 +215,7 @@ export function MenuItems({
               </div>
               <div className="w-px h-4 bg-sky-200 dark:bg-sky-700" />
               <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                <MapPin className={`h-4 w-4 ${levelIconColor('placement')}`} />
                 <h3 className="font-medium text-sky-900 dark:text-sky-200">
                   {group.mealStation}
                 </h3>

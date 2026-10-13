@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { StationsModal } from './StationsModal';
 import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
+import { levelIconColor } from '@/lib/levelColors';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -174,7 +175,7 @@ export function MenuItem({
 
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <MapPin className="h-3.5 w-3.5 text-gray-400" />
+              <MapPin className={`h-3.5 w-3.5 ${levelIconColor('placement')}`} />
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Stations</span>
             </div>
             <div className="flex flex-wrap gap-1.5 mt-1">
@@ -256,7 +257,7 @@ export function MenuItem({
         className="flex items-center gap-2 cursor-help"
         title={item.mealStations?.join('\n')}
       >
-        <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+        <MapPin className={`h-4 w-4 flex-shrink-0 ${levelIconColor('placement')}`} />
         <span className="text-xs text-gray-600 dark:text-gray-400">
           {item.mealStations?.length || 0} locations
         </span>
@@ -282,7 +283,7 @@ export function MenuItem({
         </div>
       </div>
       <div className="flex items-start gap-2">
-        <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
+        <MapPin className={`h-4 w-4 flex-shrink-0 mt-0.5 ${levelIconColor('placement')}`} />
         <div className="flex-1 max-h-20 overflow-y-auto">
           <div className="flex flex-wrap gap-1.5">
             {item.mealStations?.map((station, idx) => (
@@ -342,7 +343,7 @@ export function MenuItem({
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          <MapPin className={`h-4 w-4 ${levelIconColor('placement')}`} />
           <span className="text-sm text-gray-600 dark:text-gray-400">
             {item.mealStations?.length || 0} stations
           </span>

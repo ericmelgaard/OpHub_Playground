@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { FilterConfig, Placement } from '../types';
-import { ChevronDown, ChevronRight, Store, X, Check, CheckSquare, Square } from 'lucide-react';
+import { ChevronDown, ChevronRight, MapPin, X, Check, CheckSquare, Square } from 'lucide-react';
 import { Button } from './ui/button';
+import { levelIconColor } from '@/lib/levelColors';
 
 interface SmartLabelFiltersProps {
   isOpen: boolean;
@@ -121,7 +122,7 @@ export function SmartLabelFilters({ isOpen, onClose, activeFilters, onFiltersCha
               className="w-full flex items-center justify-between py-3 text-left"
             >
               <div className="flex items-center gap-2">
-                <Store className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                <MapPin className={`h-4 w-4 ${levelIconColor('placement')}`} />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Placements</span>
                 {activeCount > 0 && <span className="w-2 h-2 rounded-full bg-sky-500" />}
               </div>

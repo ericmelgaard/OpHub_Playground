@@ -5,13 +5,14 @@ import {
   ChevronDown,
   Building2,
   Building,
-  MapPin,
+  Store as StoreIcon,
   Search,
   Home,
   Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { levelIconColor, type LocationLevel } from '@/lib/levelColors';
 
 interface LocationSelectionModalProps {
   isOpen: boolean;
@@ -415,7 +416,7 @@ export function LocationSelectionModal({
                     <div className="w-full flex items-center justify-between p-4 flex-1">
                       <div className="flex items-center gap-3">
                         <Building2
-                          className="h-5 w-5 flex-shrink-0 text-brand"
+                          className={`h-5 w-5 flex-shrink-0 ${levelIconColor('concept')}`}
                         />
                         <span className="font-medium text-gray-900 dark:text-white">
                           {concept.name}
@@ -441,7 +442,7 @@ export function LocationSelectionModal({
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50">
                       <div className="flex items-center gap-3">
                         <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                        <Building className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        <Building className={`h-4 w-4 ${levelIconColor('company')}`} />
                         <span className="font-medium text-gray-900 dark:text-white">
                           {company.name}
                         </span>
@@ -476,7 +477,7 @@ export function LocationSelectionModal({
                                 }}
                                 className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
                               >
-                                <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-brand' : 'text-red-500'}`} />
+                                <StoreIcon className={`h-4 w-4 ${showStoreHighlight ? 'text-brand' : levelIconColor('store')}`} />
                                 <span className={showStoreHighlight ? 'text-brand dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
                                   {store.name}
                                 </span>
@@ -526,7 +527,7 @@ export function LocationSelectionModal({
                           <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                         )}
                         <Building2
-                          className="h-5 w-5 flex-shrink-0 text-brand"
+                          className={`h-5 w-5 flex-shrink-0 ${levelIconColor('concept')}`}
                         />
                         <span className={`font-medium ${
                           showConceptHighlight
@@ -595,7 +596,7 @@ export function LocationSelectionModal({
                                     ) : (
                                       <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                     )}
-                                    <Building className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                    <Building className={`h-4 w-4 ${levelIconColor('company')}`} />
                                     <span className={showCompanyHighlight ? 'text-brand dark:text-white' : 'text-gray-900 dark:text-white'}>
                                       {company.name}
                                     </span>
@@ -648,7 +649,7 @@ export function LocationSelectionModal({
                                           }}
                                           className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
                                         >
-                                          <MapPin className={`h-4 w-4 ${showStoreHighlight ? 'text-brand' : 'text-red-500'}`} />
+                                          <StoreIcon className={`h-4 w-4 ${showStoreHighlight ? 'text-brand' : levelIconColor('store')}`} />
                                           <span className={showStoreHighlight ? 'text-brand dark:text-white font-medium' : 'text-gray-900 dark:text-white'}>
                                             {store.name}
                                           </span>
@@ -715,11 +716,12 @@ function SearchResults({
   return (
     <div className="space-y-6">
       {matchingConcepts.length > 0 && (
-        <SearchGroup title="Concepts" icon={Building2}>
+        <SearchGroup title="Concepts" icon={Building2} level="concept">
           {matchingConcepts.map((concept) => (
             <SearchResultItem
               key={concept.id}
               icon={Building2}
+              level="concept"
               name={concept.name}
               path={[]}
               query={query}
@@ -735,13 +737,14 @@ function SearchResults({
       )}
 
       {matchingCompanies.length > 0 && (
-        <SearchGroup title="Companies" icon={Building}>
+        <SearchGroup title="Companies" icon={Building} level="company">
           {matchingCompanies.map((company) => {
             const concept = conceptById.get(company.conceptId);
             return (
               <SearchResultItem
                 key={company.id}
                 icon={Building}
+                level="company"
                 name={company.name}
                 path={concept ? [concept.name] : []}
                 query={query}
@@ -758,7 +761,7 @@ function SearchResults({
       )}
 
       {matchingStores.length > 0 && (
-        <SearchGroup title="Stores" icon={MapPin}>
+        <SearchGroup title="Stores" icon={StoreIcon} level="store">
           {matchingStores.map((store) => {
             const company = companyById.get(store.companyId);
             const concept = company
@@ -767,7 +770,8 @@ function SearchResults({
             return (
               <SearchResultItem
                 key={store.id}
-                icon={MapPin}
+                icon={StoreIcon}
+                level="store"
                 name={store.name}
                 path={[concept?.name, company?.name].filter(Boolean)}
                 query={query}
@@ -789,16 +793,18 @@ function SearchResults({
 function SearchGroup({
   title,
   icon: Icon,
+  level,
   children,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
+  level: LocationLevel;
   children: React.ReactNode;
 }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+        <Icon className={`h-4 w-4 ${levelIconColor(level)}`} />
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
           {title}
         </h3>
@@ -810,12 +816,14 @@ function SearchGroup({
 
 function SearchResultItem({
   icon: Icon,
+  level,
   name,
   path,
   query,
   onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
+  level: LocationLevel;
   name: string;
   path: string[];
   query: string;
@@ -826,7 +834,7 @@ function SearchResultItem({
       onClick={onClick}
       className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
     >
-      <Icon className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+      <Icon className={`h-4 w-4 flex-shrink-0 ${levelIconColor(level)}`} />
       <div className="min-w-0">
         <div className="font-medium text-gray-900 dark:text-white truncate">
           {highlightMatch(name, query)}

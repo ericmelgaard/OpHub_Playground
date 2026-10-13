@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { levelIconColor } from '@/lib/levelColors';
 
 interface ItemSelectionModalProps {
   show: boolean;
@@ -266,7 +267,7 @@ export function ItemSelectionModal({
           </div>
 
           <div className="flex items-center space-x-2">
-            <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+            <MapPin className={`h-4 w-4 flex-shrink-0 ${levelIconColor('placement')}`} />
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {item.mealStation}
             </span>

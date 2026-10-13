@@ -92,6 +92,24 @@ Use Tailwind's palette. Every color has a job — don't pick one for looks.
 Breakfast `amber` · Lunch `emerald` · Dinner `blue` · Late Night `violet` · All Day / Custom `gray`.
 Always get them from `daypartColor()` in `src/lib/daypartColors.ts` — never redefine them.
 
+**Location levels** — one icon and one icon color per level, used everywhere it appears.
+Color the icon only, never the name or row. Always get colors from `levelIconColor()` in
+`src/lib/levelColors.ts`.
+
+| Level | Icon | Color | Why |
+|---|---|---|---|
+| Concept | `Building2` | `gray` | Least used — most passive |
+| Company | `Building` | `brand` | |
+| Store | `Store` (import as `Store as StoreIcon`) | `orange` | Lowest override level — most prominent |
+| Placement / station | `MapPin` | `lime` | Same thing today (to be reconciled) — one icon, one color |
+
+- When the row is selected, drop the level color and let the selected style win.
+- Don't use `MapPin` for a store, or `Store` for a placement.
+- `MapPin` (on `brand`, no level color) also means "location" in general: the full location
+  selector button in `Navigation.tsx` and the location change overlay.
+- `orange` and `lime` are reserved for this — don't use them elsewhere (beyond the
+  categorical palettes below).
+
 Don't use `indigo`, `purple`, `cyan`, `green`, or `yellow` — use the roles above. `blue` is
 reserved for the Dinner daypart. The only exceptions are deliberate categorical palettes: brand
 avatars (`getBrandColor` in `GroupsPage.tsx`) and quick-action icon colors in `App.tsx`.

@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { AddDevicesModal, AddBrandsModal } from './GroupPickers';
 import { BrandAvatar } from './GroupsPage';
+import { levelIconColor } from '@/lib/levelColors';
 
 interface GroupDetailPageProps {
   group: DeviceGroup;
@@ -258,7 +259,7 @@ export function GroupDetailPage({
                           <Badge variant="secondary" className="text-[10px]">{d.labelSize}</Badge>
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-3 w-3 text-gray-400" />
+                          <MapPin className={`h-3 w-3 ${levelIconColor('placement')}`} />
                           <p className="text-xs text-gray-400 truncate">{d.location}</p>
                         </div>
                       </div>

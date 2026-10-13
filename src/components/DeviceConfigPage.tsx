@@ -22,6 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 import core22Image from '@/assets/images/devices/core2.2_2.png';
+import { levelIconColor } from '@/lib/levelColors';
 
 interface DeviceConfigPageProps {
   device: Device;
@@ -133,7 +134,7 @@ export function DeviceConfigPage({
                   </h3>
                   <div className="mt-2 space-y-1.5">
                     <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                      <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                      <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${levelIconColor('placement')}`} />
                       <span className="truncate">{device.location}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
