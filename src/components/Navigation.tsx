@@ -379,14 +379,14 @@ export function Navigation({
 
   return (
     <>
-      <nav className="bg-gray-900 dark:bg-gray-950 shadow-sm fixed w-full z-10 transition-colors">
+      <nav className="bg-brand-navy dark:bg-gray-950 shadow-sm fixed w-full z-10 transition-colors">
         <div className="mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
                 onClick={onMenuClick}
-                className="p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-900 transition-colors"
+                className="p-2 rounded-lg hover:bg-white/10 dark:hover:bg-gray-900 transition-colors"
               >
                 <Menu className="h-6 w-6 text-gray-300 dark:text-gray-400" />
               </Button>
@@ -397,7 +397,7 @@ export function Navigation({
                     <button
                       ref={triggerRef}
                       onClick={() => setShowStoreDropdown(!showStoreDropdown)}
-                      className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors whitespace-nowrap"
+                      className="flex items-center gap-2 px-4 py-2 text-white font-medium text-base hover:bg-white/10 dark:hover:bg-gray-900 rounded-lg transition-colors whitespace-nowrap"
                     >
                       {isWandLevel ? (
                         <img src={`${import.meta.env.BASE_URL}wand-level.webp`} alt="WAND" className="h-4 w-4 object-contain" />
@@ -415,7 +415,7 @@ export function Navigation({
                     {currentLevel !== 'wand' && (
                       <button
                         onClick={handleReset}
-                        className="p-2 hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                        className="p-2 hover:bg-white/10 dark:hover:bg-gray-900 rounded-lg transition-colors"
                         title="Return to WAND"
                       >
                         <Home className="h-4 w-4 text-gray-300 dark:text-gray-400" />
@@ -513,7 +513,7 @@ export function Navigation({
 
                 <button
                   onClick={() => setShowLocationModal(true)}
-                  className="p-2 text-brand hover:bg-gray-800 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                  className="p-2 text-brand hover:bg-white/10 dark:hover:bg-gray-900 rounded-lg transition-colors"
                   title="Full Location Selector"
                 >
                   <MapPin className="h-5 w-5" />
@@ -600,7 +600,7 @@ export function Navigation({
             <div className="relative">
               <Button
                 variant="ghost"
-                className="relative p-2 rounded-full hover:bg-gray-800 dark:hover:bg-gray-900 transition-colors"
+                className="relative p-2 rounded-full hover:bg-white/10 dark:hover:bg-gray-900 transition-colors"
                 onClick={() => setShowNotificationsMenu(!showNotificationsMenu)}
               >
                 <Bell
@@ -657,7 +657,7 @@ export function Navigation({
             <div className="relative">
               <Button
                 variant="ghost"
-                className="p-2 rounded-full hover:bg-gray-800 dark:hover:bg-gray-900 transition-colors"
+                className="p-2 rounded-full hover:bg-white/10 dark:hover:bg-gray-900 transition-colors"
                 onClick={() => setShowSettingsMenu(!showSettingsMenu)}
               >
                 {React.createElement(currentThemeIcon, {

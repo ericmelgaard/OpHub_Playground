@@ -7,10 +7,10 @@ export default {
       colors: {
         // Wand Digital brand (shop.wanddigital.com); day-to-day UI uses Tailwind `sky`
         brand: {
-          DEFAULT: '#00adf0',
+          DEFAULT: '#00adef',
           dark: '#0088bd',
           light: '#8ed9f8',
-          navy: '#002e5e',
+          navy: '#002f5e',
           // wanddigital.com shop button (--color-magenta / -hover); light = logo magenta
           magenta: '#c42ec4',
           'magenta-dark': '#a626a6',

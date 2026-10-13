@@ -75,13 +75,16 @@ bookmark nav so people can jump to what they're looking for.
   from the same array that renders the sections, so they never drift apart.
 
 ## Color
-Use Tailwind's palette. Every color has a job — don't pick one for looks.
+Use Tailwind's palette. Every color has a job — don't pick one for looks. Brand hex values
+come from the WAND stylesheet (2021-12-22): Blue `#00ADEF`, Light Blue `#8ED9F8`, Dark Blue
+`#002F5E`, Magenta `#DD37DD` (action accent), Yellow `#FFE066` (static accent), Grey `#D2D3D5`.
+The ones in use live in `tailwind.config.js` under `brand`; don't retype hex values in components.
 
 | Role | Tailwind | Used for |
 |---|---|---|
-| **Primary action** | `bg-brand hover:bg-brand-dark` (`#00ADF0`) | Filled primary buttons — the `Button` default variant already does this |
+| **Primary action** | `bg-brand hover:bg-brand-dark` (`#00ADEF`) | Filled primary buttons — the `Button` default variant already does this |
 | **Primary / accent** | `sky` (600/400 text, 50/900 soft bg, 500 ring) | Links, selected state, focus, "in progress", info |
-| Brand navy | `brand-navy` (`#002E5E`) | Brand headers only |
+| Brand navy | `brand-navy` (`#002F5E`) | Brand headers only — the top nav bar is `bg-brand-navy` in light mode and `dark:bg-gray-950` in dark mode, with `hover:bg-white/10 dark:hover:bg-gray-900` controls |
 | Brand magenta | `brand-magenta` (`#C42EC4`) | Store-level icons only (see Location levels) |
 | Neutrals | `gray` | Surfaces, borders, body text |
 | Success | `emerald` | Synced, done, complete, "New" |
@@ -100,7 +103,7 @@ Color the icon only, never the name or row. Always get colors from `levelIconCol
 | Level | Icon | Color | Why |
 |---|---|---|---|
 | Concept | `Building2` | `gray` | Most passive. Placeholder for a future brand-specific icon (concept ↔ brand is a future topic) |
-| Company | `Building` | `brand` (`#00ADF0` blue) | |
+| Company | `Building` | `brand` (`#00ADEF` blue) | |
 | Store | `Store` (import as `Store as StoreIcon`) | `brand-magenta` (`#C42EC4`, dark `brand-magenta-light`) | Lowest override level — most prominent. WAND shop-button magenta |
 | Placement / station | `MapPin` | `lime` | Same thing today (to be reconciled) — one icon, one color |
 
