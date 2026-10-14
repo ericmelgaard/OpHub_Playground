@@ -855,6 +855,7 @@ function App() {
                 )}
               </div>
 
+              {selectedQuickAction !== 'groups' && (
               <MenuFilters
                 viewMode={selectedQuickAction === 'smart-labels' ? labelViewMode : viewMode}
                 setViewMode={selectedQuickAction === 'smart-labels'
@@ -878,6 +879,7 @@ function App() {
                 onToggleSchedule={handleToggleSchedule}
                 scheduleGapCount={weekGapCount}
               />
+              )}
 
               <div className="flex gap-6 min-h-[calc(100vh-280px)]">
                 {selectedQuickAction === 'products' && (

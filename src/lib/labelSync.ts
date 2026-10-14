@@ -141,3 +141,12 @@ function subscribe(listener: () => void) {
 export function useLabelSync(deviceId: string): LabelSyncView | undefined {
   return useSyncExternalStore(subscribe, () => views.get(deviceId));
 }
+
+// Sync states for several labels at once (e.g. every device in a group). The snapshot
+// is a joined string so it stays stable between unrelated updates.
+export function useLabelSyncStates(deviceIds: string[]): (LabelSyncState | undefined)[] {
+  const key = useSyncExternalStore(subscribe, () =>
+    deviceIds.map(id => views.get(id)?.state ?? '').join(','));
+  if (!key) return deviceIds.map(() => undefined);
+  return key.split(',').map(s => (s || undefined) as LabelSyncState | undefined);
+}
