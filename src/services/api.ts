@@ -233,6 +233,54 @@ export const api = {
     });
   },
 
+  // Saves a product created in the app. It's tagged 'converge-custom' (the only rows the app
+  // may insert) and gets a negative id and a CUSTOM- MRN so it never collides with Webtrition
+  // data. Returns the new id; reload with getMenuItems() to get the full item. Throws on failure.
+  createMenuItem: async (data: {
+    name: string;
+    price?: string;
+    mealPeriod?: string;
+    mealStation?: string;
+    description?: string | null;
+    enticingDescription?: string | null;
+    calories?: string;
+    allergens?: string;
+    nutrition?: MenuItem['nutrition'];
+  }): Promise<number> => {
+    const findId = async (table: 'meal_periods' | 'stations', name?: string) => {
+      if (!name?.trim()) return null;
+      const { data: row } = await supabase.from(table).select('id').ilike('name', name.trim()).limit(1).maybeSingle();
+      return row?.id ?? null;
+    };
+    const [mealPeriodId, stationId] = await Promise.all([
+      findId('meal_periods', data.mealPeriod),
+      findId('stations', data.mealStation),
+    ]);
+
+    const id = -(Math.floor(Math.random() * 2_000_000_000) + 1);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const { error } = await supabase.from('menu_items').insert({
+      id,
+      date: today,
+      name: data.name.trim(),
+      description: data.description || null,
+      enticing_description: data.enticingDescription || null,
+      price: data.price || '0.00',
+      mrn: `CUSTOM-${-id}`,
+      calories: data.calories || '0',
+      allergens: data.allergens || '',
+      nutrition: data.nutrition ?? null,
+      icons: [],
+      meal_period_id: mealPeriodId,
+      station_id: stationId,
+      source_name: 'converge-custom',
+    });
+    if (error) throw new Error(error.message);
+    return id;
+  },
+
   // Devices
   getDevices: async (): Promise<Device[]> => {
     await mockDelay();

@@ -542,6 +542,14 @@ function App() {
 
 
   // Handlers
+  // Saves a new product to Supabase and reloads the list so it shows everywhere. Throws on failure.
+  const createMenuItem = useCallback(async (data: Parameters<typeof api.createMenuItem>[0]): Promise<MenuItem | null> => {
+    const id = await api.createMenuItem(data);
+    const updated = await api.getMenuItems();
+    setMenuItems(updated);
+    return updated.find(i => i.id === id) ?? null;
+  }, []);
+
   const handleCreateRule = useCallback((rule: Rule) => {
     setRules(prev => [...prev, rule]);
     setShowCreateRuleModal(false);
@@ -1021,7 +1029,7 @@ function App() {
           <CreateItemModal
             show={showCreateItemModal}
             onClose={() => setShowCreateItemModal(false)}
-            onSave={() => setShowCreateItemModal(false)}
+            onSave={async (item) => { await createMenuItem(item); }}
           />
         )}
 
@@ -1137,10 +1145,7 @@ function App() {
             setNotifications={setNotifications}
             onCreateMenuItem={async (data) => {
               try {
-                const item = await api.createMenuItem(data);
-                const updated = await api.getMenuItems();
-                setMenuItems(updated);
-                return item;
+                return await createMenuItem(data);
               } catch (err) {
                 console.error('Error creating menu item from device page:', err);
                 return null;

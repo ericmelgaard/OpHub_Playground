@@ -183,20 +183,23 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- CLEANUP: delete data before a given date ---
+    // Products created in the app (source_name 'converge-custom', MRN 'CUSTOM-…') are kept.
     if (mode === "cleanup") {
       const before = body?.before;
       if (!before) return jsonRes({ error: "Missing 'before' date" }, 400);
       const { error, count } = await supabase
         .from("menu_items")
         .delete({ count: "exact" })
-        .lt("date", before);
+        .lt("date", before)
+        .or("source_name.is.null,source_name.neq.converge-custom");
       if (error) throw error;
 
       // Also clean product_availability for old data
       await supabase
         .from("product_availability")
         .delete()
-        .lt("last_seen_date", before);
+        .lt("last_seen_date", before)
+        .not("mrn", "like", "CUSTOM-%");
 
       return jsonRes({ deleted: count, before });
     }

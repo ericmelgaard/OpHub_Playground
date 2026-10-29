@@ -1,0 +1,58 @@
+name: Deploy Supabase
+
+# Applies new migrations and deploys edge functions when anything in supabase/ changes on main.
+# Needs repo secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD.
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only show what would change'
+        type: boolean
+        default: true
+
+concurrency:
+  group: supabase
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+  # Migrations up to this version were applied by Bolt. If any of them show up as pending,
+  # the remote migration history doesn't match and running them again could duplicate data.
+  BASELINE_VERSION: '20260929140000'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Check pending migrations
+        run: |
+          supabase db push --dry-run | tee dry-run.txt
+          pending=$(grep -oE '[0-9]{14}_[A-Za-z0-9_]+\.sql' dry-run.txt | sort -u || true)
+          for f in $pending; do
+            if [ "${f%%_*}" -le "$BASELINE_VERSION" ]; then
+              echo "::error::$f is already applied by Bolt but not recorded in Supabase's migration history. Repair the history before deploying (see supabase migration repair)."
+              exit 1
+            fi
+          done
+
+      - name: Apply migrations
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        run: supabase db push
+
+      - name: Deploy edge functions
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        run: supabase functions deploy --project-ref "$PROJECT_REF"

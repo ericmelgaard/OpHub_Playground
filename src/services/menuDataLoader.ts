@@ -49,7 +49,9 @@ async function weekHasData(weekOffset: number): Promise<boolean> {
     .from('menu_items')
     .select('id', { count: 'exact', head: true })
     .gte('date', start)
-    .lte('date', end);
+    .lte('date', end)
+    // Products created in the app don't count as synced Webtrition data
+    .or('source_name.is.null,source_name.neq.converge-custom');
   if (error) {
     console.error('Error checking week data:', error);
     return false;

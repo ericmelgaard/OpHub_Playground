@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save } from 'lucide-react';
+import { X, Save, Loader2 } from 'lucide-react';
 import { MenuItem, Nutrition } from '../types';
 import {
   Card,
@@ -15,7 +15,8 @@ import { Label } from '@/components/ui/label';
 interface CreateItemModalProps {
   show: boolean;
   onClose: () => void;
-  onSave: (newItem: MenuItem) => void;
+  // Saves the product; throws if it fails so the form stays open
+  onSave: (newItem: MenuItem) => Promise<void>;
 }
 
 const defaultNutritionInfo = {
@@ -48,6 +49,8 @@ export function CreateItemModal({
     allergens: '',
     calories: '0',
   });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleChange = (field: keyof MenuItem, value: any) => {
     setNewItem((prev) => ({
@@ -69,8 +72,8 @@ export function CreateItemModal({
     }));
   };
 
-  const handleSubmit = () => {
-    if (!newItem.name) return;
+  const handleSubmit = async () => {
+    if (!newItem.name || saving) return;
 
     const item: MenuItem = {
       id: Date.now(),
@@ -92,7 +95,16 @@ export function CreateItemModal({
       sortOrder: 0,
     };
 
-    onSave(item);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(item);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Something went wrong');
+      return;
+    } finally {
+      setSaving(false);
+    }
     onClose();
     setNewItem({
       name: '',
@@ -242,10 +254,15 @@ export function CreateItemModal({
         </CardContent>
 
         <CardFooter className="flex-shrink-0 border-t dark:border-gray-700 p-4">
-          <div className="flex justify-end w-full">
+          <div className="flex items-center justify-end gap-4 w-full">
+            {saveError && (
+              <p className="flex-1 text-sm text-red-600 dark:text-red-400">
+                Couldn't save this product: {saveError}
+              </p>
+            )}
             <Button
               onClick={handleSubmit}
-              disabled={!newItem.name}
+              disabled={!newItem.name || saving}
               // className="flex items-center gap-2"
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 newItem.name.length > 0
@@ -253,8 +270,8 @@ export function CreateItemModal({
                   : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}
             >
-              <Save className="h-4 w-4" />
-              Create Item
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? 'Saving…' : 'Create Item'}
             </Button>
           </div>
         </CardFooter>
