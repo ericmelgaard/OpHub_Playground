@@ -115,3 +115,14 @@ export function formatWeekRange(weekStart: string): string {
     ? `${month(start)} ${start.getDate()} – ${end.getDate()}`
     : `${month(start)} ${start.getDate()} – ${month(end)} ${end.getDate()}`;
 }
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// The day being edited: "Tue, Nov 3" inside a dated week, "Tue" otherwise
+export function formatEditingDay(day: number | 'every-day', weekStart: string | null): string {
+  if (day === 'every-day') return 'Every day';
+  if (!weekStart) return DAY_SHORT[day];
+  const date = new Date(weekStart + 'T00:00:00');
+  date.setDate(date.getDate() + ((day + 6) % 7));
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}

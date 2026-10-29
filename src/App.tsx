@@ -7,18 +7,19 @@ import { MenuItems } from './components/MenuItems';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
 import { WeekScheduleBar, getWeekStartString } from './components/WeekScheduleBar';
-import { resolveWeekSchedules, getScheduleSource, ScheduleSource } from './lib/weekSchedule';
+import { resolveWeekSchedules, getScheduleSource, ScheduleSource, formatWeekRange, formatEditingDay } from './lib/weekSchedule';
+import { filterLabels } from './lib/labelFilter';
 import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
 import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
 import { initLabelSync, recordLabelChange } from './lib/labelSync';
 import { useProductRefresh, ProductRefreshButton, ProductRefreshSheet, RefreshAge } from './components/ProductRefresh';
-import { DaypartSelector } from './components/DaypartSelector';
+import { DaypartSelector, orderedDayparts } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
-import { DeviceFirstWorkflow } from './workflows/DeviceFirstWorkflow';
+import { DeviceFirstWorkflow, LabelNav } from './workflows/DeviceFirstWorkflow';
 import { LabelPickerSheet } from './components/LabelPickerSheet';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
@@ -150,6 +151,14 @@ function App() {
   const [deviceWeekContext, setDeviceWeekContext] = useState<{ isDefault: boolean; weekStart: string | null; label: string } | null>(null);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+
+  // Day being edited. Shared by every label you open, and changed from the label page.
+  const [labelDay, setLabelDay] = useState<number | 'every-day'>(() => new Date().getDay());
+  // Labels opened this session, keyed by what was being edited, plus the last one opened
+  const [reviewedLabels, setReviewedLabels] = useState<Set<string>>(new Set());
+  const [lastOpenedLabelId, setLastOpenedLabelId] = useState<string | null>(null);
+  // True while stepping label to label, so the page doesn't slide in each time
+  const [steppingLabels, setSteppingLabels] = useState(false);
 
   // Default daypart based on current time
   useEffect(() => {
@@ -387,11 +396,18 @@ function App() {
     [effectiveSchedules, defaultSchedules],
   );
 
+  const resetLabelSession = useCallback(() => {
+    setLabelDay(new Date().getDay());
+    setReviewedLabels(new Set());
+    setLastOpenedLabelId(null);
+  }, []);
+
   const closeSchedule = useCallback(() => {
     setScheduleOpen(false);
     setLabelWeekOffset(0);
     setIsDefaultWeekSelected(false);
-  }, []);
+    resetLabelSession();
+  }, [resetLabelSession]);
 
   const handleToggleSchedule = useCallback(() => {
     if (scheduleOpen) {
@@ -590,8 +606,9 @@ function App() {
     setSelectedStore(storeId);
   }, []);
 
-  const handleDeviceSelect = useCallback((device: Device, daypart?: string) => {
+  const handleDeviceSelect = useCallback((device: Device, daypart?: string | null) => {
     setSelectedDevice(device);
+    setSteppingLabels(false);
     setWorkflowDaypart(daypart || selectedDaypart);
     if (selectedQuickAction === 'smart-labels') {
       const isDefault = isDefaultWeekSelected;
@@ -603,11 +620,80 @@ function App() {
         : labelWeekOffset === -1 ? 'Last Week'
         : `Week of ${new Date(getWeekStartString(labelWeekOffset) + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
       setDeviceWeekContext({ isDefault, weekStart, label });
+      setLastOpenedLabelId(device.id);
     } else {
       setDeviceWeekContext(null);
     }
     setShowDeviceWorkflow(true);
   }, [selectedDaypart, selectedQuickAction, isDefaultWeekSelected, labelWeekOffset]);
+
+  const selectedPlacementIds = useMemo(
+    () => activeFilters.find(f => f.type === 'placement')?.selectedValues ?? [],
+    [activeFilters],
+  );
+
+  // The labels on screen, in order: what previous / next on the label page walk through
+  const visibleLabels = useMemo(
+    () => filterLabels(devices, searchValue, selectedPlacementIds),
+    [devices, searchValue, selectedPlacementIds],
+  );
+
+  // What's being edited; a label counts as reviewed once it's been opened for it
+  const labelSessionKey = `${scheduleOpen ? (isDefaultWeekSelected ? 'default' : getWeekStartString(labelWeekOffset)) : 'live'}|${labelDay}|${selectedDaypart}`;
+  const openLabelId = showDeviceWorkflow && selectedQuickAction === 'smart-labels' ? selectedDevice?.id : undefined;
+  useEffect(() => {
+    if (!openLabelId) return;
+    setReviewedLabels(prev => {
+      const key = `${labelSessionKey}|${openLabelId}`;
+      return prev.has(key) ? prev : new Set(prev).add(key);
+    });
+  }, [openLabelId, labelSessionKey]);
+
+  const reviewedLabelIds = useMemo(() => {
+    const prefix = `${labelSessionKey}|`;
+    const ids = new Set<string>();
+    reviewedLabels.forEach(k => { if (k.startsWith(prefix)) ids.add(k.slice(prefix.length)); });
+    return ids;
+  }, [reviewedLabels, labelSessionKey]);
+
+  const labelNav = useMemo((): LabelNav | undefined => {
+    if (selectedQuickAction !== 'smart-labels' || !selectedDevice) return undefined;
+    const index = visibleLabels.findIndex(d => d.id === selectedDevice.id);
+    if (index === -1) return undefined;
+    const prev = visibleLabels[index - 1];
+    const next = visibleLabels[index + 1];
+    const step = (device: Device) => {
+      handleDeviceSelect(device, workflowDaypart);
+      setSteppingLabels(true);
+    };
+    return {
+      index,
+      total: visibleLabels.length,
+      prevName: prev?.name,
+      nextName: next?.name,
+      onPrev: prev ? () => step(prev) : undefined,
+      onNext: next ? () => step(next) : undefined,
+    };
+  }, [selectedQuickAction, selectedDevice, visibleLabels, workflowDaypart, handleDeviceSelect]);
+
+  const labelDayparts = useMemo(() => orderedDayparts(devices), [devices]);
+  const gapsByDay = useMemo(
+    () => new Map(weekCoverage.map(c => [c.dayOfWeek, c.gaps])),
+    [weekCoverage],
+  );
+  const reviewedShownCount = useMemo(
+    () => visibleLabels.filter(d => reviewedLabelIds.has(d.id)).length,
+    [visibleLabels, reviewedLabelIds],
+  );
+
+  // Schedule button text while the schedule is open
+  const scheduleContextLabel = useMemo(() => {
+    if (isDefaultWeekSelected) {
+      return labelDay === 'every-day' ? 'Default Week' : `Default · ${formatEditingDay(labelDay, null)}`;
+    }
+    const weekStart = getWeekStartString(labelWeekOffset);
+    return labelDay === 'every-day' ? formatWeekRange(weekStart) : formatEditingDay(labelDay, weekStart);
+  }, [isDefaultWeekSelected, labelDay, labelWeekOffset]);
 
   const nfc = useNfc();
 
@@ -661,7 +747,8 @@ function App() {
     localStorage.setItem('selectedQuickAction', action);
     setSearchValue('');
     setActiveFilters([]);
-  }, []);
+    resetLabelSession();
+  }, [resetLabelSession]);
 
   // Product refresh from Webtrition (simulated). Applied to the in-memory list;
   // added/changed products are tagged in the list until the next refresh.
@@ -886,6 +973,8 @@ function App() {
                 scheduleOpen={scheduleOpen}
                 onToggleSchedule={handleToggleSchedule}
                 scheduleGapCount={weekGapCount}
+                scheduleContextLabel={scheduleContextLabel}
+                scheduleDaypart={selectedDaypart}
               />
               )}
 
@@ -941,6 +1030,14 @@ function App() {
                           loadingSchedules={loadingSchedules}
                           differingLabelCount={differingLabelCount}
                           totalLabelCount={devices.length}
+                          selectedDay={labelDay}
+                          onSelectDay={setLabelDay}
+                          selectedDaypart={selectedDaypart}
+                          onSelectDaypart={setSelectedDaypart}
+                          dayparts={labelDayparts}
+                          gapsByDay={gapsByDay}
+                          reviewedCount={reviewedShownCount}
+                          shownLabelCount={visibleLabels.length}
                         />
                       )}
                       {labelViewMode === 'list' ? (
@@ -952,10 +1049,13 @@ function App() {
                           searchValue={searchValue}
                           placements={placements}
                           selectedDaypart={selectedDaypart}
-                          selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
+                          selectedPlacements={selectedPlacementIds}
                           selectedWeekStart={isDefaultWeekSelected ? null : getWeekStartString(labelWeekOffset)}
                           weekSchedules={effectiveSchedules}
                           defaultSchedules={scheduleOpen && !isDefaultWeekSelected ? defaultSchedules : undefined}
+                          selectedDay={scheduleOpen ? labelDay : undefined}
+                          reviewedIds={reviewedLabelIds}
+                          lastOpenedId={lastOpenedLabelId}
                         />
                       ) : (
                         <SmartLabelGrid
@@ -966,8 +1066,10 @@ function App() {
                           searchValue={searchValue}
                           placements={placements}
                           selectedDaypart={selectedDaypart}
-                          selectedPlacements={activeFilters.find(f => f.type === 'placement')?.selectedValues ?? []}
+                          selectedPlacements={selectedPlacementIds}
                           weekSchedules={scheduleOpen ? effectiveSchedules : undefined}
+                          reviewedIds={reviewedLabelIds}
+                          lastOpenedId={lastOpenedLabelId}
                         />
                       )}
                     </div>
@@ -1097,6 +1199,14 @@ function App() {
             weekStart={deviceWeekContext?.weekStart ?? null}
             weekContextLabel={deviceWeekContext?.label}
             weekContextNote={weekContextNote}
+            initialDay={selectedQuickAction === 'smart-labels' ? labelDay : undefined}
+            onDayChange={selectedQuickAction === 'smart-labels' ? setLabelDay : undefined}
+            onDaypartChange={d => {
+              setWorkflowDaypart(d);
+              if (d && selectedQuickAction === 'smart-labels') setSelectedDaypart(d);
+            }}
+            labelNav={labelNav}
+            animateIn={!steppingLabels}
             onLabelContentChange={deviceId => { if (editsReachLabel) recordLabelChange(deviceId); }}
             onAddItems={async (device, items, pageId) => {
               if (!(await persistScheduleAdd(device, items, pageId))) {
@@ -1135,6 +1245,15 @@ function App() {
               setShowDeviceWorkflow(false);
               setDeviceItemSearch('');
               setSelectedDevice(null);
+              setSteppingLabels(false);
+              // Bring the last label you were on back into view
+              const lastId = lastOpenedLabelId;
+              if (lastId) {
+                requestAnimationFrame(() => {
+                  document.querySelector(`[data-label-id="${CSS.escape(lastId)}"]`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+              }
             }}
             onForcePage={async (deviceId, pageId) => {
               await api.updateDeviceStatus(deviceId, { forcedPage: pageId });

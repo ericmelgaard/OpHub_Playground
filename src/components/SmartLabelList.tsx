@@ -8,6 +8,8 @@ import {
 import { DAY_ABBR } from '../lib/availability';
 import { SyncStatus } from './SyncStatus';
 import { daypartColor } from '../lib/daypartColors';
+import { filterLabels } from '../lib/labelFilter';
+import { ReviewedTag } from './ReviewedTag';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -22,6 +24,12 @@ interface SmartLabelListProps {
   weekSchedules: DeviceWeekSchedule[];
   // When given, days whose items differ from the Default Week are marked as overrides.
   defaultSchedules?: DeviceWeekSchedule[];
+  // Day the schedule is editing; ringed in each row's week strip
+  selectedDay?: number | 'every-day';
+  // Labels opened this session (for the selected week, day and daypart)
+  reviewedIds?: Set<string>;
+  // The label you last opened, so you can find your place on return
+  lastOpenedId?: string | null;
 }
 
 const labelSizeLabels: Record<LabelSize, string> = {
@@ -59,21 +67,14 @@ export function SmartLabelList({
   selectedWeekStart,
   weekSchedules,
   defaultSchedules,
+  selectedDay,
+  reviewedIds,
+  lastOpenedId,
 }: SmartLabelListProps) {
-  const filteredDevices = useMemo(() => {
-    let result = devices;
-    if (selectedPlacements.length > 0) {
-      result = result.filter(d => d.placementId && selectedPlacements.includes(d.placementId));
-    }
-    if (searchValue.trim()) {
-      const q = searchValue.toLowerCase();
-      result = result.filter(d => {
-        if (d.name.toLowerCase().includes(q) || d.location.toLowerCase().includes(q)) return true;
-        return d.pages.some(p => p.assignedItems.some(item => item.name.toLowerCase().includes(q)));
-      });
-    }
-    return result;
-  }, [devices, searchValue, selectedPlacements]);
+  const filteredDevices = useMemo(
+    () => filterLabels(devices, searchValue, selectedPlacements),
+    [devices, searchValue, selectedPlacements],
+  );
 
   const scheduleByDevice = useMemo(() => {
     const map = new Map<string, DeviceWeekSchedule>();
@@ -138,6 +139,9 @@ export function SmartLabelList({
           defaultSchedule={defaultSchedules ? defaultByDevice.get(device.id) : undefined}
           compareToDefault={!!defaultSchedules}
           selectedWeekStart={selectedWeekStart}
+          selectedDay={selectedDay}
+          reviewed={reviewedIds?.has(device.id) ?? false}
+          lastOpened={device.id === lastOpenedId}
         />
       ))}
     </div>
@@ -152,6 +156,9 @@ interface LabelRowProps {
   defaultSchedule?: DeviceWeekSchedule;
   compareToDefault: boolean;
   selectedWeekStart: string | null;
+  selectedDay?: number | 'every-day';
+  reviewed: boolean;
+  lastOpened: boolean;
 }
 
 type DayState = 'default' | 'override' | 'missing';
@@ -164,7 +171,7 @@ function mrnsFor(schedule: DeviceWeekSchedule | undefined, daypart: string, dow:
     .join(',');
 }
 
-function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart }: LabelRowProps) {
+function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart, selectedDay, reviewed, lastOpened }: LabelRowProps) {
   const BattIcon = getBatteryIcon(device.status.batteryLevel);
   const page = device.pages.find(p => p.daypart === daypart);
   const items = page?.assignedItems ?? [];
@@ -187,7 +194,10 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
   return (
     <div
       onClick={onClick}
-      className="group grid grid-cols-1 lg:grid-cols-[2fr_1fr_180px_2fr_200px_40px] gap-3 items-center px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 rounded-lg hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm transition-all cursor-pointer"
+      data-label-id={device.id}
+      className={`group grid grid-cols-1 lg:grid-cols-[2fr_1fr_180px_2fr_200px_40px] gap-3 items-center px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 rounded-lg hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm transition-all cursor-pointer ${
+        lastOpened ? 'ring-2 ring-sky-400 dark:ring-sky-500' : ''
+      }`}
     >
       {/* Label name + size */}
       <div className="flex items-center gap-3 min-w-0">
@@ -199,6 +209,7 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
             <Badge variant="outline" className="text-[10px] py-0 px-1.5 flex-shrink-0">{labelSizeLabels[device.labelSize]}</Badge>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 truncate lg:hidden">{device.location}</p>
+          {reviewed && <div className="mt-1"><ReviewedTag /></div>}
         </div>
       </div>
 
@@ -252,6 +263,7 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
           dayStates={dayStates}
           isFutureWeek={isFutureWeek}
           hasSchedule={!!schedule}
+          selectedDay={selectedDay}
         />
       </div>
 
@@ -282,15 +294,20 @@ function DayStrip({
   dayStates,
   isFutureWeek,
   hasSchedule,
+  selectedDay,
 }: {
   dayStates: Map<number, DayState>;
   isFutureWeek: boolean;
   hasSchedule: boolean;
+  selectedDay?: number | 'every-day';
 }) {
   const days = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
   const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const today = new Date().getDay();
-  const highlighted = isFutureWeek ? null : today;
+  // The day being edited when one is picked; otherwise today, in the current week only
+  const highlighted = selectedDay === 'every-day' ? null
+    : selectedDay !== undefined ? selectedDay
+    : isFutureWeek ? null : today;
 
   if (!isFutureWeek && !hasSchedule) {
     return (

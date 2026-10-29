@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Device, DeviceWeekSchedule, LabelSize, Placement } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, BatteryLow } from 'lucide-react';
+import { ReviewedTag } from './ReviewedTag';
+import { filterLabels } from '../lib/labelFilter';
 import { SyncStatus } from './SyncStatus';
 import { getDeviceGaps, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
 import { DAY_ABBR } from '../lib/availability';
@@ -18,6 +20,10 @@ interface SmartLabelGridProps {
   selectedPlacements: string[];
   // When given, each card flags the day/daypart slots that have nothing scheduled that week.
   weekSchedules?: DeviceWeekSchedule[];
+  // Labels opened this session (for the selected week, day and daypart)
+  reviewedIds?: Set<string>;
+  // The label you last opened, so you can find your place on return
+  lastOpenedId?: string | null;
 }
 
 const labelSizeConfig: Record<LabelSize, { label: string; aspectClass: string; fontSize: string; capacity: number }> = {
@@ -68,24 +74,13 @@ export function SmartLabelGrid({
   selectedDaypart,
   selectedPlacements,
   weekSchedules,
+  reviewedIds,
+  lastOpenedId,
 }: SmartLabelGridProps) {
-  const filteredDevices = useMemo(() => {
-    let result = devices;
-
-    if (selectedPlacements.length > 0) {
-      result = result.filter(d => d.placementId && selectedPlacements.includes(d.placementId));
-    }
-
-    if (searchValue.trim()) {
-      const q = searchValue.toLowerCase();
-      result = result.filter(d => {
-        if (d.name.toLowerCase().includes(q) || d.location.toLowerCase().includes(q)) return true;
-        return d.pages.some(p => p.assignedItems.some(item => item.name.toLowerCase().includes(q)));
-      });
-    }
-
-    return result;
-  }, [devices, searchValue, selectedPlacements]);
+  const filteredDevices = useMemo(
+    () => filterLabels(devices, searchValue, selectedPlacements),
+    [devices, searchValue, selectedPlacements],
+  );
 
   const scheduleByDevice = useMemo(
     () => (weekSchedules ? new Map(weekSchedules.map(s => [s.deviceId, s])) : null),
@@ -133,6 +128,8 @@ export function SmartLabelGrid({
             onClick={() => onDeviceSelect(device, selectedDaypart)}
             highlight={searchValue.trim() !== ''}
             gaps={scheduleByDevice ? getDeviceGaps(device, scheduleByDevice.get(device.id)) : undefined}
+            reviewed={reviewedIds?.has(device.id) ?? false}
+            lastOpened={device.id === lastOpenedId}
           />
         ))}
       </div>
@@ -146,9 +143,11 @@ interface LabelCardProps {
   onClick: () => void;
   highlight: boolean;
   gaps?: SlotGap[];
+  reviewed: boolean;
+  lastOpened: boolean;
 }
 
-function LabelCard({ device, daypart, onClick, highlight, gaps }: LabelCardProps) {
+function LabelCard({ device, daypart, onClick, highlight, gaps, reviewed, lastOpened }: LabelCardProps) {
   const config = labelSizeConfig[device.labelSize];
   const BatteryIcon = getBatteryIcon(device.status.batteryLevel);
   const dpStyle = getDaypartStyle(daypart);
@@ -160,7 +159,10 @@ function LabelCard({ device, daypart, onClick, highlight, gaps }: LabelCardProps
   return (
     <div
       onClick={onClick}
-      className={`group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-sky-400 dark:hover:border-sky-600 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden ${highlight ? 'ring-1 ring-sky-200 dark:ring-sky-800' : ''}`}
+      data-label-id={device.id}
+      className={`group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-sky-400 dark:hover:border-sky-600 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden ${
+        lastOpened ? 'ring-2 ring-sky-400 dark:ring-sky-500' : highlight ? 'ring-1 ring-sky-200 dark:ring-sky-800' : ''
+      }`}
     >
       {/* Header strip */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
@@ -196,7 +198,10 @@ function LabelCard({ device, daypart, onClick, highlight, gaps }: LabelCardProps
 
       {/* Footer */}
       <div className="px-3 py-2 space-y-1.5 border-t border-gray-100 dark:border-gray-700">
-        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{device.location}</p>
+        <div className="flex items-center gap-2">
+          <p className="flex-1 min-w-0 text-xs text-gray-500 dark:text-gray-400 truncate">{device.location}</p>
+          {reviewed && <ReviewedTag />}
+        </div>
         <SyncStatus deviceId={device.id} size="md" showActions />
       </div>
 

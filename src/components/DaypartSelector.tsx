@@ -11,6 +11,17 @@ interface DaypartSelectorProps {
 
 const daypartOrder = ['Breakfast', 'Lunch', 'Dinner', 'Late Night', 'All Day'];
 
+// Dayparts the labels actually have, in serving order
+export function orderedDayparts(devices: Device[]): string[] {
+  const seen = new Set<string>();
+  devices.forEach(d => d.pages.forEach(p => seen.add(p.daypart)));
+  return Array.from(seen).sort((a, b) => {
+    const ai = daypartOrder.indexOf(a);
+    const bi = daypartOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+}
+
 const getDaypartColor = (daypart: string) => {
   const c = daypartColor(daypart);
   return { text: c.text, bg: c.solid, ring: c.ring, softBg: c.softBg, border: c.border };
@@ -29,15 +40,7 @@ export function DaypartSelector({ devices, selectedDaypart, onSelectDaypart }: D
     return counts;
   }, [devices]);
 
-  const dayparts = React.useMemo(() => {
-    const seen = new Set<string>();
-    devices.forEach(d => d.pages.forEach(p => seen.add(p.daypart)));
-    return Array.from(seen).sort((a, b) => {
-      const ai = daypartOrder.indexOf(a);
-      const bi = daypartOrder.indexOf(b);
-      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    });
-  }, [devices]);
+  const dayparts = React.useMemo(() => orderedDayparts(devices), [devices]);
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1">

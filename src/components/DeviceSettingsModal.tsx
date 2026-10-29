@@ -60,6 +60,11 @@ interface DeviceSettingsModalProps {
   initialItemSearch?: string;
   // Monday (YYYY-MM-DD) of the week being edited, for the day strip's dates
   weekStart?: string | null;
+  // Day to start on (defaults to today); changes are reported back
+  initialDay?: number | 'every-day';
+  onSelectedDayChange?: (day: number | 'every-day') => void;
+  // Off when stepping label to label, so the page doesn't slide in every time
+  animateIn?: boolean;
 }
 
 const getDaypartColor = (daypart: string) => daypartColor(daypart).text;
@@ -105,6 +110,9 @@ export function DeviceSettingsModal({
   onSelectedDaypartChange,
   initialItemSearch = '',
   weekStart = null,
+  initialDay,
+  onSelectedDayChange,
+  animateIn = true,
   menuItems = [],
   onInlineAddItems,
   onInlineRemoveItems,
@@ -121,7 +129,11 @@ export function DeviceSettingsModal({
   autoFillPages = new Map(),
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
-  const [selectedDay, setSelectedDay] = useState<number | 'every-day'>(() => new Date().getDay());
+  const [selectedDay, setSelectedDayState] = useState<number | 'every-day'>(() => initialDay ?? new Date().getDay());
+  const setSelectedDay = useCallback((day: number | 'every-day') => {
+    setSelectedDayState(day);
+    onSelectedDayChange?.(day);
+  }, [onSelectedDayChange]);
   const [searchValue, setSearchValue] = useState(initialItemSearch);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<number>>(new Set());
@@ -328,7 +340,7 @@ export function DeviceSettingsModal({
   const showingCount = shownIds.size;
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className={`absolute inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 ${animateIn ? 'animate-in fade-in slide-in-from-bottom-4 duration-300' : ''}`}>
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         {header}

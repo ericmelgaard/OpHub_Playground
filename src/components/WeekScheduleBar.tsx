@@ -1,12 +1,14 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, LayoutTemplate, Copy, ClipboardPaste,
-  Repeat, Eraser, RotateCcw, X, Check,
+  Repeat, Eraser, RotateCcw, X, Check, CalendarDays, Clock, AlertTriangle,
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger } from '@/components/ui/select';
+import { daypartColor } from '../lib/daypartColors';
 import { DeviceWeekSchedule } from '../types';
 import {
   getWeekStartDate, getWeekEndDate, getWeekStartString as libGetWeekStartString,
-  getWeekState, WeekState,
+  getWeekState, WeekState, formatEditingDay,
 } from '../lib/weekSchedule';
 
 // Re-exported for existing importers.
@@ -34,6 +36,17 @@ interface WeekScheduleBarProps {
   // Labels whose items differ from the Default Week, for the header summary.
   differingLabelCount?: number;
   totalLabelCount?: number;
+  // Day and daypart being edited; shared with every label you open
+  selectedDay: number | 'every-day';
+  onSelectDay: (day: number | 'every-day') => void;
+  selectedDaypart: string;
+  onSelectDaypart: (daypart: string) => void;
+  dayparts: string[];
+  // Empty label + daypart slots per day of week (0 = Sunday)
+  gapsByDay?: Map<number, number>;
+  // Labels opened this session for the current day and daypart
+  reviewedCount?: number;
+  shownLabelCount?: number;
 }
 
 function formatShortDate(date: Date): string {
@@ -91,6 +104,14 @@ export function WeekScheduleBar({
   loadingSchedules = false,
   differingLabelCount,
   totalLabelCount,
+  selectedDay,
+  onSelectDay,
+  selectedDaypart,
+  onSelectDaypart,
+  dayparts,
+  gapsByDay,
+  reviewedCount,
+  shownLabelCount,
 }: WeekScheduleBarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
@@ -158,7 +179,7 @@ export function WeekScheduleBar({
       className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60"
     >
       {/* Header: what is being edited */}
-      <div className="flex items-center gap-4 px-4 py-3 border-b border-gray-200 dark:border-gray-700/70">
+      <div className="flex flex-wrap lg:flex-nowrap items-center gap-x-4 gap-y-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700/70">
         <div className="flex-1 min-w-0">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             Editing
@@ -174,6 +195,22 @@ export function WeekScheduleBar({
               <span className="text-sm text-gray-500 dark:text-gray-400">{summary}</span>
             )}
           </div>
+        </div>
+
+        {/* Day + daypart: own line under the title below lg, inline beside it from lg */}
+        <div className="order-last lg:order-none basis-full lg:basis-auto flex items-center gap-2 flex-wrap">
+          <DayPicker
+            value={selectedDay}
+            onChange={onSelectDay}
+            weekStart={isDefaultSelected ? null : selectedWeek?.weekStart ?? null}
+            gapsByDay={gapsByDay}
+          />
+          <DaypartPicker value={selectedDaypart} onChange={onSelectDaypart} dayparts={dayparts} />
+          {reviewedCount !== undefined && shownLabelCount !== undefined && shownLabelCount > 0 && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">{reviewedCount}</span> of {shownLabelCount} reviewed
+            </span>
+          )}
         </div>
 
         <div className="hidden lg:flex items-center gap-3.5 text-xs text-gray-500 dark:text-gray-400">
@@ -355,6 +392,81 @@ export function WeekScheduleBar({
         )}
       </div>
     </section>
+  );
+}
+
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+const pickerTrigger = 'h-8 w-auto gap-2 rounded-lg px-2.5 text-sm font-medium focus:ring-sky-500 focus:ring-offset-0 dark:focus:ring-sky-400';
+
+function DayPicker({ value, onChange, weekStart, gapsByDay }: {
+  value: number | 'every-day';
+  onChange: (day: number | 'every-day') => void;
+  weekStart: string | null;
+  gapsByDay?: Map<number, number>;
+}) {
+  return (
+    <Select
+      value={String(value)}
+      onValueChange={v => onChange(v === 'every-day' ? 'every-day' : Number(v))}
+    >
+      <SelectTrigger
+        aria-label="Day"
+        className={`${pickerTrigger} border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white`}
+      >
+        <CalendarDays className="h-4 w-4 text-sky-500 flex-shrink-0" />
+        <span className="whitespace-nowrap">{formatEditingDay(value, weekStart)}</span>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="every-day">Every day</SelectItem>
+        <SelectSeparator />
+        {WEEK_ORDER.map(d => {
+          const gaps = gapsByDay?.get(d) ?? 0;
+          return (
+            <SelectItem key={d} value={String(d)}>
+              <span className="flex items-center gap-2">
+                {formatEditingDay(d, weekStart)}
+                {gaps > 0 && (
+                  <span
+                    className="inline-flex items-center gap-0.5 h-4 px-1.5 text-[10px] font-semibold rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                    title={`${gaps} empty slot${gaps === 1 ? '' : 's'}`}
+                  >
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    {gaps}
+                  </span>
+                )}
+              </span>
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function DaypartPicker({ value, onChange, dayparts }: {
+  value: string;
+  onChange: (daypart: string) => void;
+  dayparts: string[];
+}) {
+  const c = daypartColor(value);
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger aria-label="Daypart" className={`${pickerTrigger} ${c.softBg} ${c.border} ${c.text}`}>
+        <Clock className="h-4 w-4 flex-shrink-0" />
+        <span className="whitespace-nowrap">{value}</span>
+      </SelectTrigger>
+      <SelectContent>
+        {dayparts.map(d => (
+          <SelectItem key={d} value={d}>
+            <span className="flex items-center gap-2">
+              <Clock className={`h-4 w-4 ${daypartColor(d).text}`} />
+              {d}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Calendar } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { daypartColor } from '../lib/daypartColors';
 import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
 import { buildSubstitutionMap } from '../lib/substitutions';
-import { formatWeekRange } from '../lib/weekSchedule';
+import { formatWeekRange, formatEditingDay } from '../lib/weekSchedule';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
 import { ItemSelectionModal } from '../components/ItemSelectionModal';
 import { DeviceHeader } from '../components/DeviceHeader';
@@ -32,6 +33,22 @@ interface DeviceFirstWorkflowProps {
   onForcePage?: (deviceId: string, pageId: string | null) => void;
   setNotifications: (count: number) => void;
   onCreateMenuItem?: (item: { name: string; price: string; mealPeriod: string; mealStation: string }) => Promise<MenuItem | null>;
+  // Shared day and daypart: the label opens on them and changes here carry to the next label
+  initialDay?: number | 'every-day';
+  onDayChange?: (day: number | 'every-day') => void;
+  onDaypartChange?: (daypart: string | null) => void;
+  // Step through the labels on Smart Labels without going back to the list
+  labelNav?: LabelNav;
+  animateIn?: boolean;
+}
+
+export interface LabelNav {
+  index: number;
+  total: number;
+  prevName?: string;
+  nextName?: string;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 export function DeviceFirstWorkflow({
@@ -51,6 +68,11 @@ export function DeviceFirstWorkflow({
   onForcePage,
   setNotifications,
   onCreateMenuItem,
+  initialDay,
+  onDayChange,
+  onDaypartChange,
+  labelNav,
+  animateIn = true,
 }: DeviceFirstWorkflowProps) {
   const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(true);
   const [showItemSelectionModal, setShowItemSelectionModal] = useState(false);
@@ -66,13 +88,44 @@ export function DeviceFirstWorkflow({
   const [itemSearchValue, setItemSearchValue] = useState('');
   const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
   const [selectedStation, setSelectedStation] = useState('all');
-  const [selectedDaypart, setSelectedDaypart] = useState<string | null>(preSelectedDaypart);
+  const [selectedDaypart, setSelectedDaypartState] = useState<string | null>(preSelectedDaypart);
+  const setSelectedDaypart = useCallback((daypart: string | null) => {
+    setSelectedDaypartState(daypart);
+    onDaypartChange?.(daypart);
+  }, [onDaypartChange]);
+  const [editingDay, setEditingDay] = useState<number | 'every-day'>(() => initialDay ?? new Date().getDay());
+  const handleDayChange = useCallback((day: number | 'every-day') => {
+    setEditingDay(day);
+    onDayChange?.(day);
+  }, [onDayChange]);
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
   const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>({});
   const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
   const [autoFillEnabled, setAutoFillEnabled] = useState(false);
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
+
+  // Stepping to another label (previous / next) swaps the label in place, so the
+  // page stays open and Back still closes it in one press.
+  const shownDeviceId = useRef(preSelectedDevice.id);
+  useEffect(() => {
+    if (shownDeviceId.current === preSelectedDevice.id) return;
+    shownDeviceId.current = preSelectedDevice.id;
+    const clone = JSON.parse(JSON.stringify(preSelectedDevice));
+    setSelectedDevice(clone);
+    setOptimisticDevice(clone);
+    setShowItemSelectionModal(false);
+    setShowConfigPage(false);
+    setShowDeviceSettingsModal(true);
+    setSelectedPageId(null);
+    setIsAddingToPage(null);
+    setLastAssignedPageId(null);
+    setDuplicateCount(0);
+    setRecentlyAddedItemIds(new Set());
+    setItemDisplayToggles({});
+    setSubstitutions([]);
+    setAutoFillEnabled(false);
+  }, [preSelectedDevice]);
 
   useEffect(() => {
     Promise.all([api.getDeviceGroups(), api.getBrands()]).then(([g, b]) => {
@@ -379,9 +432,13 @@ export function DeviceFirstWorkflow({
   return (
     <>
       <DeviceSettingsModal
+        key={preSelectedDevice.id}
         showDeviceSettingsModal={showDeviceSettingsModal}
         initialItemSearch={initialItemSearch}
         weekStart={weekStart}
+        initialDay={editingDay}
+        onSelectedDayChange={handleDayChange}
+        animateIn={animateIn}
         selectedDeviceSettings={optimisticDevice}
         setShowDeviceSettingsModal={setShowDeviceSettingsModal}
         setSelectedDeviceSettings={setOptimisticDevice}
@@ -397,12 +454,41 @@ export function DeviceFirstWorkflow({
             {weekContextLabel && (
               <div className="flex items-center gap-2 px-4 py-2 bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-800/50 text-sky-700 dark:text-sky-300 text-sm">
                 <Calendar className="h-4 w-4 flex-shrink-0" />
-                <span>
+                <span className="flex-1 min-w-0">
                   Editing <span className="font-semibold">{weekContextLabel}</span>
                   {weekStart && <span className="font-medium"> · {formatWeekRange(weekStart)}</span>}
                   {' '}— items come from this week’s schedule
                   {weekContextNote && <span className="text-sky-600/80 dark:text-sky-400/80"> · {weekContextNote}</span>}
+                  <span className="inline-flex items-center gap-1.5 ml-1.5 align-middle">
+                    · <span className="font-semibold">{formatEditingDay(editingDay, weekStart)}</span>
+                    {selectedDaypart && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${daypartColor(selectedDaypart).chip}`}>
+                        {selectedDaypart}
+                      </span>
+                    )}
+                  </span>
                 </span>
+                {labelNav && (
+                  <span className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={labelNav.onPrev}
+                      disabled={!labelNav.onPrev}
+                      aria-label="Previous label"
+                      className="h-7 w-7 flex items-center justify-center rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-gray-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <span className="font-semibold tabular-nums whitespace-nowrap">{labelNav.index + 1} of {labelNav.total}</span>
+                    <button
+                      onClick={labelNav.onNext}
+                      disabled={!labelNav.onNext}
+                      aria-label="Next label"
+                      className="h-7 w-7 flex items-center justify-center rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-gray-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
               </div>
             )}
             <DeviceHeader
@@ -465,6 +551,7 @@ export function DeviceFirstWorkflow({
           groupBrands={groupBrands}
         />
       )}
+
     </>
   );
 }

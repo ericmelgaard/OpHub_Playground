@@ -11,11 +11,6 @@ function formatAge(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-function formatCountdown(ms: number): string {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
-
 const plural = (n: number) => `${n} ${n === 1 ? 'change' : 'changes'}`;
 
 const styles: Record<LabelSyncState, { icon: typeof Clock; pill: string; iconAnim: string }> = {
@@ -56,13 +51,12 @@ interface SyncStatusProps {
 export function SyncStatus({ deviceId, size = 'sm', showActions = false }: SyncStatusProps) {
   const view = useLabelSync(deviceId);
 
-  // Tick every second while counting down, otherwise every 30s for "Synced 2m ago"
+  // Tick every 30s to keep "Synced 2m ago" current
   const [, setTick] = useState(0);
-  const pending = view?.state === 'pending';
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), pending ? 1000 : 30_000);
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
     return () => clearInterval(id);
-  }, [pending]);
+  }, []);
 
   if (!view) return null;
   const sz = sizes[size];
@@ -78,8 +72,8 @@ export function SyncStatus({ deviceId, size = 'sm', showActions = false }: SyncS
       title = `Label is showing the latest changes. Synced ${age}.`;
       break;
     case 'pending':
-      text = `${plural(view.behindBy)} · ${formatCountdown(view.sendAt! - Date.now())}`;
-      title = `${plural(view.behindBy)} saved but not on the label yet. Sends automatically in ${formatCountdown(view.sendAt! - Date.now())}.`
+      text = `${plural(view.behindBy)} not sent`;
+      title = `${plural(view.behindBy)} saved but not on the label yet. Press Send now to update the label.`
         + (view.error ? ` The previous send failed (${view.error}); this send includes those changes.` : '');
       break;
     case 'syncing':

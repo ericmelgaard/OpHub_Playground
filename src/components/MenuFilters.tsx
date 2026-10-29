@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
 import { QuickActionType } from './QuickActionBar';
 import { CycleWeekSelector } from './CycleWeekSelector';
+import { daypartColor } from '../lib/daypartColors';
 
 interface MenuFiltersProps {
   viewMode: 'grid' | 'tiles' | 'list';
@@ -26,7 +27,12 @@ interface MenuFiltersProps {
   scheduleOpen?: boolean;
   onToggleSchedule?: () => void;
   scheduleGapCount?: number;
+  // What the open schedule is editing ("Tue, Nov 3", "Nov 2 – 8", "Default · Tue")
+  scheduleContextLabel?: string;
+  scheduleDaypart?: string;
 }
+
+const todayLabel = () => new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 
 export function MenuFilters({
   viewMode,
@@ -47,6 +53,8 @@ export function MenuFilters({
   scheduleOpen = false,
   onToggleSchedule,
   scheduleGapCount = 0,
+  scheduleContextLabel,
+  scheduleDaypart,
 }: MenuFiltersProps) {
   const handleScanBarcode = () => {
     console.log('Barcode scanning will be implemented when API is available');
@@ -161,7 +169,19 @@ export function MenuFilters({
               title={scheduleOpen ? 'Close schedule' : 'Open schedule'}
             >
               <CalendarDays className="h-4 w-4" />
-              Schedule
+              <span className="hidden sm:inline">Schedule</span>
+              <span className={`hidden sm:block w-px h-4 ${scheduleOpen ? 'bg-sky-300 dark:bg-sky-700' : 'bg-gray-200 dark:bg-gray-700'}`} />
+              {scheduleOpen && scheduleContextLabel ? (
+                <span className="font-semibold">{scheduleContextLabel}</span>
+              ) : (
+                <span className="text-gray-500 dark:text-gray-400">{todayLabel()}</span>
+              )}
+              {scheduleOpen && scheduleDaypart && (
+                <span
+                  className={`w-2 h-2 rounded-full ${daypartColor(scheduleDaypart).solid}`}
+                  title={scheduleDaypart}
+                />
+              )}
               {scheduleGapCount > 0 && (
                 <span
                   className="inline-flex items-center gap-0.5 h-4 px-1.5 text-[10px] font-semibold rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
