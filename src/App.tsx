@@ -11,7 +11,7 @@ import { resolveWeekSchedules, getScheduleSource, ScheduleSource, formatWeekRang
 import { filterLabels } from './lib/labelFilter';
 import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
 import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
-import { initLabelSync, recordLabelChange } from './lib/labelSync';
+import { initLabelSync } from './lib/labelSync';
 import { useProductRefresh, ProductRefreshButton, ProductRefreshSheet, RefreshAge } from './components/ProductRefresh';
 import { DaypartSelector, orderedDayparts } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
@@ -19,7 +19,9 @@ import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
 import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
-import { DeviceFirstWorkflow, LabelNav } from './workflows/DeviceFirstWorkflow';
+import { DeviceFirstWorkflow, LabelNav, LocalChange } from './workflows/DeviceFirstWorkflow';
+import { addPendingChange, hasPendingChanges, setAfterApply, usePendingSummary, PendingChange } from './lib/pendingChanges';
+import { PendingChangesBar, PendingChangesSheet } from './components/PendingChanges';
 import { LabelPickerSheet } from './components/LabelPickerSheet';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
@@ -504,31 +506,92 @@ function App() {
     initLabelSync(devices);
   }, [devices]);
 
-  const persistScheduleAdd = useCallback(async (device: Device, items: MenuItem[], pageId: string) => {
-    if (!deviceWeekContext) return false;
-    const page = device.pages.find(p => p.id === pageId);
-    if (!page) return true;
-    await api.addScheduleItems(
-      { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart },
-      device.id, page.daypart, items,
-    );
-    await refreshCurrentWeek();
-    return true;
-  }, [deviceWeekContext, refreshCurrentWeek]);
+  // Label page edits wait as pending changes (per label and week being edited) and are
+  // written when applied. Changes that reach today's label are sent right away;
+  // the rest are saved for the nightly update.
+  const draftContext = deviceWeekContext
+    ? (deviceWeekContext.isDefault ? 'default' : deviceWeekContext.weekStart)
+    : 'live';
 
-  const persistScheduleRemove = useCallback(async (itemId: number, deviceId: string, pageId: string) => {
-    if (!deviceWeekContext) return false;
-    const mrn = menuItems.find(i => i.id === itemId)?.mrn;
-    const page = projectedWorkflowDevice?.pages.find(p => p.id === pageId);
-    if (mrn && page) {
-      await api.removeScheduleItem(
-        { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart },
-        deviceId, page.daypart, mrn,
-      );
-      await refreshCurrentWeek();
+  const queueChange = useCallback((
+    deviceId: string,
+    change: Pick<PendingChange, 'summary' | 'daypart' | 'mergeKey' | 'mode' | 'commit'> & { day?: number },
+  ) => {
+    const { day, ...rest } = change;
+    addPendingChange({
+      ...rest,
+      deviceId,
+      draftKey: `${deviceId}|${draftContext}`,
+      context: deviceWeekContext?.label,
+      live: editsReachLabel && (day === undefined || day === new Date().getDay()),
+    });
+  }, [draftContext, deviceWeekContext, editsReachLabel]);
+
+  const queueAddItems = useCallback((device: Device, items: MenuItem[], pageId: string) => {
+    const target = deviceWeekContext && { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart };
+    const daypart = device.pages.find(p => p.id === pageId)?.daypart;
+    for (const item of items) {
+      queueChange(device.id, {
+        summary: `Added ${item.name}`,
+        daypart,
+        mergeKey: `item|${pageId}|${item.id}`,
+        mode: 'toggle',
+        commit: target
+          ? async () => { if (daypart) await api.addScheduleItems(target, device.id, daypart, [item]); }
+          : () => api.assignItemToPage(item.id, device.id, pageId),
+      });
     }
-    return true;
-  }, [deviceWeekContext, menuItems, projectedWorkflowDevice, refreshCurrentWeek]);
+  }, [deviceWeekContext, queueChange]);
+
+  const queueRemoveItem = useCallback((itemId: number, deviceId: string, pageId: string) => {
+    const target = deviceWeekContext && { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart };
+    const item = menuItems.find(i => i.id === itemId);
+    const daypart = projectedWorkflowDevice?.pages.find(p => p.id === pageId)?.daypart;
+    queueChange(deviceId, {
+      summary: `Removed ${item?.name ?? 'item'}`,
+      daypart,
+      mergeKey: `item|${pageId}|${itemId}`,
+      mode: 'toggle',
+      commit: target
+        ? async () => { if (item?.mrn && daypart) await api.removeScheduleItem(target, deviceId, daypart, item.mrn); }
+        : () => api.removeItemFromPage(itemId, deviceId, pageId),
+    });
+  }, [deviceWeekContext, menuItems, projectedWorkflowDevice, queueChange]);
+
+  const queueReorder = useCallback((deviceId: string, pageId: string, itemOrder: number[]) => {
+    queueChange(deviceId, {
+      summary: 'Changed item order',
+      daypart: projectedWorkflowDevice?.pages.find(p => p.id === pageId)?.daypart,
+      mergeKey: `order|${pageId}`,
+      mode: 'replace',
+      // Week schedules don't store order yet
+      commit: deviceWeekContext ? async () => {} : () => api.reorderPageItems(deviceId, pageId, itemOrder),
+    });
+  }, [deviceWeekContext, projectedWorkflowDevice, queueChange]);
+
+  // Page-only edits aren't stored by the API; applying them just updates the label
+  const queueLocalChange = useCallback((deviceId: string, change: LocalChange) => {
+    queueChange(deviceId, { ...change, commit: async () => {} });
+  }, [queueChange]);
+
+  // Reload what applied changes wrote
+  useEffect(() => {
+    setAfterApply(async () => {
+      setDevices(await api.getDevices());
+      await refreshCurrentWeek();
+    });
+    return () => setAfterApply(null);
+  }, [refreshCurrentWeek]);
+
+  // Leaving Smart Labels (or the page) with pending changes asks first
+  const pendingSummary = usePendingSummary();
+  const [leaveTarget, setLeaveTarget] = useState<QuickActionType | null>(null);
+  useEffect(() => {
+    if (pendingSummary.count === 0) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [pendingSummary.count]);
 
   // Load location data
   useEffect(() => {
@@ -742,13 +805,22 @@ function App() {
     setActiveFilters(filters);
   }, []);
 
-  const handleQuickActionSelect = useCallback((action: QuickActionType) => {
+  const switchQuickAction = useCallback((action: QuickActionType) => {
     setSelectedQuickAction(action);
     localStorage.setItem('selectedQuickAction', action);
     setSearchValue('');
     setActiveFilters([]);
     resetLabelSession();
   }, [resetLabelSession]);
+
+  // Pending changes stay while you move around Smart Labels; leaving asks first
+  const handleQuickActionSelect = useCallback((action: QuickActionType) => {
+    if (action !== selectedQuickAction && hasPendingChanges()) {
+      setLeaveTarget(action);
+      return;
+    }
+    switchQuickAction(action);
+  }, [selectedQuickAction, switchQuickAction]);
 
   // Product refresh from Webtrition (simulated). Applied to the in-memory list;
   // added/changed products are tagged in the list until the next refresh.
@@ -1207,40 +1279,11 @@ function App() {
             }}
             labelNav={labelNav}
             animateIn={!steppingLabels}
-            onLabelContentChange={deviceId => { if (editsReachLabel) recordLabelChange(deviceId); }}
-            onAddItems={async (device, items, pageId) => {
-              if (!(await persistScheduleAdd(device, items, pageId))) {
-                for (const item of items) {
-                  await api.assignItemToPage(item.id, device.id, pageId);
-                }
-                const updatedDevices = await api.getDevices();
-                setDevices(updatedDevices);
-              }
-              if (editsReachLabel) recordLabelChange(device.id);
-            }}
-            onRemoveItem={async (itemId, deviceId, pageId) => {
-              if (!(await persistScheduleRemove(itemId, deviceId, pageId))) {
-                await api.removeItemFromPage(itemId, deviceId, pageId);
-                const updatedDevices = await api.getDevices();
-                setDevices(updatedDevices);
-              }
-              if (editsReachLabel) recordLabelChange(deviceId);
-            }}
-            onReorderItems={async (deviceId, pageId, startIndex, endIndex) => {
-              // Week schedules don't persist order yet, but the page shows the new order
-              if (deviceWeekContext) {
-                if (editsReachLabel) recordLabelChange(deviceId);
-                return;
-              }
-              const device = devices.find(d => d.id === deviceId);
-              if (!device) return;
-              const page = device.pages.find(p => p.id === pageId);
-              if (!page) return;
-              await api.reorderPageItems(deviceId, pageId, page.itemOrder);
-              const updatedDevices = await api.getDevices();
-              setDevices(updatedDevices);
-              recordLabelChange(deviceId);
-            }}
+            draftKey={`${selectedDevice.id}|${draftContext}`}
+            onLocalChange={queueLocalChange}
+            onAddItems={queueAddItems}
+            onRemoveItem={queueRemoveItem}
+            onReorderItems={queueReorder}
             onClose={() => {
               setShowDeviceWorkflow(false);
               setDeviceItemSearch('');
@@ -1259,7 +1302,6 @@ function App() {
               await api.updateDeviceStatus(deviceId, { forcedPage: pageId });
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
-              recordLabelChange(deviceId);
             }}
             setNotifications={setNotifications}
             onCreateMenuItem={async (data) => {
@@ -1283,6 +1325,21 @@ function App() {
           initialDaypart={selectedDaypart}
           onPick={handleLabelPickedForItem}
           onClose={() => setShowLabelPicker(false)}
+        />
+
+        <PendingChangesBar openDeviceId={showDeviceWorkflow ? selectedDevice?.id : undefined} />
+        <PendingChangesSheet
+          devices={devices}
+          leaving={leaveTarget && {
+            onStay: () => setLeaveTarget(null),
+            onLeave: () => {
+              const target = leaveTarget;
+              setLeaveTarget(null);
+              setShowDeviceWorkflow(false);
+              setSelectedDevice(null);
+              switchQuickAction(target);
+            },
+          }}
         />
       </div>
       <LocationChangeOverlay

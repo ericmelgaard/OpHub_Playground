@@ -19,7 +19,9 @@ Do not add other UI kits, icon sets, or CSS frameworks.
 
 ## Components
 - Use the shadcn/ui components in `src/components/ui/` first (`Button`, `Card`, `Badge`, `Input`,
-  `Select`, `Label`, `Textarea`). Don't hand-style a `<button>` when `Button` fits.
+  `Select`, `Label`, `Textarea`, `DropdownMenu`). Don't hand-style a `<button>` when `Button` fits.
+- Split button (primary action + chevron menu of related actions): `Button` + `DropdownMenu`,
+  as in `PendingChangesButton` (`src/components/PendingChanges.tsx`). Destructive menu items are red.
 - Need a component that doesn't exist yet? Add it from shadcn/ui (new-york style) into
   `src/components/ui/` and restyle it to the colors below.
 - Mobile-first. Modals go full screen under `md` using the `.modal-*` classes in `src/index.css`.
@@ -74,6 +76,21 @@ bookmark nav so people can jump to what they're looking for.
 - **Sections:** mark each target with a stable id (`data-section="..."`) and build the nav list
   from the same array that renders the sections, so they never drift apart.
 
+### Label edits → pending changes, then apply
+Reference: `src/lib/pendingChanges.ts`, `src/components/PendingChanges.tsx`.
+Edits on a label page are **pending changes** until applied; nothing is written before that.
+- **Apply is one action.** The person doesn't choose where changes go: changes that affect what
+  the label shows today are sent right away; later days and weeks are saved for the nightly
+  update. The button reads **Send now** when anything goes out now, otherwise **Save**.
+  Saved is final — there's no "undo save".
+- **Per label:** split button in the label header — apply / Review changes / Discard changes.
+- **Everything:** floating bar at the bottom ("5 pending changes · 3 labels", Review, apply),
+  shown on the grid and on a label page when other labels have changes.
+- Pending changes survive stepping between labels and returning to the grid. Leaving Smart
+  Labels (or the page) with pending changes asks first: Keep editing / Discard and leave / apply and leave.
+- Cards show sync state in short form (`Synced 2m ago`, `3 not sent`, `Syncing…`, `Sync failed`,
+  icon-only Send now / Retry) plus an amber `3 pending` pill; details go in the tooltip.
+
 ## Color
 Use Tailwind's palette. Every color has a job — don't pick one for looks. Brand hex values
 come from the WAND stylesheet (2021-12-22): Blue `#00ADEF`, Light Blue `#8ED9F8`, Dark Blue
@@ -112,7 +129,7 @@ Color the icon only, never the name or row. Always get colors from `levelIconCol
 - `MapPin` (on `brand`, no level color) also means "location" in general: the full location
   selector button in `Navigation.tsx` and the location change overlay.
 - `brand-magenta` and `lime` are reserved for this — don't use them elsewhere (beyond the
-  categorical palettes below).
+  categorical palettes below). Never use magenta (or a magenta tint) on a button.
 
 Don't use `indigo`, `purple`, `cyan`, `green`, or `yellow` — use the roles above. `blue` is
 reserved for the Dinner daypart. The only exceptions are deliberate categorical palettes: brand

@@ -14,6 +14,7 @@ import { Device } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SyncStatus } from './SyncStatus';
+import { PendingChangesButton } from './PendingChanges';
 
 interface DeviceHeaderProps {
   device: Device;
@@ -107,9 +108,10 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
         </div>
       </div>
 
-      {/* Right: sync status + gear button */}
+      {/* Right: sync status + pending changes + gear button */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <SyncStatus deviceId={device.id} size="md" showActions />
+        <PendingChangesButton deviceId={device.id} />
         <Button
           variant="ghost"
           size="icon"

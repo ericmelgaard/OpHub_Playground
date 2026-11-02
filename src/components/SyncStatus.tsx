@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, RefreshCw, AlertCircle, Clock, Send, RotateCw } from 'lucide-react';
+import { CheckCircle2, RefreshCw, AlertCircle, Clock, Send, RotateCw, PencilLine } from 'lucide-react';
 import { useLabelSync, sendNow, LabelSyncState } from '../lib/labelSync';
+import { usePendingSummary } from '../lib/pendingChanges';
 
 function formatAge(iso: string): string {
   const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
@@ -46,9 +47,11 @@ interface SyncStatusProps {
   size?: keyof typeof sizes;
   // Show Send now / Retry next to the badge
   showActions?: boolean;
+  // Short text and icon-only actions, for cards and list rows (details stay in the tooltip)
+  compact?: boolean;
 }
 
-export function SyncStatus({ deviceId, size = 'sm', showActions = false }: SyncStatusProps) {
+export function SyncStatus({ deviceId, size = 'sm', showActions = false, compact = false }: SyncStatusProps) {
   const view = useLabelSync(deviceId);
 
   // Tick every 30s to keep "Synced 2m ago" current
@@ -72,7 +75,7 @@ export function SyncStatus({ deviceId, size = 'sm', showActions = false }: SyncS
       title = `Label is showing the latest changes. Synced ${age}.`;
       break;
     case 'pending':
-      text = `${plural(view.behindBy)} not sent`;
+      text = compact ? `${view.behindBy} not sent` : `${plural(view.behindBy)} not sent`;
       title = `${plural(view.behindBy)} saved but not on the label yet. Press Send now to update the label.`
         + (view.error ? ` The previous send failed (${view.error}); this send includes those changes.` : '');
       break;
@@ -81,8 +84,8 @@ export function SyncStatus({ deviceId, size = 'sm', showActions = false }: SyncS
       title = `Sending ${plural(view.behindBy)} to the label. Last successful sync ${age}.`;
       break;
     case 'failed':
-      text = `Sync failed · ${plural(view.behindBy)} behind`;
-      title = `${view.error}. The label is still showing content from ${age}.`;
+      text = compact ? 'Sync failed' : `Sync failed · ${plural(view.behindBy)} behind`;
+      title = `${view.error}. ${plural(view.behindBy)} not on the label; it's still showing content from ${age}.`;
       break;
   }
 
@@ -111,14 +114,34 @@ export function SyncStatus({ deviceId, size = 'sm', showActions = false }: SyncS
         <button
           type="button"
           onClick={e => { e.stopPropagation(); sendNow(deviceId); }}
-          className={`inline-flex items-center gap-1 rounded-full font-medium whitespace-nowrap text-white transition-colors ${sz.button} ${
+          title={action.label}
+          aria-label={action.label}
+          className={`inline-flex items-center gap-1 rounded-full font-medium whitespace-nowrap text-white transition-colors ${
+            compact ? 'h-6 w-6 justify-center flex-shrink-0' : sz.button
+          } ${
             view.state === 'failed' ? 'bg-red-600 hover:bg-red-700' : 'bg-sky-600 hover:bg-sky-700'
           }`}
         >
           <action.icon className={sz.icon} />
-          {action.label}
+          {!compact && action.label}
         </button>
       )}
+    </span>
+  );
+}
+
+// Edits on this label not applied yet (they live on the label page until Send now / Save)
+export function PendingPill({ deviceId, size = 'sm' }: { deviceId: string; size?: keyof typeof sizes }) {
+  const { count } = usePendingSummary([deviceId]);
+  if (count === 0) return null;
+  const sz = sizes[size];
+  return (
+    <span
+      title={`${count} pending ${count === 1 ? 'change' : 'changes'} not applied. Open the label to send or save them.`}
+      className={`inline-flex items-center rounded-full border font-medium whitespace-nowrap tabular-nums ${sz.pill} ${styles.pending.pill}`}
+    >
+      <PencilLine className={sz.icon} />
+      {count} pending
     </span>
   );
 }

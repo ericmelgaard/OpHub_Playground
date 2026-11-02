@@ -11,6 +11,10 @@ import { DeviceConfigPage } from '../components/DeviceConfigPage';
 import { DisplayToggle } from '../components/InlineItemPicker';
 import { useModalHistory } from '../hooks/useModalHistory';
 import { api } from '../services/api';
+import { MergeMode, getDraft, getAppliedLocalState, saveDraft, useHasDraft } from '../lib/pendingChanges';
+import { DAY_ABBR } from '../lib/availability';
+
+const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
 interface DeviceFirstWorkflowProps {
   devices: Device[];
@@ -24,11 +28,13 @@ interface DeviceFirstWorkflowProps {
   weekContextLabel?: string;
   // Shown after the week banner, e.g. when edits there don't push to the label yet
   weekContextNote?: string;
+  // Label + week being edited; pending edits are kept under it until applied or discarded
+  draftKey: string;
   // Edits kept on this page only (display toggles, substitutions, auto-fill) that still change the label
-  onLabelContentChange?: (deviceId: string) => void;
+  onLocalChange?: (deviceId: string, change: LocalChange) => void;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
-  onReorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
+  onReorderItems: (deviceId: string, pageId: string, itemOrder: number[]) => void;
   onClose: () => void;
   onForcePage?: (deviceId: string, pageId: string | null) => void;
   setNotifications: (count: number) => void;
@@ -41,6 +47,18 @@ interface DeviceFirstWorkflowProps {
   labelNav?: LabelNav;
   animateIn?: boolean;
 }
+
+export interface LocalChange {
+  summary: string;
+  mergeKey: string;
+  mode: MergeMode;
+  daypart?: string;
+  // Day of week the change applies to; none means every day
+  day?: number;
+}
+
+const displayToggleSummary = (toggle: DisplayToggle, name: string) =>
+  toggle === 'on' ? `Always show ${name}` : toggle === 'off' ? `Hid ${name}` : `Reset ${name} to auto`;
 
 export interface LabelNav {
   index: number;
@@ -60,7 +78,8 @@ export function DeviceFirstWorkflow({
   weekStart = null,
   weekContextLabel,
   weekContextNote,
-  onLabelContentChange,
+  draftKey,
+  onLocalChange,
   onAddItems,
   onRemoveItem,
   onReorderItems,
@@ -82,8 +101,9 @@ export function DeviceFirstWorkflow({
   const [isAddingToPage, setIsAddingToPage] = useState<string | null>(null);
   const [lastAssignedPageId, setLastAssignedPageId] = useState<string | null>(null);
   const [duplicateCount, setDuplicateCount] = useState<number>(0);
+  // Reopening a label with pending changes shows them again
   const [optimisticDevice, setOptimisticDevice] = useState<Device | null>(
-    preSelectedDevice ? JSON.parse(JSON.stringify(preSelectedDevice)) : null
+    () => clone(getDraft(draftKey)?.device ?? preSelectedDevice)
   );
   const [itemSearchValue, setItemSearchValue] = useState('');
   const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
@@ -99,21 +119,25 @@ export function DeviceFirstWorkflow({
     onDayChange?.(day);
   }, [onDayChange]);
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
-  const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>({});
-  const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
-  const [autoFillEnabled, setAutoFillEnabled] = useState(false);
+  const localStateFor = (key: string) => getDraft(key) ?? getAppliedLocalState(key);
+  const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>(
+    () => localStateFor(draftKey)?.toggles ?? {}
+  );
+  const [substitutions, setSubstitutions] = useState<Substitution[]>(() => localStateFor(draftKey)?.substitutions ?? []);
+  const [autoFillEnabled, setAutoFillEnabled] = useState(() => localStateFor(draftKey)?.autoFill ?? false);
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
 
   // Stepping to another label (previous / next) swaps the label in place, so the
   // page stays open and Back still closes it in one press.
-  const shownDeviceId = useRef(preSelectedDevice.id);
+  const shownDraftKey = useRef(draftKey);
   useEffect(() => {
-    if (shownDeviceId.current === preSelectedDevice.id) return;
-    shownDeviceId.current = preSelectedDevice.id;
-    const clone = JSON.parse(JSON.stringify(preSelectedDevice));
-    setSelectedDevice(clone);
-    setOptimisticDevice(clone);
+    if (shownDraftKey.current === draftKey) return;
+    shownDraftKey.current = draftKey;
+    const draft = getDraft(draftKey);
+    const local = localStateFor(draftKey);
+    setSelectedDevice(clone(preSelectedDevice));
+    setOptimisticDevice(clone(draft?.device ?? preSelectedDevice));
     setShowItemSelectionModal(false);
     setShowConfigPage(false);
     setShowDeviceSettingsModal(true);
@@ -122,10 +146,36 @@ export function DeviceFirstWorkflow({
     setLastAssignedPageId(null);
     setDuplicateCount(0);
     setRecentlyAddedItemIds(new Set());
-    setItemDisplayToggles({});
-    setSubstitutions([]);
-    setAutoFillEnabled(false);
-  }, [preSelectedDevice]);
+    setItemDisplayToggles(local?.toggles ?? {});
+    setSubstitutions(local?.substitutions ?? []);
+    setAutoFillEnabled(local?.autoFill ?? false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, preSelectedDevice]);
+
+  // Keep the working copy with the pending changes, so it comes back after
+  // stepping to another label or returning to the grid
+  const hasDraft = useHasDraft(draftKey);
+  useEffect(() => {
+    // Right after stepping, state still holds the previous label until the reset lands
+    if (!optimisticDevice || !hasDraft || !draftKey.startsWith(`${optimisticDevice.id}|`)) return;
+    saveDraft(draftKey, {
+      device: optimisticDevice,
+      toggles: itemDisplayToggles,
+      substitutions,
+      autoFill: autoFillEnabled,
+    });
+  }, [draftKey, hasDraft, optimisticDevice, itemDisplayToggles, substitutions, autoFillEnabled]);
+
+  // With nothing pending (none yet, applied, or discarded) the page shows the label as stored
+  useEffect(() => {
+    if (hasDraft || shownDraftKey.current !== draftKey) return;
+    const local = getAppliedLocalState(draftKey);
+    setSelectedDevice(clone(preSelectedDevice));
+    setOptimisticDevice(clone(preSelectedDevice));
+    setItemDisplayToggles(local?.toggles ?? {});
+    setSubstitutions(local?.substitutions ?? []);
+    setAutoFillEnabled(local?.autoFill ?? false);
+  }, [hasDraft, draftKey, preSelectedDevice]);
 
   useEffect(() => {
     Promise.all([api.getDeviceGroups(), api.getBrands()]).then(([g, b]) => {
@@ -189,6 +239,15 @@ export function DeviceFirstWorkflow({
     return map;
   }, [autoFillEnabled, optimisticDevice, menuItems]);
 
+  const itemName = useCallback(
+    (id: number) => menuItems.find(i => i.id === id)?.name ?? 'item',
+    [menuItems],
+  );
+  const pageDaypart = useCallback(
+    (pageId: string) => optimisticDevice?.pages.find(p => p.id === pageId)?.daypart,
+    [optimisticDevice],
+  );
+
   const handleAddSubstitution = useCallback((sub: Omit<Substitution, 'id' | 'createdAt'>) => {
     setSubstitutions(prev => [
       ...prev.filter(s =>
@@ -196,13 +255,26 @@ export function DeviceFirstWorkflow({
       ),
       { ...sub, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
     ]);
-    if (optimisticDevice) onLabelContentChange?.(optimisticDevice.id);
-  }, [optimisticDevice, onLabelContentChange]);
+    if (optimisticDevice) onLocalChange?.(optimisticDevice.id, {
+      summary: `Swapped ${itemName(sub.originalItemId)} for ${sub.substituteItem.name} · ${DAY_ABBR[sub.dayOfWeek]}`,
+      mergeKey: `sub|${sub.pageId}|${sub.originalItemId}|${sub.dayOfWeek}`,
+      mode: 'replace',
+      daypart: pageDaypart(sub.pageId),
+      day: sub.dayOfWeek,
+    });
+  }, [optimisticDevice, onLocalChange, itemName, pageDaypart]);
 
   const handleRemoveSubstitution = useCallback((id: string) => {
+    const sub = substitutions.find(s => s.id === id);
     setSubstitutions(prev => prev.filter(s => s.id !== id));
-    if (optimisticDevice) onLabelContentChange?.(optimisticDevice.id);
-  }, [optimisticDevice, onLabelContentChange]);
+    if (optimisticDevice && sub) onLocalChange?.(optimisticDevice.id, {
+      summary: `Removed swap for ${itemName(sub.originalItemId)} · ${DAY_ABBR[sub.dayOfWeek]}`,
+      mergeKey: `sub|${sub.pageId}|${sub.originalItemId}|${sub.dayOfWeek}`,
+      mode: 'toggle',
+      daypart: pageDaypart(sub.pageId),
+      day: sub.dayOfWeek,
+    });
+  }, [optimisticDevice, onLocalChange, substitutions, itemName, pageDaypart]);
 
   const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
   const stations = ['all', ...new Set(menuItems.map(item => item.mealStation))];
@@ -259,7 +331,7 @@ export function DeviceFirstWorkflow({
     setShowDeviceSettingsModal(true);
 
     try {
-      await onAddItems(selectedDevice, items, selectedPageId);
+      if (newItems.length > 0) await onAddItems(selectedDevice, newItems, selectedPageId);
       setSelectedDevice(updatedDevice);
       setLastAssignedPageId(selectedPageId);
     } catch (err) {
@@ -302,7 +374,7 @@ export function DeviceFirstWorkflow({
     setRecentlyAddedItemIds(new Set(newItems.map(i => i.id)));
 
     try {
-      await onAddItems(selectedDevice!, items, pageId);
+      if (newItems.length > 0) await onAddItems(selectedDevice!, newItems, pageId);
       setSelectedDevice(updatedDevice);
     } catch (err) {
       console.error('Error adding items inline:', err);
@@ -366,7 +438,12 @@ export function DeviceFirstWorkflow({
       }
       return { ...prev, [pageId]: pageToggles };
     });
-    onLabelContentChange?.(device.id);
+    onLocalChange?.(device.id, {
+      summary: displayToggleSummary(toggle, itemName(itemId)),
+      mergeKey: `toggle|${pageId}|${itemId}`,
+      mode: 'replace',
+      daypart: pageDaypart(pageId),
+    });
   };
 
   const handleForcePage = (pageId: string | null) => {
@@ -395,7 +472,7 @@ export function DeviceFirstWorkflow({
     setOptimisticDevice(updatedDevice);
 
     try {
-      await onReorderItems(deviceId, pageId, startIndex, endIndex);
+      await onReorderItems(deviceId, pageId, [...page.itemOrder]);
       setSelectedDevice(updatedDevice);
     } catch (err) {
       console.error('Error reordering items:', err);
@@ -545,7 +622,11 @@ export function DeviceFirstWorkflow({
           autoFillEnabled={autoFillEnabled}
           onAutoFillToggle={() => {
             setAutoFillEnabled(prev => !prev);
-            onLabelContentChange?.(optimisticDevice.id);
+            onLocalChange?.(optimisticDevice.id, {
+              summary: autoFillEnabled ? 'Turned off Auto Fill' : 'Turned on Auto Fill',
+              mergeKey: 'autofill',
+              mode: 'toggle',
+            });
           }}
           deviceGroup={deviceGroup}
           groupBrands={groupBrands}

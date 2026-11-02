@@ -6,7 +6,7 @@ import {
   BatteryLow, ChevronRight, Calendar, Tag,
 } from 'lucide-react';
 import { DAY_ABBR } from '../lib/availability';
-import { SyncStatus } from './SyncStatus';
+import { SyncStatus, PendingPill } from './SyncStatus';
 import { daypartColor } from '../lib/daypartColors';
 import { filterLabels } from '../lib/labelFilter';
 import { ReviewedTag } from './ReviewedTag';
@@ -232,7 +232,10 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
             <span className="text-xs text-gray-500">{device.status.batteryLevel}%</span>
           </div>
         </div>
-        <SyncStatus deviceId={device.id} />
+        <div className="flex flex-wrap items-center gap-1">
+          <SyncStatus deviceId={device.id} compact />
+          <PendingPill deviceId={device.id} />
+        </div>
       </div>
 
       {/* Current daypart items */}

@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, BatteryLow } from 'lucide-react';
 import { ReviewedTag } from './ReviewedTag';
 import { filterLabels } from '../lib/labelFilter';
-import { SyncStatus } from './SyncStatus';
+import { SyncStatus, PendingPill } from './SyncStatus';
 import { getDeviceGaps, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
 import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
@@ -202,7 +202,10 @@ function LabelCard({ device, daypart, onClick, highlight, gaps, reviewed, lastOp
           <p className="flex-1 min-w-0 text-xs text-gray-500 dark:text-gray-400 truncate">{device.location}</p>
           {reviewed && <ReviewedTag />}
         </div>
-        <SyncStatus deviceId={device.id} size="md" showActions />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <SyncStatus deviceId={device.id} size="md" showActions compact />
+          <PendingPill deviceId={device.id} size="md" />
+        </div>
       </div>
 
       {gaps && gaps.length > 0 && <GapNotice gaps={gaps} />}
