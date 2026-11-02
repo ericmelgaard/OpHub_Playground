@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Search,
   ArrowLeftRight,
+  Sparkles,
 } from 'lucide-react';
 import { Device, MenuItem, DevicePage as DevicePageType, Substitution, SubstitutionKey, SubstitutionContext, ResolvedItem } from '../types';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
@@ -23,8 +24,10 @@ import { SubstitutionFlow } from './SubstitutionFlow';
 import { PageActionBar } from './PageActionBar';
 import type { DisplayToggle } from './InlineItemPicker';
 import { LabelAnchor } from './LabelAnchor';
-import { getShownItems } from '../lib/labelDisplay';
+import { getShownItems, isBaseOffered, isOfferedOnDay, isCustomItem, offeredDays, toggleFor, LabelDayOverrides, ItemDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
+import { AutoFillPage, autoFillCandidates, inStations, servesDaypart, stationKey, stationOptions } from '../lib/stations';
+import { StationFilter, AutoFillPicker } from './StationPicker';
 
 interface DeviceSettingsModalProps {
   showDeviceSettingsModal: boolean;
@@ -45,17 +48,20 @@ interface DeviceSettingsModalProps {
   menuItems?: MenuItem[];
   onInlineAddItems?: (device: Device, items: MenuItem[], pageId: string) => void;
   onInlineRemoveItems?: (device: Device, itemIds: number[], pageId: string) => void;
-  onToggleItemDisplay?: (device: Device, pageId: string, itemId: number, toggle: DisplayToggle) => void;
+  // On / Off / Auto for one day of the week, or every day at once
+  onToggleItemDisplay?: (device: Device, pageId: string, itemId: number, day: number | 'every-day', toggle: DisplayToggle) => void;
   recentlyAddedItemIds?: Set<number>;
-  itemDisplayToggles?: Record<string, Record<number, DisplayToggle>>;
+  itemDisplayToggles?: LabelDayOverrides;
+  // Why day On / Off can't be used here (Default Week); toggles show but are disabled
+  dayOverridesLocked?: string;
   onCreateMenuItem?: (item: { name: string; price: string; mealPeriod: string; mealStation: string }) => Promise<MenuItem | null>;
   substitutions?: Substitution[];
   substitutionMap?: Map<SubstitutionKey, Substitution>;
   onAddSubstitution?: (sub: Omit<Substitution, 'id' | 'createdAt'>) => void;
   onRemoveSubstitution?: (id: string) => void;
-  autoFillEnabled?: boolean;
-  autoFillItemIds?: Set<number>;
-  autoFillPages?: Map<string, MenuItem[]>;
+  // Auto Fill stations per page, and setting them (empty list turns it off)
+  autoFill?: Record<string, AutoFillPage>;
+  onSetAutoFill?: (pageId: string, stations: string[]) => void;
   // Starting text for the Available Items search
   initialItemSearch?: string;
   // Monday (YYYY-MM-DD) of the week being edited, for the day strip's dates
@@ -119,14 +125,14 @@ export function DeviceSettingsModal({
   onToggleItemDisplay,
   recentlyAddedItemIds,
   itemDisplayToggles = {},
+  dayOverridesLocked,
   onCreateMenuItem,
   substitutions = [],
   substitutionMap = new Map(),
   onAddSubstitution,
   onRemoveSubstitution,
-  autoFillEnabled = false,
-  autoFillItemIds = new Set(),
-  autoFillPages = new Map(),
+  autoFill = {},
+  onSetAutoFill,
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
   const [selectedDay, setSelectedDayState] = useState<number | 'every-day'>(() => initialDay ?? new Date().getDay());
@@ -153,12 +159,15 @@ export function DeviceSettingsModal({
     () => Array.from(new Set(menuItems.map(i => i.mealPeriod).filter(Boolean))),
     [menuItems]
   );
-  const stations = useMemo(
-    () => Array.from(new Set(menuItems.map(i => i.mealStation).filter(Boolean))),
-    [menuItems]
-  );
+  // Every station name once (for Quick Add and substitutions)
+  const stations = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const i of menuItems) if (i.mealStation && !byKey.has(stationKey(i.mealStation))) byKey.set(stationKey(i.mealStation), i.mealStation.trim());
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [menuItems]);
 
-  const [stationFilter, setStationFilter] = useState('all');
+  // Station key, or null for all stations
+  const [stationFilter, setStationFilter] = useState<string | null>(null);
   // Open when arriving with a search, so a product not offered today still shows
   const [showNotAvailable, setShowNotAvailable] = useState(!!initialItemSearch);
   const [showNotAvailableAssigned, setShowNotAvailableAssigned] = useState(false);
@@ -281,16 +290,52 @@ export function DeviceSettingsModal({
 
   // Available items computation
   const assignedIds = new Set(currentPage?.assignedItems.map(i => i.id) ?? []);
+  const pageAutoFill = currentPage ? autoFill[currentPage.id] : undefined;
+  // Station filtering is off while the page auto-fills from stations
+  const effectiveStationFilter = pageAutoFill ? null : stationFilter;
+
+  // Product offered on the selected day (any day this week in Every day) in the page's daypart
+  const offeredHere = (item: MenuItem) => dayNum === null
+    ? offeredDays(item, activeDaypart ?? '').length > 0
+    : isBaseOffered(item, activeDaypart ?? '', dayNum);
+
+  const stationFilterOptions = currentPage
+    ? stationOptions(menuItems, i => !assignedIds.has(i.id) && offeredHere(i), stationFilter ? [stationFilter] : [])
+    : [];
+  const unfilteredAvailableCount = currentPage
+    ? menuItems.filter(i => !assignedIds.has(i.id) && offeredHere(i)).length
+    : 0;
+
+  // Auto Fill counts what each station would add (any day) plus what it already added
+  const autoFillIds = new Set(pageAutoFill?.itemIds.filter(id => assignedIds.has(id)) ?? []);
+  const autoFillOptions = currentPage
+    ? stationOptions(
+        menuItems,
+        i => servesDaypart(i, currentPage.daypart) && (!assignedIds.has(i.id) || autoFillIds.has(i.id)),
+        pageAutoFill?.stations ?? [],
+      )
+    : [];
+  const previewAutoFill = (keys: string[]) => {
+    if (!currentPage) return { add: 0, remove: 0 };
+    const keySet = new Set(keys);
+    const add = autoFillCandidates(menuItems, keys, currentPage.daypart, assignedIds).length;
+    const remove = currentPage.assignedItems.filter(i => autoFillIds.has(i.id) && !inStations(i, keySet)).length;
+    return { add, remove };
+  };
+
   const { availableItems, notAvailableItems } = useMemo(() => {
     if (!currentPage) return { availableItems: [], notAvailableItems: [] };
+    const stationKeys = new Set(effectiveStationFilter ? [effectiveStationFilter] : []);
     const filtered = menuItems.filter(item => {
       if (assignedIds.has(item.id)) return false;
       if (searchValue.trim()) {
         const q = searchValue.toLowerCase();
         if (!item.name.toLowerCase().includes(q) && !(item.description?.toLowerCase().includes(q) ?? false)) return false;
       }
-      if (stationFilter !== 'all' && item.mealStation !== stationFilter) return false;
-      if (dayNum !== null) {
+      if (effectiveStationFilter && !inStations(item, stationKeys)) return false;
+      // Imported products not served that day stay out of the way; custom products are
+      // listed under Not available so they can be added and turned on for a day
+      if (dayNum !== null && !isCustomItem(item)) {
         const days = item.activeDays || [];
         if (days.length > 0 && !days.includes(dayNum)) return false;
       }
@@ -299,23 +344,13 @@ export function DeviceSettingsModal({
     const avail: MenuItem[] = [];
     const notAvail: MenuItem[] = [];
     for (const item of filtered) {
-      const days = item.activeDays || [];
-      const dayOk = dayNum === null || days.length === 0 || days.includes(dayNum);
-      if (activeDaypart && activeDaypart !== 'All Day' && activeDaypart !== 'Custom') {
-        const mps = item.activeMealPeriods || [];
-        const mpOk = mps.length === 0 || mps.includes(activeDaypart);
-        if (dayOk && mpOk) avail.push(item);
-        else if (dayOk && !mpOk) notAvail.push(item);
-        else notAvail.push(item);
-      } else {
-        if (dayOk) avail.push(item);
-        else notAvail.push(item);
-      }
+      if (offeredHere(item)) avail.push(item);
+      else notAvail.push(item);
     }
     avail.sort((a, b) => a.name.localeCompare(b.name));
     notAvail.sort((a, b) => a.name.localeCompare(b.name));
     return { availableItems: avail, notAvailableItems: notAvail };
-  }, [menuItems, assignedIds, searchValue, stationFilter, dayNum, activeDaypart, currentPage]);
+  }, [menuItems, assignedIds, searchValue, effectiveStationFilter, dayNum, activeDaypart, currentPage]);
 
   const handleQuickAdd = async (data: { name: string; price: string; mealPeriod: string; mealStation: string; activeDays?: number[] }) => {
     if (!onCreateMenuItem) return;
@@ -323,6 +358,10 @@ export function DeviceSettingsModal({
       const item = await onCreateMenuItem(data);
       if (item && currentPage && onInlineAddItems) {
         onInlineAddItems(device, [item], currentPage.id);
+        // A new product has no days of its own; the days picked turn it on for this week
+        if (!dayOverridesLocked && onToggleItemDisplay) {
+          for (const d of data.activeDays ?? []) onToggleItemDisplay(device, currentPage.id, item.id, d, 'on');
+        }
         setRecentlyAddedIds(new Set([item.id]));
         setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
       }
@@ -393,25 +432,24 @@ export function DeviceSettingsModal({
 
                 {(() => {
                   const isFilteringByDay = selectedDay !== 'every-day';
+                  const pageOverrides = itemDisplayToggles[currentPage.id];
                   const activeOrderIds: number[] = [];
                   const inactiveAssignedItems: MenuItem[] = [];
                   for (const itemId of currentPage.itemOrder) {
                     const item = currentPage.assignedItems.find(i => i.id === itemId);
                     if (!item) continue;
-                    if (isFilteringByDay) {
-                      const days = item.activeDays || [];
-                      const dayOk = days.length === 0 || days.includes(selectedDay as number);
-                      const mps = item.activeMealPeriods || [];
-                      const mpOk = !activeDaypart || activeDaypart === 'All Day' || activeDaypart === 'Custom' || mps.length === 0 || mps.includes(activeDaypart);
-                      if (dayOk && mpOk) {
-                        activeOrderIds.push(itemId);
-                      } else {
-                        inactiveAssignedItems.push(item);
-                      }
-                    } else {
+                    // Turned off for the day stays in the list (struck through) so it can be undone
+                    if (!isFilteringByDay
+                      || isOfferedOnDay(item, currentPage.daypart, selectedDay, pageOverrides?.[itemId])
+                      || pageOverrides?.[itemId]?.[selectedDay] === 'off') {
                       activeOrderIds.push(itemId);
+                    } else {
+                      inactiveAssignedItems.push(item);
                     }
                   }
+                  const canToggle = !!onToggleItemDisplay && !dayOverridesLocked;
+                  const setDay = (itemId: number, state: DisplayToggle) =>
+                    onToggleItemDisplay?.(device, currentPage.id, itemId, selectedDay, state);
 
                   const resolvedItems = resolveItemsForDay(
                     activeOrderIds,
@@ -439,7 +477,9 @@ export function DeviceSettingsModal({
                                 const isDisplayed = shownIds.has(originalId);
                                 const isTapped = actionSheetState.isOpen && actionSheetState.resolvedItem?.originalItemId === originalId;
                                 const isRecentlyAdded = recentlyAddedIds?.has(originalId) || recentlyAddedItemIds?.has(originalId);
-                                const toggleState = itemDisplayToggles[currentPage.id]?.[originalId] ?? 'auto';
+                                const itemOverrides = pageOverrides?.[originalId];
+                                const toggleState = toggleFor(itemOverrides, dayNum);
+                                const baseItem = currentPage.assignedItems.find(i => i.id === originalId) ?? item;
                                 const hasSub = !resolved.isSubstituted && selectedDay === 'every-day' && hasSubstitutionOnAnyDay(currentPage.id, originalId, substitutionMap);
 
                                 return (
@@ -472,14 +512,15 @@ export function DeviceSettingsModal({
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                                   ${item.price}
                                                   <span className="text-[10px] text-amber-600 dark:text-amber-400">replaces {resolved.originalItem?.name}</span>
-                                                  <RowStatus toggle={toggleState} showing={isDisplayed} />
+                                                  <RowStatus toggle={toggleState} showing={isDisplayed} day={dayNum} />
                                                 </div>
                                               </div>
                                             </div>
                                             {onToggleItemDisplay && (
                                               <ThreeStageToggle
                                                 state={toggleState}
-                                                onChange={(newState) => onToggleItemDisplay(device, currentPage.id, originalId, newState)}
+                                                disabledReason={dayOverridesLocked}
+                                                onChange={(newState) => setDay(originalId, newState)}
                                               />
                                             )}
                                           </Card>
@@ -503,18 +544,31 @@ export function DeviceSettingsModal({
                                                     toggleState === 'off' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'
                                                   }`}>{item.name}</span>
                                                   {hasSub && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Has substitution on another day" />}
+                                                  {autoFillIds.has(originalId) && (
+                                                    <span
+                                                      title={`Added by Auto Fill from ${item.mealStation}`}
+                                                      className="inline-flex items-center gap-0.5 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
+                                                    >
+                                                      <Sparkles className="h-2.5 w-2.5" />
+                                                      Auto
+                                                    </span>
+                                                  )}
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                                   ${item.price}
                                                   {isRecentlyAdded && <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-medium">New</span>}
-                                                  <RowStatus toggle={toggleState} showing={isDisplayed} />
+                                                  <RowStatus toggle={toggleState} showing={isDisplayed} day={dayNum} />
+                                                </div>
+                                                <div className="mt-1">
+                                                  <DayPills item={baseItem} daypart={currentPage.daypart} overrides={itemOverrides} selectedDay={selectedDay} />
                                                 </div>
                                               </div>
                                             </div>
                                             {onToggleItemDisplay && (
                                               <ThreeStageToggle
                                                 state={toggleState}
-                                                onChange={(newState) => onToggleItemDisplay(device, currentPage.id, item.id, newState)}
+                                                disabledReason={dayOverridesLocked}
+                                                onChange={(newState) => setDay(item.id, newState)}
                                               />
                                             )}
                                           </Card>
@@ -543,39 +597,6 @@ export function DeviceSettingsModal({
                         )}
                       </Droppable>
 
-                      {/* Auto-filled items */}
-                      {autoFillEnabled && (() => {
-                        const pageAutoItems = autoFillPages.get(currentPage.id) || [];
-                        if (pageAutoItems.length === 0) return null;
-                        return (
-                          <div className="border-t border-dashed border-teal-300 dark:border-teal-700 flex-shrink-0">
-                            <div className="px-3 py-2 bg-teal-50/60 dark:bg-teal-900/10 flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-                              <span className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wide">Auto Fill</span>
-                              <span className="text-[10px] text-teal-500/70 dark:text-teal-400/50">{pageAutoItems.length} item{pageAutoItems.length !== 1 ? 's' : ''}</span>
-                            </div>
-                            <div className="space-y-1.5 p-2 bg-teal-50/30 dark:bg-teal-900/5">
-                              {pageAutoItems.map(item => (
-                                <div
-                                  key={`auto-${item.id}`}
-                                  className="flex items-center justify-between p-2.5 rounded-md border border-dashed border-teal-200 dark:border-teal-800 bg-white/60 dark:bg-gray-800/40"
-                                >
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <div className="w-5 flex justify-center flex-shrink-0">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400/60" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-medium truncate text-teal-800 dark:text-teal-200">{item.name}</p>
-                                      <p className="text-xs text-teal-500/70 dark:text-teal-400/50">${item.price} &middot; {item.mealStation}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-
                       {isFilteringByDay && inactiveAssignedItems.length > 0 && (
                         <div className="border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                           <button
@@ -600,8 +621,19 @@ export function DeviceSettingsModal({
                                       <span className="flex-shrink-0">${item.price}</span>
                                       <span className="flex-shrink-0">{item.mealStation}</span>
                                     </div>
-                                    <DayPills activeDays={item.activeDays} selectedDay={selectedDay} />
+                                    <DayPills item={item} daypart={currentPage.daypart} overrides={pageOverrides?.[item.id]} selectedDay={selectedDay} />
                                   </div>
+                                  {canToggle && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setDay(item.id, 'on')}
+                                      title={`Show ${item.name} on ${DAY_ABBR[selectedDay as number]} this week`}
+                                      className="h-8 px-2.5 text-xs border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 flex-shrink-0"
+                                    >
+                                      On {DAY_ABBR[selectedDay as number]}
+                                    </Button>
+                                  )}
                                   <button
                                     onClick={() => {
                                       if (onInlineRemoveItems) onInlineRemoveItems(device, [item.id], currentPage.id);
@@ -640,6 +672,15 @@ export function DeviceSettingsModal({
                         <Plus className="h-4 w-4 text-sky-500" />Available Items
                       </h4>
                       <span className="text-xs text-gray-400">{availableItems.length}</span>
+                      {onSetAutoFill && (
+                        <AutoFillPicker
+                          key={currentPage.id}
+                          options={autoFillOptions}
+                          stations={pageAutoFill?.stations ?? []}
+                          preview={previewAutoFill}
+                          onApply={stations => onSetAutoFill(currentPage.id, stations)}
+                        />
+                      )}
                     </div>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -664,18 +705,15 @@ export function DeviceSettingsModal({
                           {currentPage.daypart}
                         </span>
                       )}
-                      <label className={`${filterChipClass(stationFilter !== 'all')} relative pr-6 max-w-[11rem]`}>
-                        <span className="sr-only">Filter by station</span>
-                        <select
-                          value={stationFilter}
-                          onChange={(e) => setStationFilter(e.target.value)}
-                          className="w-full appearance-none bg-transparent outline-none cursor-pointer truncate"
-                        >
-                          <option value="all">Station: All</option>
-                          {stations.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />
-                      </label>
+                      <StationFilter
+                        options={stationFilterOptions}
+                        value={effectiveStationFilter}
+                        onChange={setStationFilter}
+                        totalCount={unfilteredAvailableCount}
+                        triggerClassName={filterChipClass(!!effectiveStationFilter)}
+                        disabled={!!pageAutoFill}
+                        disabledReason="Station filter is off while Auto Fill is on for this page"
+                      />
                     </div>
                   </div>
 
@@ -715,7 +753,7 @@ export function DeviceSettingsModal({
                                           <span className="text-sky-500 font-medium flex-shrink-0">{item.occurrenceCount}x</span>
                                         )}
                                       </div>
-                                      <DayPills activeDays={item.activeDays} selectedDay={selectedDay} />
+                                      <DayPills item={item} daypart={activeDaypart ?? ''} selectedDay={selectedDay} />
                                     </div>
                                     <span className="text-xs font-semibold flex-shrink-0 text-gray-700 dark:text-gray-300 ml-2">${item.price}</span>
                                     {onInlineAddItems && (
@@ -767,7 +805,7 @@ export function DeviceSettingsModal({
                                 <div className="flex items-center gap-1.5 text-[10px] text-gray-400 mb-0.5">
                                   <span className="flex-shrink-0">{item.mealStation}</span>
                                 </div>
-                                <DayPills activeDays={item.activeDays} selectedDay={selectedDay} />
+                                <DayPills item={item} daypart={activeDaypart ?? ''} selectedDay={selectedDay} />
                               </div>
                               <button
                                 onClick={() => {
@@ -881,24 +919,6 @@ export function DeviceSettingsModal({
                           </CardContent>
                         )}
                       </Droppable>
-                      {/* Auto-fill items in grid view */}
-                      {autoFillEnabled && (() => {
-                        const pageAutoItems = autoFillPages.get(page.id) || [];
-                        if (pageAutoItems.length === 0) return null;
-                        return (
-                          <div className="border-t border-dashed border-teal-300 dark:border-teal-700 px-3 py-2 bg-teal-50/40 dark:bg-teal-900/10 space-y-1">
-                            {pageAutoItems.slice(0, 3).map(item => (
-                              <div key={`auto-grid-${item.id}`} className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-dashed border-teal-200 dark:border-teal-800 bg-white/50 dark:bg-gray-800/30">
-                                <span className="w-1 h-1 rounded-full bg-teal-400 flex-shrink-0" />
-                                <span className="text-[10px] font-medium text-teal-700 dark:text-teal-300 truncate">{item.name}</span>
-                              </div>
-                            ))}
-                            {pageAutoItems.length > 3 && (
-                              <p className="text-[9px] text-teal-500/60 text-center">+{pageAutoItems.length - 3} more</p>
-                            )}
-                          </div>
-                        );
-                      })()}
                     </Card>
                   );
                 })}
@@ -928,7 +948,7 @@ export function DeviceSettingsModal({
                                   s.isDragging ? 'shadow-lg ring-2 ring-sky-500 bg-white dark:bg-gray-800 z-50' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-300 text-gray-700 dark:text-gray-300'
                                 }`}>
                                   <div className="text-xs font-medium truncate max-w-[120px]">{item.name}</div>
-                                  <div className="mt-1"><DayPills activeDays={item.activeDays} selectedDay={selectedDay} /></div>
+                                  <div className="mt-1"><DayPills item={item} daypart={activeDaypart ?? ''} selectedDay={selectedDay} /></div>
                                 </div>
                               )}
                             </Draggable>
@@ -989,7 +1009,7 @@ export function DeviceSettingsModal({
         onClose={() => setShowQuickAdd(false)}
         onSave={handleQuickAdd}
         defaultMealPeriod={activeDaypart || ''}
-        defaultMealStation={stationFilter !== 'all' ? stationFilter : ''}
+        defaultMealStation={stationFilterOptions.find(o => o.key === effectiveStationFilter)?.name ?? ''}
         availableMealPeriods={mealPeriods}
         availableStations={stations}
         selectedDay={selectedDay}
@@ -1028,31 +1048,44 @@ export function DeviceSettingsModal({
   );
 }
 
-function DayPills({ activeDays, selectedDay }: { activeDays?: number[]; selectedDay: number | 'every-day' }) {
-  const days = activeDays || [];
+// The days a product is on this label this week. Days a label turned on are ringed;
+// days it turned off are struck through.
+function DayPills({ item, daypart, overrides, selectedDay }: {
+  item: MenuItem;
+  daypart: string;
+  overrides?: ItemDayOverrides;
+  selectedDay: number | 'every-day';
+}) {
   const today = new Date().getDay();
 
-  if (days.length === 0) {
+  if (!overrides && (item.activeDays || []).length === 0 && !isCustomItem(item) && !item.hasAvailability) {
     return <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">Every day</span>;
   }
 
   return (
     <div className="flex gap-0.5 flex-wrap">
       {DAY_OPTIONS.map(d => {
-        const isActive = days.includes(d.value);
+        const override = overrides?.[d.value];
+        const isActive = isOfferedOnDay(item, daypart, d.value, overrides);
         const isSel = selectedDay !== 'every-day' && selectedDay === d.value;
         const isToday = d.value === today;
         return (
           <span
             key={d.value}
             className={`text-[9px] font-semibold px-1 py-0.5 rounded leading-none ${
-              isActive
-                ? isSel
-                  ? 'bg-sky-500 text-white'
-                  : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
-                : 'bg-gray-100 dark:bg-gray-700/50 text-gray-300 dark:text-gray-600'
-            }`}
-            title={`${d.label}${isActive ? ' - Active' : ' - Inactive'}${isToday ? ' (Today)' : ''}`}
+              override === 'off'
+                ? 'bg-red-50 dark:bg-red-900/30 text-red-400 dark:text-red-400 line-through'
+                : isActive
+                  ? isSel
+                    ? 'bg-sky-500 text-white'
+                    : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-gray-100 dark:bg-gray-700/50 text-gray-300 dark:text-gray-600'
+            } ${override === 'on' ? 'ring-1 ring-emerald-500' : ''}`}
+            title={`${d.label}${
+              override === 'on' ? ' · turned on for this label'
+              : override === 'off' ? ' · turned off for this label'
+              : isActive ? ' · available' : ' · not available'
+            }${isToday ? ' (today)' : ''}`}
           >
             {d.label[0]}
           </span>
@@ -1062,20 +1095,31 @@ function DayPills({ activeDays, selectedDay }: { activeDays?: number[]; selected
   );
 }
 
-function ThreeStageToggle({ state, onChange }: { state: DisplayToggle; onChange: (s: DisplayToggle) => void }) {
+function ThreeStageToggle({ state, onChange, disabledReason }: {
+  state: DisplayToggle | 'mixed';
+  onChange: (s: DisplayToggle) => void;
+  // Shown as the tooltip when the toggle can't be used
+  disabledReason?: string;
+}) {
   const states: { value: DisplayToggle; label: string; activeClass: string }[] = [
     { value: 'off', label: 'Off', activeClass: 'bg-gray-400 text-white' },
     { value: 'auto', label: 'Auto', activeClass: 'bg-sky-500 text-white' },
     { value: 'on', label: 'On', activeClass: 'bg-emerald-500 text-white' },
   ];
   return (
-    <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-md p-0.5 flex-shrink-0">
+    <div
+      title={disabledReason ?? (state === 'mixed' ? 'Days differ; pick one to set every day' : undefined)}
+      className={`flex items-center bg-gray-100 dark:bg-gray-700 rounded-md p-0.5 flex-shrink-0 ${
+        state === 'mixed' ? 'ring-1 ring-amber-300 dark:ring-amber-700' : ''
+      } ${disabledReason ? 'opacity-50' : ''}`}
+    >
       {states.map(s => (
         <button
           key={s.value}
+          disabled={!!disabledReason}
           onClick={(e) => { e.stopPropagation(); onChange(s.value); }}
-          className={`min-w-[40px] h-9 px-2 text-xs font-semibold rounded transition-all ${
-            state === s.value ? s.activeClass : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          className={`min-w-[40px] h-9 px-2 text-xs font-semibold rounded transition-all disabled:cursor-not-allowed ${
+            state === s.value ? s.activeClass : 'text-gray-500 dark:text-gray-400 enabled:hover:text-gray-700 dark:enabled:hover:text-gray-200'
           }`}
         >{s.label}</button>
       ))}
@@ -1084,10 +1128,14 @@ function ThreeStageToggle({ state, onChange }: { state: DisplayToggle; onChange:
 }
 
 // Whether a page item is on the label, and why not when it isn't
-function RowStatus({ toggle, showing }: { toggle: DisplayToggle; showing: boolean }) {
-  if (toggle === 'off') return <span className="text-[11px] text-gray-400 dark:text-gray-500">Hidden</span>;
+function RowStatus({ toggle, showing, day }: { toggle: DisplayToggle | 'mixed'; showing: boolean; day: number | null }) {
+  const when = day === null ? 'every day' : DAY_ABBR[day];
+  if (toggle === 'off') return <span className="text-[11px] text-gray-400 dark:text-gray-500">Off {when}</span>;
+  if (toggle === 'mixed') {
+    return <span className="text-[11px] text-amber-600 dark:text-amber-300">Some days changed</span>;
+  }
   if (showing) {
-    return <span className="text-[11px] text-sky-600 dark:text-sky-300">{toggle === 'on' ? 'Always shown' : 'Showing on label'}</span>;
+    return <span className="text-[11px] text-sky-600 dark:text-sky-300">{toggle === 'on' ? `On ${when} · showing` : 'Showing on label'}</span>;
   }
   return <span className="text-[11px] text-amber-600 dark:text-amber-300">Waiting · label is full</span>;
 }

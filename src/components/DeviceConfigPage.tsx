@@ -23,13 +23,14 @@ import { Badge } from '@/components/ui/badge';
 
 import core22Image from '@/assets/images/devices/core2.2_2.png';
 import { levelIconColor } from '@/lib/levelColors';
+import { daypartColor } from '@/lib/daypartColors';
 
 interface DeviceConfigPageProps {
   device: Device;
   isOpen: boolean;
   onClose: () => void;
-  autoFillEnabled: boolean;
-  onAutoFillToggle: () => void;
+  // Pages with Auto Fill on and the stations they draw from
+  autoFillSummary: { daypart: string; stations: string[] }[];
   deviceGroup?: DeviceGroup | null;
   groupBrands?: Brand[];
 }
@@ -81,8 +82,7 @@ export function DeviceConfigPage({
   device,
   isOpen,
   onClose,
-  autoFillEnabled,
-  onAutoFillToggle,
+  autoFillSummary,
   deviceGroup,
   groupBrands,
 }: DeviceConfigPageProps) {
@@ -273,34 +273,27 @@ export function DeviceConfigPage({
           {/* Auto Fill */}
           <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
             <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0 mr-4">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className={`h-4 w-4 flex-shrink-0 ${autoFillEnabled ? 'text-teal-500' : 'text-gray-400 dark:text-gray-500'}`} />
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Auto Fill</h4>
-                    {autoFillEnabled && (
-                      <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
-                    Automatically fill empty page slots with matching menu items based on each page's daypart.
-                  </p>
-                </div>
-                <button
-                  onClick={onAutoFillToggle}
-                  className={`relative flex-shrink-0 h-7 w-12 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 dark:focus:ring-offset-gray-900 ${
-                    autoFillEnabled
-                      ? 'bg-teal-500'
-                      : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                      autoFillEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
+              <div className="flex items-center gap-2">
+                <Sparkles className={`h-4 w-4 flex-shrink-0 ${autoFillSummary.length > 0 ? 'text-teal-500' : 'text-gray-400 dark:text-gray-500'}`} />
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Auto Fill</h4>
               </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                Adds a station’s items to a page. Set it per page from Auto Fill above Available Items.
+              </p>
+              {autoFillSummary.length > 0 ? (
+                <ul className="mt-3 space-y-1.5">
+                  {autoFillSummary.map(s => (
+                    <li key={s.daypart} className="flex items-start gap-2 text-xs">
+                      <span className={`font-semibold px-2 py-0.5 rounded-full border flex-shrink-0 ${daypartColor(s.daypart).chip}`}>
+                        {s.daypart}
+                      </span>
+                      <span className="text-teal-700 dark:text-teal-300 pt-0.5">{s.stations.join(' · ')}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">Off on every page</p>
+              )}
             </CardContent>
           </Card>
         </div>

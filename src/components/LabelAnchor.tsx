@@ -1,6 +1,6 @@
 import React from 'react';
 import { Device, DevicePage, LabelSize, ResolvedItem, Substitution, SubstitutionKey } from '../types';
-import { getShownItems, DisplayToggleState } from '../lib/labelDisplay';
+import { getShownItems, LabelDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
 
 interface LabelAnchorProps {
@@ -9,7 +9,8 @@ interface LabelAnchorProps {
   onSelectDaypart: (daypart: string | null) => void;
   selectedDay: number | 'every-day';
   onSelectDay: (day: number | 'every-day') => void;
-  toggles: Record<string, Record<number, DisplayToggleState>>;
+  // Per-day On / Off for the week being edited
+  toggles: LabelDayOverrides;
   substitutionMap: Map<SubstitutionKey, Substitution>;
   // Monday (YYYY-MM-DD) of the week being edited; dates are hidden without it
   weekStart?: string | null;

@@ -1,7 +1,8 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { Device, Substitution } from '../types';
-import type { DisplayToggle } from '../components/InlineItemPicker';
+import type { LabelDayOverrides } from './labelDisplay';
 import { recordLabelChange, sendNow } from './labelSync';
+import type { AutoFillPage } from './stations';
 
 // Edits on a label page wait here as pending changes until they're applied or
 // discarded. Nothing is written until then, so leaving without applying loses them.
@@ -30,12 +31,14 @@ export interface PendingChange {
   commit: () => Promise<void>;
 }
 
-// Page-only edits (display toggles, substitutions, auto fill) aren't stored by the
+// Page-only edits (display toggles, substitutions, Auto Fill stations) aren't stored by the
 // prototype's API, so they're kept here after applying too.
 export interface LabelLocalState {
-  toggles: Record<string, Record<number, DisplayToggle>>;
+  // Per-day On / Off for the week being edited
+  toggles: LabelDayOverrides;
   substitutions: Substitution[];
-  autoFill: boolean;
+  // Per page
+  autoFill: Record<string, AutoFillPage>;
 }
 
 export interface LabelDraft extends LabelLocalState {

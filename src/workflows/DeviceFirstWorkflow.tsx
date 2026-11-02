@@ -13,6 +13,8 @@ import { useModalHistory } from '../hooks/useModalHistory';
 import { api } from '../services/api';
 import { MergeMode, getDraft, getAppliedLocalState, saveDraft, useHasDraft } from '../lib/pendingChanges';
 import { DAY_ABBR } from '../lib/availability';
+import { AutoFillPage, autoFillCandidates, inStations, stationKey } from '../lib/stations';
+import { LabelDayOverrides, WEEK_DAYS } from '../lib/labelDisplay';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -30,8 +32,10 @@ interface DeviceFirstWorkflowProps {
   weekContextNote?: string;
   // Label + week being edited; pending edits are kept under it until applied or discarded
   draftKey: string;
-  // Edits kept on this page only (display toggles, substitutions, auto-fill) that still change the label
+  // Edits kept on this page only (day On / Off, substitutions, auto-fill) that still change the label
   onLocalChange?: (deviceId: string, change: LocalChange) => void;
+  // Set when day On / Off can't be used here (the Default Week), with the reason
+  dayOverridesLocked?: string;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, itemOrder: number[]) => void;
@@ -58,7 +62,7 @@ export interface LocalChange {
 }
 
 const displayToggleSummary = (toggle: DisplayToggle, name: string) =>
-  toggle === 'on' ? `Always show ${name}` : toggle === 'off' ? `Hid ${name}` : `Reset ${name} to auto`;
+  toggle === 'on' ? `Turned on ${name}` : toggle === 'off' ? `Turned off ${name}` : `Set ${name} to auto`;
 
 export interface LabelNav {
   index: number;
@@ -80,6 +84,7 @@ export function DeviceFirstWorkflow({
   weekContextNote,
   draftKey,
   onLocalChange,
+  dayOverridesLocked,
   onAddItems,
   onRemoveItem,
   onReorderItems,
@@ -120,11 +125,11 @@ export function DeviceFirstWorkflow({
   }, [onDayChange]);
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
   const localStateFor = (key: string) => getDraft(key) ?? getAppliedLocalState(key);
-  const [itemDisplayToggles, setItemDisplayToggles] = useState<Record<string, Record<number, DisplayToggle>>>(
+  const [itemDisplayToggles, setItemDisplayToggles] = useState<LabelDayOverrides>(
     () => localStateFor(draftKey)?.toggles ?? {}
   );
   const [substitutions, setSubstitutions] = useState<Substitution[]>(() => localStateFor(draftKey)?.substitutions ?? []);
-  const [autoFillEnabled, setAutoFillEnabled] = useState(() => localStateFor(draftKey)?.autoFill ?? false);
+  const [autoFill, setAutoFill] = useState<Record<string, AutoFillPage>>(() => localStateFor(draftKey)?.autoFill ?? {});
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
 
@@ -148,7 +153,7 @@ export function DeviceFirstWorkflow({
     setRecentlyAddedItemIds(new Set());
     setItemDisplayToggles(local?.toggles ?? {});
     setSubstitutions(local?.substitutions ?? []);
-    setAutoFillEnabled(local?.autoFill ?? false);
+    setAutoFill(local?.autoFill ?? {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey, preSelectedDevice]);
 
@@ -162,9 +167,9 @@ export function DeviceFirstWorkflow({
       device: optimisticDevice,
       toggles: itemDisplayToggles,
       substitutions,
-      autoFill: autoFillEnabled,
+      autoFill,
     });
-  }, [draftKey, hasDraft, optimisticDevice, itemDisplayToggles, substitutions, autoFillEnabled]);
+  }, [draftKey, hasDraft, optimisticDevice, itemDisplayToggles, substitutions, autoFill]);
 
   // With nothing pending (none yet, applied, or discarded) the page shows the label as stored
   useEffect(() => {
@@ -174,7 +179,7 @@ export function DeviceFirstWorkflow({
     setOptimisticDevice(clone(preSelectedDevice));
     setItemDisplayToggles(local?.toggles ?? {});
     setSubstitutions(local?.substitutions ?? []);
-    setAutoFillEnabled(local?.autoFill ?? false);
+    setAutoFill(local?.autoFill ?? {});
   }, [hasDraft, draftKey, preSelectedDevice]);
 
   useEffect(() => {
@@ -196,48 +201,6 @@ export function DeviceFirstWorkflow({
   }, [deviceGroup, allBrands]);
 
   const substitutionMap = useMemo(() => buildSubstitutionMap(substitutions), [substitutions]);
-
-  const autoFillItemIds = useMemo(() => {
-    if (!autoFillEnabled || !optimisticDevice) return new Set<number>();
-    const ids = new Set<number>();
-    const daypartToMealPeriod: Record<string, string> = {
-      'Breakfast': 'Breakfast',
-      'Lunch': 'Lunch',
-      'Dinner': 'Dinner',
-      'Late Night': 'Late Night',
-    };
-    for (const page of optimisticDevice.pages) {
-      const targetPeriod = daypartToMealPeriod[page.daypart];
-      if (!targetPeriod) continue;
-      const manualIds = new Set(page.assignedItems.map(i => i.id));
-      const candidates = menuItems
-        .filter(i => i.mealPeriod === targetPeriod && !manualIds.has(i.id))
-        .slice(0, Math.max(0, page.displayCapacity - page.assignedItems.length));
-      candidates.forEach(c => ids.add(c.id));
-    }
-    return ids;
-  }, [autoFillEnabled, optimisticDevice, menuItems]);
-
-  const autoFillPages = useMemo(() => {
-    if (!autoFillEnabled || !optimisticDevice) return new Map<string, MenuItem[]>();
-    const map = new Map<string, MenuItem[]>();
-    const daypartToMealPeriod: Record<string, string> = {
-      'Breakfast': 'Breakfast',
-      'Lunch': 'Lunch',
-      'Dinner': 'Dinner',
-      'Late Night': 'Late Night',
-    };
-    for (const page of optimisticDevice.pages) {
-      const targetPeriod = daypartToMealPeriod[page.daypart];
-      if (!targetPeriod) continue;
-      const manualIds = new Set(page.assignedItems.map(i => i.id));
-      const candidates = menuItems
-        .filter(i => i.mealPeriod === targetPeriod && !manualIds.has(i.id))
-        .slice(0, Math.max(0, page.displayCapacity - page.assignedItems.length));
-      if (candidates.length > 0) map.set(page.id, candidates);
-    }
-    return map;
-  }, [autoFillEnabled, optimisticDevice, menuItems]);
 
   const itemName = useCallback(
     (id: number) => menuItems.find(i => i.id === id)?.name ?? 'item',
@@ -428,21 +391,77 @@ export function DeviceFirstWorkflow({
     }
   };
 
-  const handleToggleItemDisplay = (device: Device, pageId: string, itemId: number, toggle: DisplayToggle) => {
+  // Auto Fill a page from stations: adds their items for the page's daypart and removes
+  // items it added from stations no longer picked. One update, so adds and removes don't race.
+  const handleSetAutoFill = (pageId: string, stations: string[]) => {
+    if (!optimisticDevice) return;
+    const updatedDevice: Device = clone(optimisticDevice);
+    const page = updatedDevice.pages.find(p => p.id === pageId);
+    if (!page) return;
+
+    const keys = new Set(stations.map(stationKey));
+    const assigned = new Set(page.assignedItems.map(i => i.id));
+    const previous = autoFill[pageId]?.itemIds.filter(id => assigned.has(id)) ?? [];
+    const toRemove = previous.filter(id => {
+      const item = page.assignedItems.find(i => i.id === id);
+      return !item || !inStations(item, keys);
+    });
+    const toAdd = autoFillCandidates(menuItems, stations, page.daypart, assigned);
+
+    page.assignedItems = page.assignedItems.filter(i => !toRemove.includes(i.id));
+    page.itemOrder = page.itemOrder.filter(id => !toRemove.includes(id));
+    for (const item of toAdd) {
+      page.assignedItems.push(item);
+      page.itemOrder.push(item.id);
+    }
+    updatedDevice.assignedItems = [
+      ...updatedDevice.assignedItems.filter(i =>
+        !toRemove.includes(i.id) || updatedDevice.pages.some(p => p.assignedItems.some(a => a.id === i.id))),
+      ...toAdd.filter(i => !updatedDevice.assignedItems.some(a => a.id === i.id)),
+    ];
+
+    setOptimisticDevice(updatedDevice);
+    setRecentlyAddedItemIds(new Set(toAdd.map(i => i.id)));
+    setTimeout(() => setRecentlyAddedItemIds(new Set()), 2000);
+    setAutoFill(prev => {
+      const next = { ...prev };
+      if (stations.length === 0) delete next[pageId];
+      else next[pageId] = {
+        stations,
+        itemIds: [...previous.filter(id => !toRemove.includes(id)), ...toAdd.map(i => i.id)],
+      };
+      return next;
+    });
+
+    for (const id of toRemove) onRemoveItem(id, optimisticDevice.id, pageId);
+    if (toAdd.length > 0) onAddItems(optimisticDevice, toAdd, pageId);
+    onLocalChange?.(optimisticDevice.id, {
+      summary: stations.length > 0 ? `Auto Fill from ${stations.join(', ')}` : 'Turned off Auto Fill',
+      mergeKey: `autofill|${pageId}`,
+      mode: stations.length > 0 ? 'replace' : 'toggle',
+      daypart: page.daypart,
+    });
+  };
+
+  // On / Off / Auto for one day of the week being edited, or every day at once
+  const handleToggleItemDisplay = (device: Device, pageId: string, itemId: number, day: number | 'every-day', toggle: DisplayToggle) => {
     setItemDisplayToggles(prev => {
-      const pageToggles = { ...(prev[pageId] || {}) };
-      if (toggle === 'auto') {
-        delete pageToggles[itemId];
-      } else {
-        pageToggles[itemId] = toggle;
+      const pageOverrides = { ...(prev[pageId] || {}) };
+      const itemOverrides = { ...(pageOverrides[itemId] || {}) };
+      for (const d of day === 'every-day' ? WEEK_DAYS : [day]) {
+        if (toggle === 'auto') delete itemOverrides[d];
+        else itemOverrides[d] = toggle;
       }
-      return { ...prev, [pageId]: pageToggles };
+      if (Object.keys(itemOverrides).length === 0) delete pageOverrides[itemId];
+      else pageOverrides[itemId] = itemOverrides;
+      return { ...prev, [pageId]: pageOverrides };
     });
     onLocalChange?.(device.id, {
-      summary: displayToggleSummary(toggle, itemName(itemId)),
-      mergeKey: `toggle|${pageId}|${itemId}`,
+      summary: `${displayToggleSummary(toggle, itemName(itemId))} · ${day === 'every-day' ? 'every day' : DAY_ABBR[day]}`,
+      mergeKey: `day|${pageId}|${itemId}|${day}`,
       mode: 'replace',
       daypart: pageDaypart(pageId),
+      day: day === 'every-day' ? undefined : day,
     });
   };
 
@@ -582,6 +601,7 @@ export function DeviceFirstWorkflow({
         onInlineAddItems={handleInlineAddItems}
         onInlineRemoveItems={handleInlineRemoveItems}
         onToggleItemDisplay={handleToggleItemDisplay}
+        dayOverridesLocked={dayOverridesLocked}
         itemDisplayToggles={itemDisplayToggles}
         recentlyAddedItemIds={recentlyAddedItemIds}
         onCreateMenuItem={onCreateMenuItem}
@@ -589,9 +609,8 @@ export function DeviceFirstWorkflow({
         substitutionMap={substitutionMap}
         onAddSubstitution={handleAddSubstitution}
         onRemoveSubstitution={handleRemoveSubstitution}
-        autoFillEnabled={autoFillEnabled}
-        autoFillItemIds={autoFillItemIds}
-        autoFillPages={autoFillPages}
+        autoFill={autoFill}
+        onSetAutoFill={handleSetAutoFill}
       />
 
       <ItemSelectionModal
@@ -619,15 +638,9 @@ export function DeviceFirstWorkflow({
           device={optimisticDevice}
           isOpen={showConfigPage}
           onClose={handleCloseConfig}
-          autoFillEnabled={autoFillEnabled}
-          onAutoFillToggle={() => {
-            setAutoFillEnabled(prev => !prev);
-            onLocalChange?.(optimisticDevice.id, {
-              summary: autoFillEnabled ? 'Turned off Auto Fill' : 'Turned on Auto Fill',
-              mergeKey: 'autofill',
-              mode: 'toggle',
-            });
-          }}
+          autoFillSummary={optimisticDevice.pages
+            .filter(p => autoFill[p.id]?.stations.length)
+            .map(p => ({ daypart: p.daypart, stations: autoFill[p.id].stations }))}
           deviceGroup={deviceGroup}
           groupBrands={groupBrands}
         />

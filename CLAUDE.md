@@ -19,7 +19,9 @@ Do not add other UI kits, icon sets, or CSS frameworks.
 
 ## Components
 - Use the shadcn/ui components in `src/components/ui/` first (`Button`, `Card`, `Badge`, `Input`,
-  `Select`, `Label`, `Textarea`, `DropdownMenu`). Don't hand-style a `<button>` when `Button` fits.
+  `Select`, `Label`, `Textarea`, `DropdownMenu`, `Popover`). Don't hand-style a `<button>` when `Button` fits.
+- Long pick lists (stations, etc.) use a `Popover` with search, item counts, and large touch rows —
+  not a native `<select>`. Reference: `src/components/StationPicker.tsx`.
 - Split button (primary action + chevron menu of related actions): `Button` + `DropdownMenu`,
   as in `PendingChangesButton` (`src/components/PendingChanges.tsx`). Destructive menu items are red.
 - Need a component that doesn't exist yet? Add it from shadcn/ui (new-york style) into
@@ -88,8 +90,19 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   shown on the grid and on a label page when other labels have changes.
 - Pending changes survive stepping between labels and returning to the grid. Leaving Smart
   Labels (or the page) with pending changes asks first: Keep editing / Discard and leave / apply and leave.
-- Cards show sync state in short form (`Synced 2m ago`, `3 not sent`, `Syncing…`, `Sync failed`,
-  icon-only Send now / Retry) plus an amber `3 pending` pill; details go in the tooltip.
+- **Auto Fill** (per page) is its own deliberate action, top right of Available Items: pick one or
+  more stations, then confirm ("Add 12 items"). It adds those stations' items for the daypart to
+  the page list (teal "Auto" tag), where they're ordered and turned on/off like any item. The
+  station filter is disabled while a page auto-fills. On tablets, no single tap should add or
+  remove a batch of items.
+- **Day availability (Off / Auto / On)** on a label page is per day of the week being edited
+  (`src/lib/labelDisplay.ts`). Auto follows the product's days; On adds the day for this label,
+  Off removes it. It never means priority — drag order does. "Every day" sets all 7 days and shows
+  Mixed when they differ. Removing an item applies to the whole week. The Default Week can't hold
+  day overrides (toggles are disabled there). Custom products have no days until turned on.
+- Label sync has three states only: `Synced 2m ago`, `Syncing…`, `Sync failed` (with Retry, icon-only
+  on cards). There's no "saved but not sent" state — unapplied edits are the amber `3 pending` pill.
+  Details go in the tooltip.
 
 ## Color
 Use Tailwind's palette. Every color has a job — don't pick one for looks. Brand hex values

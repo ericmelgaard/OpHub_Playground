@@ -101,6 +101,9 @@ async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput
   }
 }
 
+// How far back an imported weekday still counts as available
+const AVAILABILITY_RECENT_WEEKS = 8;
+
 export const api = {
   // Menu Items - from condensed Supabase view (pre-grouped by MRN + name)
   getMenuItems: async (): Promise<MenuItem[]> => {
@@ -150,8 +153,13 @@ export const api = {
     const mpMap = new Map((mpResult.data || []).map((mp: any) => [mp.id, mp.name]));
     const stMap = new Map((stResult.data || []).map((st: any) => [st.id, st.name]));
 
+    // A weekday counts only if the product was seen on it recently; one odd day long
+    // ago shouldn't make it available that day forever
+    const cutoff = new Date(Date.now() - AVAILABILITY_RECENT_WEEKS * 7 * 86_400_000).toISOString().slice(0, 10);
+    const hasAnyAvailability = new Set<string>(avResult.map((av: any) => av.mrn));
     const availabilityByMrn = new Map<string, any[]>();
     avResult.forEach((av: any) => {
+      if (av.last_seen_date && av.last_seen_date < cutoff) return;
       if (!availabilityByMrn.has(av.mrn)) {
         availabilityByMrn.set(av.mrn, []);
       }
@@ -222,6 +230,7 @@ export const api = {
         sortOrder: item.sort_order || 0,
         isActive: true,
         activeDays,
+        hasAvailability: hasAnyAvailability.has(item.mrn),
         activeMealPeriods,
         availabilityData: availabilityDataFormatted,
         isGrouped,

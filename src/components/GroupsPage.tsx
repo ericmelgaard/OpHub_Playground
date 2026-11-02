@@ -96,7 +96,6 @@ export function BrandAvatar({ brand, size = 'sm' }: { brand: Brand; size?: 'sm' 
 
 const SYNC_DOT: Record<LabelSyncState | 'none', string> = {
   synced: 'bg-emerald-500',
-  pending: 'bg-amber-500',
   syncing: 'bg-sky-500',
   failed: 'bg-red-500',
   none: 'bg-gray-300 dark:bg-gray-600',
@@ -116,9 +115,9 @@ function summarize(states: (LabelSyncState | undefined)[]): GroupStatus {
   if (failed > 0) {
     return { label: `${failed} failed`, dot: SYNC_DOT.failed, text: 'text-red-700 dark:text-red-300' };
   }
-  const waiting = states.filter(s => s === 'pending' || s === 'syncing').length;
-  if (waiting > 0) {
-    return { label: `${waiting} pending`, dot: SYNC_DOT.pending, text: 'text-amber-700 dark:text-amber-300' };
+  const syncing = states.filter(s => s === 'syncing').length;
+  if (syncing > 0) {
+    return { label: `${syncing} syncing`, dot: SYNC_DOT.syncing, text: 'text-sky-700 dark:text-sky-300' };
   }
   return { label: 'Synced', dot: SYNC_DOT.synced, text: 'text-emerald-700 dark:text-emerald-300' };
 }
@@ -381,7 +380,7 @@ export function GroupsPage({ devices }: GroupsPageProps) {
 
             <div className="absolute left-4 bottom-4 z-10 hidden sm:flex items-center gap-4 px-3 py-2 rounded-lg text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
               <LegendDot className={SYNC_DOT.synced} label="Synced" />
-              <LegendDot className={SYNC_DOT.pending} label="Pending" />
+              <LegendDot className={SYNC_DOT.syncing} label="Syncing" />
               <LegendDot className={SYNC_DOT.failed} label="Failed" />
             </div>
 

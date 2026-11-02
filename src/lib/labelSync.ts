@@ -3,22 +3,21 @@ import { Device } from '../types';
 
 // Simulated label push pipeline (no partner callbacks in the prototype).
 //
-// Every saved edit bumps a label's content version. Sends push the whole latest
+// Every applied edit bumps a label's content version. Sends push the whole latest
 // version, so a failed send never loses or reorders edits: the label simply stays
-// on its last confirmed version and the next send carries everything since.
+// on its last confirmed version and the next send (Retry) carries everything since.
 //
-// Sending is explicit: saved changes wait on the label's Send button. Nothing goes
-// out on its own. Changes made while a send is in flight wait for the next Send.
+// Edits wait as pending changes (pendingChanges.ts) until applied; applying sends
+// today's changes right away, so there's no "saved but not sent" state here.
 
 const SEND_DURATION_MS = 2500;
 
-export type LabelSyncState = 'synced' | 'pending' | 'syncing' | 'failed';
+export type LabelSyncState = 'synced' | 'syncing' | 'failed';
 
 interface Entry {
-  savedVersion: number;          // latest saved content
+  savedVersion: number;          // latest applied content
   labelVersion: number;          // content the label has confirmed
   sendingVersion: number | null; // content currently being pushed
-  pendingSince: number | null;   // first unsent change
   lastSyncedAt: string;          // last confirmed push
   error: string | null;          // set by the last failed push, cleared on success
   wifiStrength: number;          // decides the simulated outcome
@@ -39,7 +38,6 @@ function toView(e: Entry): LabelSyncView {
   const behindBy = e.savedVersion - e.labelVersion;
   const state: LabelSyncState =
     e.sendingVersion !== null ? 'syncing' :
-    e.pendingSince !== null ? 'pending' :
     e.error ? 'failed' :
     'synced';
   return {
@@ -66,6 +64,7 @@ function simulatePush(e: Entry): string | null {
 // Seeds labels not seen before from their mock sync state; known labels keep their
 // in-flight state across device refetches and only pick up the latest signal.
 export function initLabelSync(devices: Device[]) {
+  const inFlight: string[] = [];
   for (const d of devices) {
     const existing = entries.get(d.id);
     if (existing) {
@@ -75,13 +74,13 @@ export function initLabelSync(devices: Device[]) {
     const sync = d.status.sync;
     const lastSyncedAt = sync?.lastSyncedAt ?? new Date().toISOString();
     const entry: Entry = {
-      savedVersion: 1, labelVersion: 1, sendingVersion: null, pendingSince: null,
+      savedVersion: 1, labelVersion: 1, sendingVersion: null,
       lastSyncedAt, error: null, wifiStrength: d.status.wifiStrength,
     };
     if (sync?.state === 'syncing') {
-      // Changes saved a minute ago, waiting on Send
+      // A send already on its way when the app opens
       entry.savedVersion = 3;
-      entry.pendingSince = Date.now() - 60_000;
+      inFlight.push(d.id);
     } else if (sync?.state === 'failed') {
       entry.savedVersion = 3;
       entry.error = sync.error ?? 'Last send failed';
@@ -90,16 +89,14 @@ export function initLabelSync(devices: Device[]) {
     views.set(d.id, toView(entry));
   }
   listeners.forEach(l => l());
+  inFlight.forEach(sendNow);
 }
 
-// Call after an edit that changes what the label currently shows has been saved.
+// Call when an applied change alters what the label shows today, before sendNow.
 export function recordLabelChange(deviceId: string) {
   const e = entries.get(deviceId);
   if (!e) return;
-  update(deviceId, {
-    savedVersion: e.savedVersion + 1,
-    pendingSince: e.pendingSince ?? Date.now(),
-  });
+  update(deviceId, { savedVersion: e.savedVersion + 1 });
 }
 
 // Pushes the latest saved version to the label. Also serves as Retry after a failure.
@@ -107,7 +104,7 @@ export function sendNow(deviceId: string) {
   const e = entries.get(deviceId);
   if (!e || e.sendingVersion !== null || e.savedVersion === e.labelVersion) return;
   const version = e.savedVersion;
-  update(deviceId, { sendingVersion: version, pendingSince: null });
+  update(deviceId, { sendingVersion: version });
 
   setTimeout(() => {
     const current = entries.get(deviceId)!;

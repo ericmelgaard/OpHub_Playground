@@ -100,8 +100,10 @@ export interface MenuItem {
   mealStations?: string[];
   originalItemIds?: number[];
   occurrenceCount?: number;
-  // Day-of-week availability tracking
+  // Day-of-week availability tracking (recent imports only; see AVAILABILITY_RECENT_WEEKS)
   activeDays?: number[];
+  // Has any imported availability, even if all of it is too old to count
+  hasAvailability?: boolean;
   dates?: string[];
   activeMealPeriods?: string[];
   availabilityData?: {

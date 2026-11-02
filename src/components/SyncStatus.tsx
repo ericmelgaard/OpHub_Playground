@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, RefreshCw, AlertCircle, Clock, Send, RotateCw, PencilLine } from 'lucide-react';
+import { CheckCircle2, RefreshCw, AlertCircle, RotateCw, PencilLine } from 'lucide-react';
 import { useLabelSync, sendNow, LabelSyncState } from '../lib/labelSync';
 import { usePendingSummary } from '../lib/pendingChanges';
 
@@ -14,16 +14,11 @@ function formatAge(iso: string): string {
 
 const plural = (n: number) => `${n} ${n === 1 ? 'change' : 'changes'}`;
 
-const styles: Record<LabelSyncState, { icon: typeof Clock; pill: string; iconAnim: string }> = {
+const styles: Record<LabelSyncState, { icon: typeof CheckCircle2; pill: string; iconAnim: string }> = {
   synced: {
     icon: CheckCircle2,
     pill: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
     iconAnim: 'sync-pop',
-  },
-  pending: {
-    icon: Clock,
-    pill: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-    iconAnim: '',
   },
   syncing: {
     icon: RefreshCw,
@@ -45,7 +40,7 @@ const sizes = {
 interface SyncStatusProps {
   deviceId: string;
   size?: keyof typeof sizes;
-  // Show Send now / Retry next to the badge
+  // Show Retry next to the badge when a send failed
   showActions?: boolean;
   // Short text and icon-only actions, for cards and list rows (details stay in the tooltip)
   compact?: boolean;
@@ -74,11 +69,6 @@ export function SyncStatus({ deviceId, size = 'sm', showActions = false, compact
       text = `Synced ${age}`;
       title = `Label is showing the latest changes. Synced ${age}.`;
       break;
-    case 'pending':
-      text = compact ? `${view.behindBy} not sent` : `${plural(view.behindBy)} not sent`;
-      title = `${plural(view.behindBy)} saved but not on the label yet. Press Send now to update the label.`
-        + (view.error ? ` The previous send failed (${view.error}); this send includes those changes.` : '');
-      break;
     case 'syncing':
       text = 'Syncing…';
       title = `Sending ${plural(view.behindBy)} to the label. Last successful sync ${age}.`;
@@ -89,10 +79,8 @@ export function SyncStatus({ deviceId, size = 'sm', showActions = false, compact
       break;
   }
 
-  const action =
-    view.state === 'pending' ? { label: 'Send now', icon: Send } :
-    view.state === 'failed' ? { label: 'Retry', icon: RotateCw } :
-    null;
+  // Retry resends what the label is missing; new edits go through pending changes
+  const action = view.state === 'failed' ? { label: 'Retry', icon: RotateCw } : null;
 
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -138,7 +126,7 @@ export function PendingPill({ deviceId, size = 'sm' }: { deviceId: string; size?
   return (
     <span
       title={`${count} pending ${count === 1 ? 'change' : 'changes'} not applied. Open the label to send or save them.`}
-      className={`inline-flex items-center rounded-full border font-medium whitespace-nowrap tabular-nums ${sz.pill} ${styles.pending.pill}`}
+      className={`inline-flex items-center rounded-full border font-medium whitespace-nowrap tabular-nums ${sz.pill} bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800`}
     >
       <PencilLine className={sz.icon} />
       {count} pending

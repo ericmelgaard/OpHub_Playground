@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Native controls (select popups, date pickers, scrollbars) follow the app theme */
+html.dark {
+  color-scheme: dark;
+}
+
 /* Custom scrollbar styles */
 @layer utilities {
   .scrollbar-thin {

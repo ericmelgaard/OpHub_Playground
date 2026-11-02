@@ -1281,6 +1281,9 @@ function App() {
             animateIn={!steppingLabels}
             draftKey={`${selectedDevice.id}|${draftContext}`}
             onLocalChange={queueLocalChange}
+            dayOverridesLocked={deviceWeekContext?.isDefault
+              ? 'The Default Week follows each product’s days. Change days on the Products page, or pick a week to turn days on or off.'
+              : undefined}
             onAddItems={queueAddItems}
             onRemoveItem={queueRemoveItem}
             onReorderItems={queueReorder}
