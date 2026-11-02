@@ -1,6 +1,6 @@
 {
-  "name": "Menu Manager",
-  "short_name": "Menu Manager",
+  "name": "OpHub Playground",
+  "short_name": "OpHub Playground",
   "description": "Digital menu management system",
   "start_url": "/",
   "display": "fullscreen",
