@@ -181,6 +181,8 @@ function App() {
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [deviceItemSearch, setDeviceItemSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  // Closing a label opened from the picker goes back to the picker (wrong label → pick again)
+  const [labelFromPicker, setLabelFromPicker] = useState(false);
 
   // Quick Action Configuration
   const getDefaultQuickActionConfigs = (): QuickActionConfig[] => [
@@ -672,6 +674,7 @@ function App() {
   const handleDeviceSelect = useCallback((device: Device, daypart?: string | null) => {
     setSelectedDevice(device);
     setSteppingLabels(false);
+    setLabelFromPicker(false);
     setWorkflowDaypart(daypart || selectedDaypart);
     if (selectedQuickAction === 'smart-labels') {
       const isDefault = isDefaultWeekSelected;
@@ -852,6 +855,7 @@ function App() {
     setWorkflowDaypart(daypart);
     // Same context as opening a label from Smart Labels
     setDeviceWeekContext({ isDefault: false, weekStart: getWeekStartString(0), label: 'This Week' });
+    setLabelFromPicker(true);
     setShowDeviceWorkflow(true);
   }, [selectedItem]);
 
@@ -1292,6 +1296,11 @@ function App() {
               setDeviceItemSearch('');
               setSelectedDevice(null);
               setSteppingLabels(false);
+              if (labelFromPicker) {
+                setLabelFromPicker(false);
+                setShowLabelPicker(true);
+                return;
+              }
               // Bring the last label you were on back into view
               const lastId = lastOpenedLabelId;
               if (lastId) {
@@ -1340,6 +1349,7 @@ function App() {
               setLeaveTarget(null);
               setShowDeviceWorkflow(false);
               setSelectedDevice(null);
+              setLabelFromPicker(false);
               switchQuickAction(target);
             },
           }}
