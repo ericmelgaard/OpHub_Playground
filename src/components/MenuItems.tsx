@@ -1,23 +1,13 @@
 import React, { useEffect } from 'react';
-import { AlertCircle, Clock, MapPin } from 'lucide-react';
-import { MenuItem as MenuItemComponent } from './MenuItem';
+import { AlertCircle } from 'lucide-react';
+import { MenuItem as MenuItemComponent, PRODUCT_ROW_COLS } from './MenuItem';
 import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
-import { Card, CardContent } from '@/components/ui/card';
-import { levelIconColor } from '@/lib/levelColors';
-
-interface GroupedItems {
-  [key: string]: {
-    mealPeriod: string;
-    mealStation: string;
-    items: MenuItemType[];
-  };
-}
 
 interface MenuItemsProps {
   loading: boolean;
   error: string | null;
   menuItems: MenuItemType[];
-  viewMode: 'grid' | 'tiles';
+  viewMode: 'grid' | 'list';
   selectedChannel: string | null;
   expandedItem: string | null;
   toggleItemExpansion: (itemId: number) => void;
@@ -180,71 +170,41 @@ export function MenuItems({
     );
   }
 
-  // Group filtered items by meal period and station
-  const groupedItems = filteredItems.reduce((acc: GroupedItems, item) => {
-    const key = `${item.mealPeriod}-${item.mealStation}`;
-    if (!acc[key]) {
-      acc[key] = {
-        mealPeriod: item.mealPeriod,
-        mealStation: item.mealStation,
-        items: []
-      };
-    }
-    acc[key].items.push(item);
-    return acc;
-  }, {});
-
-  // Sort groups by meal period and station
-  const sortedGroups = Object.entries(groupedItems).sort(([, a], [, b]) => {
-    const periodCompare = a.mealPeriod.localeCompare(b.mealPeriod);
-    if (periodCompare !== 0) return periodCompare;
-    return a.mealStation.localeCompare(b.mealStation);
-  });
+  // One flat list; daypart and station are filters, so they don't split it up
+  const sortedItems = [...filteredItems].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="space-y-6">
-      {sortedGroups.map(([key, group]) => (
-        <Card key={`group-${key}`} className="bg-white dark:bg-gray-800 overflow-hidden transition-colors">
-          <div className="bg-sky-50 dark:bg-sky-900/50 px-4 py-3 border-b border-sky-100 dark:border-sky-900">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                <h3 className="font-medium text-sky-900 dark:text-sky-200">
-                  {group.mealPeriod}
-                </h3>
-              </div>
-              <div className="w-px h-4 bg-sky-200 dark:bg-sky-700" />
-              <div className="flex items-center gap-2">
-                <MapPin className={`h-4 w-4 ${levelIconColor('placement')}`} />
-                <h3 className="font-medium text-sky-900 dark:text-sky-200">
-                  {group.mealStation}
-                </h3>
-              </div>
-            </div>
-          </div>
-          <CardContent className="p-0 divide-y divide-gray-100 dark:divide-gray-700">
-            {group.items.map((item) => (
-              <MenuItemComponent
-                key={`list-${item.id}-${key}`}
-                item={item}
-                selectedChannel={selectedChannel}
-                expandedItem={expandedItem}
-                toggleItemExpansion={toggleItemExpansion}
-                isItemInChannel={isItemInChannel}
-                toggleItemInChannel={toggleItemInChannel}
-                setSelectedItem={setSelectedItem}
-                setShowDeviceModal={setShowDeviceModal}
-                setShowPageSelectionModal={setShowPageSelectionModal}
-                setWorkflowType={setWorkflowType}
-                viewMode={viewMode}
-                devices={devices}
-                onEdit={onEdit}
-                selectedCycleWeek={selectedCycleWeek}
-                refreshTag={refreshTags?.get(item.id)}
-              />
-            ))}
-          </CardContent>
-        </Card>
+    <div className="space-y-1">
+      {/* Header row */}
+      <div className={`hidden lg:grid ${PRODUCT_ROW_COLS} gap-3 px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700`}>
+        <span>Product</span>
+        <span>Dayparts</span>
+        <span>Stations</span>
+        <span>Labels</span>
+        <span>Calories</span>
+        <span>Price</span>
+        <span />
+      </div>
+
+      {sortedItems.map((item) => (
+        <MenuItemComponent
+          key={`list-${item.id}`}
+          item={item}
+          selectedChannel={selectedChannel}
+          expandedItem={expandedItem}
+          toggleItemExpansion={toggleItemExpansion}
+          isItemInChannel={isItemInChannel}
+          toggleItemInChannel={toggleItemInChannel}
+          setSelectedItem={setSelectedItem}
+          setShowDeviceModal={setShowDeviceModal}
+          setShowPageSelectionModal={setShowPageSelectionModal}
+          setWorkflowType={setWorkflowType}
+          viewMode={viewMode}
+          devices={devices}
+          onEdit={onEdit}
+          selectedCycleWeek={selectedCycleWeek}
+          refreshTag={refreshTags?.get(item.id)}
+        />
       ))}
     </div>
   );

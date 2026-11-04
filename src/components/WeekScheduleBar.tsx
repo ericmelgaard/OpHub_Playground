@@ -399,7 +399,7 @@ const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 const pickerTrigger = 'h-8 w-auto gap-2 rounded-lg px-2.5 text-sm font-medium focus:ring-sky-500 focus:ring-offset-0 dark:focus:ring-sky-400';
 
-function DayPicker({ value, onChange, weekStart, gapsByDay }: {
+export function DayPicker({ value, onChange, weekStart, gapsByDay }: {
   value: number | 'every-day';
   onChange: (day: number | 'every-day') => void;
   weekStart: string | null;
@@ -444,7 +444,7 @@ function DayPicker({ value, onChange, weekStart, gapsByDay }: {
   );
 }
 
-function DaypartPicker({ value, onChange, dayparts }: {
+export function DaypartPicker({ value, onChange, dayparts }: {
   value: string;
   onChange: (daypart: string) => void;
   dayparts: string[];

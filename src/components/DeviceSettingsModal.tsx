@@ -15,7 +15,6 @@ import { Device, MenuItem, DevicePage as DevicePageType, Substitution, Substitut
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { isItemActiveForDaypart, DAY_ABBR } from '../lib/availability';
 import { resolveItemsForDay, hasSubstitutionOnAnyDay } from '../lib/substitutions';
 import { QuickAddModal } from './QuickAddModal';
@@ -847,120 +846,90 @@ export function DeviceSettingsModal({
             </div>
           </DragDropContext>
         ) : (
-          /* All dayparts grid view */
+          /* All dayparts: a read-only overview; editing happens one daypart at a time */
           <div className="overflow-y-auto scrollbar-thin p-4 sm:px-6 h-full">
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pagesToShow.map(page => {
-                  const displayed = getDisplayedItems(page);
-                  const warn = hasWarning(page);
-                  return (
-                    <Card key={page.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 overflow-hidden">
-                      <div className={`px-4 py-3 border-b dark:border-gray-700 ${getDaypartBg(page.daypart)}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <Clock className={`h-4 w-4 ${getDaypartColor(page.daypart)}`} />
-                            <h4 className={`text-sm font-medium ${getDaypartColor(page.daypart)}`}>{page.daypart}</h4>
-                          </div>
-                          <Badge variant="secondary">Page {page.name.split(' ')[1]}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{displayed.length} of {page.displayCapacity} showing</span>
-                          {page.schedule && <div className="text-xs text-gray-500 dark:text-gray-400">{page.schedule.startTime} - {page.schedule.endTime}</div>}
-                        </div>
-                        {warn && (
-                          <div className="mt-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md">
-                            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                            <span className="text-xs">{page.assignedItems.length === 0 ? 'No items assigned' : 'No active items'}</span>
-                          </div>
+            <div className="space-y-1">
+              <div className="hidden md:grid grid-cols-[160px_90px_minmax(0,1fr)_110px] gap-3 px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
+                <span>Daypart</span>
+                <span>Showing</span>
+                <span>Items, in order</span>
+                <span />
+              </div>
+              {pagesToShow.map(page => {
+                const shown = getShownItems(page, dayNum, itemDisplayToggles[page.id], substitutionMap);
+                const isEmpty = shown.length === 0;
+                const open = Math.max(0, page.displayCapacity - shown.length);
+                const notShowing = Math.max(0, page.assignedItems.length - shown.length);
+                const c = daypartColor(page.daypart);
+                const editDaypart = () => { setInternalDaypart(page.daypart); onSelectedDaypartChange?.(page.daypart); };
+                return (
+                  <div
+                    key={page.id}
+                    onClick={editDaypart}
+                    className="group grid grid-cols-1 md:grid-cols-[160px_90px_minmax(0,1fr)_110px] gap-3 items-center px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 rounded-lg hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm transition-all cursor-pointer"
+                  >
+                    {/* Daypart + hours */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-1 h-8 rounded-full flex-shrink-0 ${isEmpty ? 'bg-amber-400' : c.solid}`} />
+                      <div className="min-w-0">
+                        <div className={`text-sm font-medium truncate ${c.text}`}>{page.daypart}</div>
+                        {page.schedule && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{page.schedule.startTime} – {page.schedule.endTime}</div>
                         )}
                       </div>
-                      <Droppable droppableId={`page|${page.id}`}>
-                        {(prov, snap) => (
-                          <CardContent
-                            ref={prov.innerRef}
-                            {...prov.droppableProps}
-                            className={`p-3 min-h-[120px] transition-colors duration-200 ${snap.isDraggingOver ? 'bg-sky-50 dark:bg-sky-900/30 ring-2 ring-sky-500 dark:ring-sky-400 ring-inset' : ''}`}
-                          >
-                            <div className="space-y-1.5">
-                              {page.itemOrder.slice(0, page.displayCapacity).map((itemId, idx) => {
-                                const item = page.assignedItems.find(i => i.id === itemId);
-                                if (!item) return null;
-                                return (
-                                  <Draggable key={`${item.id}`} draggableId={`${item.id}`} index={idx}>
-                                    {(p, s) => (
-                                      <div ref={p.innerRef} {...p.draggableProps} className={`select-none ${s.isDragging ? 'shadow-lg z-10' : ''}`}>
-                                        <Card className={`flex items-center gap-2 p-2.5 border dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 ${
-                                          s.isDragging ? 'ring-2 ring-sky-500 dark:ring-sky-400 shadow-xl' : 'border-sky-200 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20'
-                                        }`}>
-                                          <div {...p.dragHandleProps} className="touch-none p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0 cursor-grab active:cursor-grabbing">
-                                            <GripVertical className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
-                                          </div>
-                                          <span className="text-xs font-medium text-gray-900 dark:text-white truncate flex-1">{item.name}</span>
-                                          <button onClick={() => {
-                                            if (onInlineRemoveItems) onInlineRemoveItems(device, [item.id], page.id);
-                                            else removeItemFromDevice(item.id, device.id, page.id);
-                                          }} className="text-red-500 hover:text-red-600 flex-shrink-0">
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                          </button>
-                                        </Card>
-                                      </div>
-                                    )}
-                                  </Draggable>
-                                );
-                              })}
-                            </div>
-                            {prov.placeholder}
-                            {page.assignedItems.length === 0 && (
-                              <div className="flex items-center justify-center h-[100px] border-2 border-dashed dark:border-gray-700 rounded-lg">
-                                <p className="text-xs text-gray-400">Drag items here</p>
-                              </div>
-                            )}
-                          </CardContent>
-                        )}
-                      </Droppable>
-                    </Card>
-                  );
-                })}
-              </div>
+                    </div>
 
-              {/* Available items in all-view */}
-              {menuItems.length > 0 && (
-                <div className="mt-4">
-                  <Droppable droppableId="available-items">
-                    {(prov) => (
-                      <div ref={prov.innerRef} {...prov.droppableProps} className="bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Plus className="h-4 w-4 text-sky-500" />
-                          <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Available Items</h4>
-                          <span className="text-xs text-gray-400">{availableItems.length}</span>
-                          {onCreateMenuItem && (
-                            <Button variant="outline" size="sm" onClick={() => setShowQuickAdd(true)} className="ml-auto flex items-center gap-1.5 text-xs px-2.5 py-1 h-7 border-sky-300 text-sky-600 dark:text-sky-400">
-                              <Plus className="h-3.5 w-3.5" />Quick Add
-                            </Button>
-                          )}
-                        </div>
-                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                          {availableItems.slice(0, 20).map(item => (
-                            <Draggable key={`avail-${item.id}`} draggableId={`avail-${item.id}`} index={availableItems.indexOf(item)}>
-                              {(p, s) => (
-                                <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className={`flex-shrink-0 px-3 py-2 rounded-md border cursor-grab active:cursor-grabbing transition-all ${
-                                  s.isDragging ? 'shadow-lg ring-2 ring-sky-500 bg-white dark:bg-gray-800 z-50' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-300 text-gray-700 dark:text-gray-300'
-                                }`}>
-                                  <div className="text-xs font-medium truncate max-w-[120px]">{item.name}</div>
-                                  <div className="mt-1"><DayPills item={item} daypart={activeDaypart ?? ''} selectedDay={selectedDay} /></div>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {prov.placeholder}
-                        </div>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 tabular-nums">
+                      {shown.length} of {page.displayCapacity}
+                    </span>
+
+                    {/* What the label shows, in display order */}
+                    {isEmpty ? (
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                        <span className="text-sm text-amber-600 dark:text-amber-400 truncate">
+                          {page.assignedItems.length === 0 ? 'No items · add some to fill this page' : 'Nothing showing · items are off for this day'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        {shown.map((r, idx) => (
+                          <span
+                            key={r.originalItemId}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 max-w-full"
+                            title={r.isSubstituted && r.originalItem ? `Substituting for ${r.originalItem.name}` : undefined}
+                          >
+                            <span className="text-gray-400 dark:text-gray-500 tabular-nums">{idx + 1}</span>
+                            {r.isSubstituted && <ArrowLeftRight className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+                            <span className="truncate">{r.item.name}</span>
+                          </span>
+                        ))}
+                        {open > 0 && (
+                          <span className="text-xs px-2 py-1 rounded-md border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500">
+                            {open} open
+                          </span>
+                        )}
+                        {notShowing > 0 && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{notShowing} more not showing</span>
+                        )}
                       </div>
                     )}
-                  </Droppable>
-                </div>
-              )}
-            </DragDropContext>
+
+                    <div className="md:flex md:justify-end">
+                      {isEmpty && page.assignedItems.length === 0 ? (
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); editDaypart(); }} className="h-8 gap-1">
+                          <Plus className="h-4 w-4" />Add items
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); editDaypart(); }} className="h-8 gap-1 text-sky-600 dark:text-sky-400">
+                          Edit<ChevronRight className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
         </div>

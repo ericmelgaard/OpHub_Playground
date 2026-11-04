@@ -78,6 +78,21 @@ bookmark nav so people can jump to what they're looking for.
 - **Sections:** mark each target with a stable id (`data-section="..."`) and build the nav list
   from the same array that renders the sections, so they never drift apart.
 
+### Long lists → compact rows
+Reference: `src/components/SmartLabelList.tsx` (labels) and the `list` view in
+`src/components/MenuItem.tsx` / `MenuItems.tsx` (products). Any list that can run to hundreds of
+items uses one flat list of compact rows, not cards or grouped sections.
+- **Flat:** don't group by a dimension that's already a filter (daypart, station). Sort by name.
+- **Header:** a column header row on `lg` (`text-xs font-semibold uppercase tracking-wider`,
+  bottom border). Share one `lg:grid-cols-[...]` constant between header and rows.
+- **Row:** `grid gap-3 items-center px-4 py-3 rounded-lg border border-gray-100
+  dark:border-gray-700/50`, `space-y-1` between rows; sky border + shadow on hover when the row
+  opens something. One line of text per cell (`truncate`); no descriptions.
+- **Many values in a cell:** show the first one or two and a `+N` (daypart chips from
+  `daypartColor()`, first station with a lime `MapPin`).
+- **Under `lg`:** keep the name, the key value (price), and the actions; fold the rest into a
+  `text-xs` gray second line under the name.
+
 ### Label edits → pending changes, then apply
 Reference: `src/lib/pendingChanges.ts`, `src/components/PendingChanges.tsx`.
 Edits on a label page are **pending changes** until applied; nothing is written before that.
@@ -95,6 +110,9 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   the page list (teal "Auto" tag), where they're ordered and turned on/off like any item. The
   station filter is disabled while a page auto-fills. On tablets, no single tap should add or
   remove a batch of items.
+- **All dayparts** on a label page is a read-only overview: one compact row per daypart (items in
+  display order, "3 of 4", open slots, gaps) with Edit / Add items opening that daypart. Adding
+  and reordering only happen inside one daypart, so it's always clear where an item goes.
 - **Day availability (Off / Auto / On)** on a label page is per day of the week being edited
   (`src/lib/labelDisplay.ts`). Auto follows the product's days; On adds the day for this label,
   Off removes it. It never means priority — drag order does. "Every day" sets all 7 days and shows

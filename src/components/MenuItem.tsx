@@ -25,12 +25,15 @@ interface MenuItemProps {
   setShowDeviceModal: (show: boolean) => void;
   setShowPageSelectionModal: (show: boolean) => void;
   setWorkflowType: (type: 'manage' | 'assign' | null) => void;
-  viewMode: 'grid' | 'tiles';
+  viewMode: 'grid' | 'list';
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
   selectedCycleWeek?: number;
   refreshTag?: 'new' | 'updated';
 }
+
+// Columns shared by the product list header (MenuItems) and each row
+export const PRODUCT_ROW_COLS = 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_120px_70px_80px_40px]';
 
 function getWeekDateRange(weekOffset: number): { start: Date; end: Date } {
   const today = new Date();
@@ -490,81 +493,101 @@ export function MenuItem({
     </div>
   );
 
-  if (viewMode === 'tiles') {
+  if (viewMode === 'list') {
+    const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
+    const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
+    const opensProduct = !!onEdit;
+
     return (
-      <div
-        className={`px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group ${
-          isInSelectedChannel
-            ? 'border-l-4 border-sky-500 dark:border-sky-400'
-            : 'border-l-4 border-transparent'
-        } ${!isActive ? 'opacity-50' : ''} relative`}
-      >
-        {/* Top row with status, MRN, price, calories, and action button */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3 flex-wrap">
+      <>
+        <StationsModal
+          isOpen={showStationsModal}
+          onClose={() => setShowStationsModal(false)}
+          stations={stations}
+          itemName={item.name}
+        />
+        <div
+          onClick={opensProduct ? () => onEdit!(item) : undefined}
+          data-product-id={item.id}
+          className={`group grid grid-cols-[minmax(0,1fr)_auto_auto] ${PRODUCT_ROW_COLS} gap-3 items-center px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 rounded-lg transition-all ${
+            opensProduct ? 'hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm cursor-pointer' : ''
+          } ${!isActive ? 'opacity-50' : ''}`}
+        >
+          {/* Product name + MRN (dayparts and stations fold in under lg) */}
+          <div className="flex items-center gap-3 min-w-0">
             {isActive ? (
               <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
             ) : (
               <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
             )}
-            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              MRN: {item.mrn}
-            </span>
-            {refreshTag && <RefreshTagBadge tag={refreshTag} />}
-            {isInSelectedChannel && (
-              <Tag className="h-4 w-4 text-sky-500 dark:text-sky-400 flex-shrink-0" />
-            )}
-            <div className="flex items-center gap-4 text-sm">
-              <span className="text-gray-500 dark:text-gray-400">
-                {item.calories} cal
-              </span>
-              <span className="font-medium text-sky-600 dark:text-sky-400">
-                ${item.price}
-              </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</span>
+                {refreshTag && <RefreshTagBadge tag={refreshTag} />}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                MRN: {item.mrn}
+                <span className="lg:hidden">
+                  {periods.length > 0 && ` · ${periods.join(', ')}`}
+                  {stations.length > 0 && ` · ${stations.length} ${stations.length === 1 ? 'station' : 'stations'}`}
+                </span>
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 relative z-10">
-            {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
-              <Badge variant="secondary" className="text-xs bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300">
-                {item.occurrenceCount}x
-              </Badge>
-            )}
-            {selectedChannel && (
-              <Button
-                variant={isInSelectedChannel ? 'secondary' : 'default'}
-                size="sm"
-                onClick={handleAssignClick}
-                className={`flex items-center gap-1 relative ${
-                  isInSelectedChannel
-                    ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/70'
-                    : 'bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
-                }`}
-              >
-                {isInSelectedChannel ? (
-                  <Monitor className="h-4 w-4" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-              </Button>
-            )}
-          </div>
-        </div>
 
-        {/* Content area with inline options menu */}
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-base font-medium text-gray-900 dark:text-white">
-              {item.name}
-            </h3>
-            {(item.description || item.enticingDescription) && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 pr-2">
-                {item.enticingDescription || item.description}
-              </p>
+          {/* Dayparts */}
+          <div className="hidden lg:flex items-center gap-1 min-w-0" title={periods.join(', ')}>
+            {periods.slice(0, 2).map(period => (
+              <Badge key={period} variant="outline" className={`text-xs border flex-shrink-0 ${getDaypartColor(period)}`}>
+                {period}
+              </Badge>
+            ))}
+            {periods.length > 2 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">+{periods.length - 2}</span>
             )}
           </div>
-          <div className="flex-shrink-0 mt-1">{renderOptionsMenu()}</div>
+
+          {/* Stations */}
+          <div className="hidden lg:flex items-center gap-1.5 min-w-0">
+            {stations.length > 0 ? (
+              <>
+                <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${levelIconColor('placement')}`} />
+                <span className="text-sm text-gray-600 dark:text-gray-400 truncate" title={stations.join('\n')}>
+                  {stations[0]}
+                </span>
+                {stations.length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowStationsModal(true);
+                    }}
+                    className="text-xs text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap flex-shrink-0"
+                  >
+                    +{stations.length - 1}
+                  </button>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-gray-400 dark:text-gray-500">No stations</span>
+            )}
+          </div>
+
+          {/* Labels it's on */}
+          <div className="hidden lg:flex items-center gap-1.5 min-w-0">
+            <Tag className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+            <span className={`text-xs truncate ${deviceCount > 0 ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-500'}`}>
+              {deviceCount > 0 ? `On ${deviceCount} ${deviceCount === 1 ? 'label' : 'labels'}` : 'Not on labels'}
+            </span>
+          </div>
+
+          <span className="hidden lg:block text-xs text-gray-500 dark:text-gray-400 tabular-nums">{item.calories} cal</span>
+          <span className="text-sm font-medium text-sky-600 dark:text-sky-400 tabular-nums">${item.price}</span>
+
+          <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+            {renderOptionsMenu()}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 

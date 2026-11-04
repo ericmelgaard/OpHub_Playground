@@ -6,14 +6,14 @@ import { ensureWeekData, ensureCurrentAndNextWeek, WeekLoadStatus } from './serv
 import { MenuItems } from './components/MenuItems';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
-import { WeekScheduleBar, getWeekStartString } from './components/WeekScheduleBar';
+import { WeekScheduleBar, DayPicker, DaypartPicker, getWeekStartString } from './components/WeekScheduleBar';
 import { resolveWeekSchedules, getScheduleSource, ScheduleSource, formatWeekRange, formatEditingDay } from './lib/weekSchedule';
 import { filterLabels } from './lib/labelFilter';
 import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
 import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
 import { initLabelSync } from './lib/labelSync';
 import { useProductRefresh, ProductRefreshButton, ProductRefreshSheet, RefreshAge } from './components/ProductRefresh';
-import { DaypartSelector, orderedDayparts } from './components/DaypartSelector';
+import { orderedDayparts } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
@@ -77,7 +77,7 @@ function App() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'tiles'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchValue, setSearchValue] = useState('');
   const [selectedQuickAction, setSelectedQuickAction] = useState<QuickActionType>(() => {
     const saved = localStorage.getItem('selectedQuickAction');
@@ -1080,12 +1080,26 @@ function App() {
                 <div className="flex-1 min-w-0">
                   {selectedQuickAction === 'smart-labels' ? (
                     <div className="space-y-4">
+                      {/* Same day + daypart pickers as the schedule bar, for this week */}
                       {!scheduleOpen && (
-                        <DaypartSelector
-                          devices={devices}
-                          selectedDaypart={selectedDaypart}
-                          onSelectDaypart={setSelectedDaypart}
-                        />
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <DayPicker
+                            value={labelDay}
+                            onChange={setLabelDay}
+                            weekStart={getWeekStartString(0)}
+                            gapsByDay={gapsByDay}
+                          />
+                          <DaypartPicker
+                            value={selectedDaypart}
+                            onChange={setSelectedDaypart}
+                            dayparts={labelDayparts}
+                          />
+                          {visibleLabels.length > 0 && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                              <span className="font-semibold text-emerald-700 dark:text-emerald-300">{reviewedShownCount}</span> of {visibleLabels.length} reviewed
+                            </span>
+                          )}
+                        </div>
                       )}
                       {scheduleOpen && (
                         <WeekScheduleBar
@@ -1129,7 +1143,7 @@ function App() {
                           selectedWeekStart={isDefaultWeekSelected ? null : getWeekStartString(labelWeekOffset)}
                           weekSchedules={effectiveSchedules}
                           defaultSchedules={scheduleOpen && !isDefaultWeekSelected ? defaultSchedules : undefined}
-                          selectedDay={scheduleOpen ? labelDay : undefined}
+                          selectedDay={labelDay}
                           reviewedIds={reviewedLabelIds}
                           lastOpenedId={lastOpenedLabelId}
                         />
