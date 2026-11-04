@@ -19,6 +19,7 @@ interface MenuItemsProps {
   setWorkflowType: (type: 'manage' | 'assign' | null) => void;
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
+  onOpen?: (item: MenuItemType) => void;
   searchValue?: string;
   activeFilters?: FilterConfig[];
   onFilteredCountChange?: (count: number) => void;
@@ -43,6 +44,7 @@ export function MenuItems({
   setWorkflowType,
   devices,
   onEdit,
+  onOpen,
   searchValue = '',
   activeFilters = [],
   onFilteredCountChange,
@@ -162,6 +164,7 @@ export function MenuItems({
             viewMode={viewMode}
             devices={devices}
             onEdit={onEdit}
+            onOpen={onOpen}
             selectedCycleWeek={selectedCycleWeek}
             refreshTag={refreshTags?.get(item.id)}
           />
@@ -202,6 +205,7 @@ export function MenuItems({
           viewMode={viewMode}
           devices={devices}
           onEdit={onEdit}
+          onOpen={onOpen}
           selectedCycleWeek={selectedCycleWeek}
           refreshTag={refreshTags?.get(item.id)}
         />

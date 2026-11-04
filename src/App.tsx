@@ -17,12 +17,12 @@ import { orderedDayparts } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
-import { CreateItemModal } from './components/CreateItemModal';
 import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow, LabelNav, LocalChange } from './workflows/DeviceFirstWorkflow';
 import { addPendingChange, hasPendingChanges, setAfterApply, usePendingSummary, PendingChange } from './lib/pendingChanges';
 import { PendingChangesBar, PendingChangesSheet } from './components/PendingChanges';
 import { LabelPickerSheet } from './components/LabelPickerSheet';
+import { ProductSheet } from './components/ProductSheet';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
 import { SettingsPage } from './components/SettingsPage';
@@ -30,7 +30,7 @@ import { GroupsPage } from './components/GroupsPage';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { LocationChangeOverlay } from './components/LocationChangeOverlay';
 import { Theme, Channel, MenuItem, Device, Rule, FilterConfig, DeviceWeekSchedule } from './types';
-import { api } from './services/api';
+import { api, type ProductInput } from './services/api';
 import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
 
@@ -172,7 +172,8 @@ function App() {
   }, []);
 
   // Modal state
-  const [showCreateItemModal, setShowCreateItemModal] = useState(false);
+  // The product sheet's form for a new custom product
+  const [creatingProduct, setCreatingProduct] = useState(false);
   const [showCreateRuleModal, setShowCreateRuleModal] = useState(false);
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
@@ -183,6 +184,8 @@ function App() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   // Closing a label opened from the picker goes back to the picker (wrong label → pick again)
   const [labelFromPicker, setLabelFromPicker] = useState(false);
+  // Product details sheet, opened by clicking a product card or row
+  const [productSheetItem, setProductSheetItem] = useState<MenuItem | null>(null);
 
   // Quick Action Configuration
   const getDefaultQuickActionConfigs = (): QuickActionConfig[] => [
@@ -859,6 +862,40 @@ function App() {
     setShowDeviceWorkflow(true);
   }, [selectedItem]);
 
+  const handleAddFromProductSheet = useCallback((item: MenuItem) => {
+    setProductSheetItem(null);
+    setSelectedItem(item);
+    setShowLabelPicker(true);
+  }, []);
+
+  // Create or edit a custom product, reload, and show the saved product in the sheet
+  const handleSaveProduct = useCallback(async (input: ProductInput, item: MenuItem | null) => {
+    let saved: MenuItem | null;
+    if (item) {
+      await api.updateCustomProduct(item.mrn, input);
+      const updated = await api.getMenuItems();
+      setMenuItems(updated);
+      saved = updated.find(i => i.mrn === item.mrn) ?? null;
+    } else {
+      saved = await createMenuItem(input);
+    }
+    setCreatingProduct(false);
+    setProductSheetItem(saved);
+    return saved;
+  }, [createMenuItem]);
+
+  // Open a label the product is on, with the product searched in Available Items
+  const handleOpenLabelFromProductSheet = useCallback((device: Device, daypart: string) => {
+    const item = productSheetItem;
+    setProductSheetItem(null);
+    setDeviceItemSearch(item?.name.trim() ?? '');
+    setSelectedDevice(device);
+    setWorkflowDaypart(daypart);
+    setDeviceWeekContext({ isDefault: false, weekStart: getWeekStartString(0), label: 'This Week' });
+    setLabelFromPicker(false);
+    setShowDeviceWorkflow(true);
+  }, [productSheetItem]);
+
   const handleCustomize = useCallback(() => {
     setShowCustomizeModal(true);
   }, []);
@@ -875,7 +912,7 @@ function App() {
         <Navigation
           notifications={notifications}
           setNotifications={setNotifications}
-          onCreateItem={() => setShowCreateItemModal(true)}
+          onCreateItem={() => setCreatingProduct(true)}
           theme={theme}
           setTheme={setTheme}
           onMenuClick={() => setIsSidebarOpen(true)}
@@ -1016,7 +1053,7 @@ function App() {
                   <div className="flex items-center gap-2">
                     <ProductRefreshButton refresh={productRefresh} />
                     <button
-                      onClick={() => setShowCreateItemModal(true)}
+                      onClick={() => setCreatingProduct(true)}
                       className="flex items-center gap-2 h-11 px-4 text-sm font-medium text-white rounded-lg hover:bg-brand-dark transition-colors bg-brand"
                     >
                       <Plus className="h-4 w-4" />
@@ -1198,6 +1235,7 @@ function App() {
                         activeFilters={activeFilters}
                         onFilteredCountChange={setFilteredItemCount}
                         refreshTags={refreshTags}
+                        onOpen={setProductSheetItem}
                         selectedCycleWeek={selectedCycleWeek}
                       />
                     </div>
@@ -1217,13 +1255,6 @@ function App() {
           </main>
         </div>
 
-        {showCreateItemModal && (
-          <CreateItemModal
-            show={showCreateItemModal}
-            onClose={() => setShowCreateItemModal(false)}
-            onSave={async (item) => { await createMenuItem(item); }}
-          />
-        )}
 
         {showSettings && (
           <SettingsPage
@@ -1341,6 +1372,17 @@ function App() {
           />
           </div>
         )}
+
+        <ProductSheet
+          item={productSheetItem}
+          creating={creatingProduct}
+          devices={devices}
+          menuItems={menuItems}
+          onClose={() => { setProductSheetItem(null); setCreatingProduct(false); }}
+          onSave={handleSaveProduct}
+          onAddToLabel={handleAddFromProductSheet}
+          onOpenLabel={handleOpenLabelFromProductSheet}
+        />
 
         <LabelPickerSheet
           item={showLabelPicker ? selectedItem : null}

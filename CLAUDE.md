@@ -93,6 +93,16 @@ items uses one flat list of compact rows, not cards or grouped sections.
 - **Under `lg`:** keep the name, the key value (price), and the actions; fold the rest into a
   `text-xs` gray second line under the name.
 
+### Item details → right-side sheet
+Reference: `src/components/ProductSheet.tsx` (clicking a product card or row).
+- Opening one item to see its details uses a sheet docked on the right: `md:w-[480px]`, full height,
+  `bg-black/40` backdrop, slides in with `.product-sheet-in`. Full screen under `md`. Esc closes.
+- Header: name (`text-lg font-semibold`), a source line under it, close (`X`) top right.
+- Body: short sections, each a Lucide icon + sentence-case title (`text-sm font-semibold`).
+- Footer: the main action as a full-width primary `Button` ("Add to label"), with `safe-area-bottom`.
+- Cards and rows that open a sheet keep their quick action (`+`) and `⋯` menu; those stop the click
+  from also opening the sheet.
+
 ### Label edits → pending changes, then apply
 Reference: `src/lib/pendingChanges.ts`, `src/components/PendingChanges.tsx`.
 Edits on a label page are **pending changes** until applied; nothing is written before that.
@@ -117,7 +127,10 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   (`src/lib/labelDisplay.ts`). Auto follows the product's days; On adds the day for this label,
   Off removes it. It never means priority — drag order does. "Every day" sets all 7 days and shows
   Mixed when they differ. Removing an item applies to the whole week. The Default Week can't hold
-  day overrides (toggles are disabled there). Custom products have no days until turned on.
+  day overrides (toggles are disabled there). Custom products use the days set on the product
+  (product sheet → Edit); with no days they show only where a label turns a day on.
+- **Products:** custom products (`CUSTOM-` MRN) are created and edited in the product sheet.
+  Webtrition products are read-only there — their data comes from the sync.
 - Label sync has three states only: `Synced 2m ago`, `Syncing…`, `Sync failed` (with Retry, icon-only
   on cards). There's no "saved but not sent" state — unapplied edits are the amber `3 pending` pill.
   Details go in the tooltip.

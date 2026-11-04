@@ -104,6 +104,38 @@ async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput
 // How far back an imported weekday still counts as available
 const AVAILABILITY_RECENT_WEEKS = 8;
 
+// What the product sheet saves for a custom product
+export interface ProductInput {
+  name: string;
+  price?: string;
+  mealPeriod?: string;
+  mealStation?: string;
+  description?: string | null;
+  enticingDescription?: string | null;
+  calories?: string;
+  allergens?: string;
+  nutrition?: MenuItem['nutrition'];
+  icons?: { name: string; url: string; rank?: number }[];
+  // Weekdays the product is offered (0 = Sunday); omit to leave days unset
+  activeDays?: number[];
+}
+
+async function findLookupId(table: 'meal_periods' | 'stations', name?: string) {
+  if (!name?.trim()) return null;
+  const { data: row } = await supabase.from(table).select('id').ilike('name', name.trim()).limit(1).maybeSingle();
+  return row?.id ?? null;
+}
+
+// Same shape Webtrition sends, so custom and imported icons render the same way
+function toIconRows(icons?: ProductInput['icons']) {
+  return (icons ?? []).map(i => ({ url: i.url, name: i.name, rank: i.rank ?? 0, fileName: i.url.split('/').pop() ?? '' }));
+}
+
+async function setCustomDays(mrn: string, days: number[]) {
+  const { error } = await supabase.rpc('set_custom_product_days', { p_mrn: mrn, p_days: days });
+  if (error) throw new Error(`Saved, but the days didn't save: ${error.message}`);
+}
+
 export const api = {
   // Menu Items - from condensed Supabase view (pre-grouped by MRN + name)
   getMenuItems: async (): Promise<MenuItem[]> => {
@@ -159,7 +191,7 @@ export const api = {
     const hasAnyAvailability = new Set<string>(avResult.map((av: any) => av.mrn));
     const availabilityByMrn = new Map<string, any[]>();
     avResult.forEach((av: any) => {
-      if (av.last_seen_date && av.last_seen_date < cutoff) return;
+      if (av.last_seen_date && av.last_seen_date < cutoff && !String(av.mrn).startsWith('CUSTOM-')) return;
       if (!availabilityByMrn.has(av.mrn)) {
         availabilityByMrn.set(av.mrn, []);
       }
@@ -223,6 +255,12 @@ export const api = {
         allergens: item.allergens || '',
         portion: item.nutrition?.portion || '',
         icons: item.icons ? (Array.isArray(item.icons) ? item.icons.map((i: any) => i.name || i) : []) : [],
+        iconImages: Array.isArray(item.icons)
+          ? item.icons
+              .filter((i: any) => i?.url && i?.name)
+              .sort((a: any, b: any) => (b.rank ?? 0) - (a.rank ?? 0))
+              .map((i: any) => ({ name: i.name, url: i.url, rank: i.rank ?? 0 }))
+          : [],
         calories: item.calories || '0',
         mealPeriodId: mealPeriodIds[0] || 0,
         mealStation: stationNames[0] || 'Uncategorized',
@@ -245,25 +283,10 @@ export const api = {
   // Saves a product created in the app. It's tagged 'converge-custom' (the only rows the app
   // may insert) and gets a negative id and a CUSTOM- MRN so it never collides with Webtrition
   // data. Returns the new id; reload with getMenuItems() to get the full item. Throws on failure.
-  createMenuItem: async (data: {
-    name: string;
-    price?: string;
-    mealPeriod?: string;
-    mealStation?: string;
-    description?: string | null;
-    enticingDescription?: string | null;
-    calories?: string;
-    allergens?: string;
-    nutrition?: MenuItem['nutrition'];
-  }): Promise<number> => {
-    const findId = async (table: 'meal_periods' | 'stations', name?: string) => {
-      if (!name?.trim()) return null;
-      const { data: row } = await supabase.from(table).select('id').ilike('name', name.trim()).limit(1).maybeSingle();
-      return row?.id ?? null;
-    };
+  createMenuItem: async (data: ProductInput): Promise<number> => {
     const [mealPeriodId, stationId] = await Promise.all([
-      findId('meal_periods', data.mealPeriod),
-      findId('stations', data.mealStation),
+      findLookupId('meal_periods', data.mealPeriod),
+      findLookupId('stations', data.mealStation),
     ]);
 
     const id = -(Math.floor(Math.random() * 2_000_000_000) + 1);
@@ -281,13 +304,46 @@ export const api = {
       calories: data.calories || '0',
       allergens: data.allergens || '',
       nutrition: data.nutrition ?? null,
-      icons: [],
+      icons: toIconRows(data.icons),
       meal_period_id: mealPeriodId,
       station_id: stationId,
       source_name: 'converge-custom',
     });
     if (error) throw new Error(error.message);
+    if (data.activeDays) await setCustomDays(`CUSTOM-${-id}`, data.activeDays);
     return id;
+  },
+
+  // Saves changes to a custom product (only custom rows may be updated). Throws on failure.
+  updateCustomProduct: async (mrn: string, data: ProductInput): Promise<void> => {
+    const [mealPeriodId, stationId] = await Promise.all([
+      findLookupId('meal_periods', data.mealPeriod),
+      findLookupId('stations', data.mealStation),
+    ]);
+    const { data: rows, error } = await supabase
+      .from('menu_items')
+      .update({
+        name: data.name.trim(),
+        description: data.description || null,
+        enticing_description: data.enticingDescription || null,
+        price: data.price || '0.00',
+        calories: data.calories || '0',
+        allergens: data.allergens || '',
+        nutrition: data.nutrition ?? null,
+        icons: toIconRows(data.icons),
+        meal_period_id: mealPeriodId,
+        station_id: stationId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('mrn', mrn)
+      .eq('source_name', 'converge-custom')
+      .select('id');
+    if (error) throw new Error(error.message);
+    if (!rows || rows.length === 0) {
+      throw new Error('The database didn\'t accept the change. Apply the "edit custom products" migration in Supabase.');
+    }
+    // Days follow the product's daypart and station, so rewrite them after every save
+    await setCustomDays(mrn, data.activeDays ?? []);
   },
 
   // Devices

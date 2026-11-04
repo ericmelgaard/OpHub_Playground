@@ -102,6 +102,44 @@ function StationRow({ label, count, selected, multiple, onClick }: {
   );
 }
 
+// Picks one station for a product (form field); null means no station
+export function StationSelect({ options, value, onChange, id }: {
+  options: StationOption[];
+  value: string | null;          // station key
+  onChange: (key: string | null) => void;
+  id?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = value ? options.find(o => o.key === value) : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          id={id}
+          type="button"
+          className="w-full h-10 px-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-left focus:outline-none focus:ring-2 focus:ring-sky-500"
+        >
+          <span className={`flex-1 truncate ${current ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+            {current ? current.name : 'Choose a station'}
+          </span>
+          <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0">
+        <StationList
+          options={options}
+          selected={new Set(value ? [value] : [])}
+          multiple={false}
+          onPick={key => { onChange(key); setOpen(false); }}
+          countLabel="Products at each station"
+          allRow={{ label: 'No station', selected: !value, onPick: () => { onChange(null); setOpen(false); } }}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface StationFilterProps {
   options: StationOption[];
   value: string | null;          // station key, or null for all

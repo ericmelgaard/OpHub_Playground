@@ -87,6 +87,8 @@ export interface MenuItem {
   allergens: string;
   portion: string;
   icons: string[];
+  // Dietary icon images from Webtrition (Vegan, Vegetarian), highest rank first
+  iconImages?: { name: string; url: string; rank?: number }[];
   calories: string;
   mealPeriodId: number;
   mealStation: string;

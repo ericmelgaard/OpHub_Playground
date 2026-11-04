@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Coffee, MapPin, MoreVertical, Monitor, CreditCard as Edit, Plus, Tag, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar } from 'lucide-react';
+import { Coffee, MapPin, MoreVertical, Monitor, Plus, Tag, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar, Eye } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
   Card,
@@ -8,6 +8,7 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { StationsModal } from './StationsModal';
 import { DAY_ABBR } from '../lib/availability';
@@ -28,12 +29,14 @@ interface MenuItemProps {
   viewMode: 'grid' | 'list';
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
+  // Opens the product sheet (card / row click, and View product in the menu)
+  onOpen?: (item: MenuItemType) => void;
   selectedCycleWeek?: number;
   refreshTag?: 'new' | 'updated';
 }
 
 // Columns shared by the product list header (MenuItems) and each row
-export const PRODUCT_ROW_COLS = 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_120px_70px_80px_40px]';
+export const PRODUCT_ROW_COLS = 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_120px_70px_80px_84px]';
 
 function getWeekDateRange(weekOffset: number): { start: Date; end: Date } {
   const today = new Date();
@@ -62,10 +65,10 @@ export function MenuItem({
   viewMode,
   devices,
   onEdit,
+  onOpen,
   selectedCycleWeek,
   refreshTag,
 }: MenuItemProps) {
-  const [showOptions, setShowOptions] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState(false);
 
   const weekActiveDays = useMemo(() => {
@@ -98,7 +101,6 @@ export function MenuItem({
   const isActive = item.isActive !== false;
 
   const handleOptionClick = (action: 'manage' | 'edit' | 'add' | 'assign') => {
-    setShowOptions(false);
 
     switch (action) {
       case 'manage':
@@ -431,72 +433,55 @@ export function MenuItem({
   };
 
   const renderOptionsMenu = () => (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowOptions(!showOptions);
-        }}
-        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        title="More options"
-      >
-        <MoreVertical className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-      </Button>
-      {showOptions && (
-        <Card className="absolute right-0 mt-1 w-48 z-10 bg-white dark:bg-gray-800">
-          <CardContent className="p-1">
-            {selectedChannel && (
-              <Button
-                variant="ghost"
-                onClick={() => handleOptionClick('add')}
-                className={`w-full justify-start ${
-                  isInSelectedChannel
-                    ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
-                    : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
-                }`}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {isInSelectedChannel ? 'Remove from Channel' : 'Add to Channel'}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              onClick={() => handleOptionClick('assign')}
-              className="w-full justify-start text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
-            >
-              <Monitor className="h-4 w-4 mr-2" />
-              Assign to Pages
-            </Button>
-            {deviceCount > 0 && (
-              <Button
-                variant="ghost"
-                onClick={() => handleOptionClick('manage')}
-                className="w-full justify-start text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
-              >
-                <Monitor className="h-4 w-4 mr-2" />
-                Manage Devices ({deviceCount})
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              onClick={() => handleOptionClick('edit')}
-              className="w-full justify-start text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Item
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={(e) => e.stopPropagation()}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          aria-label="More options"
+        >
+          <MoreVertical className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
+        {onOpen && (
+          <DropdownMenuItem onSelect={() => onOpen(item)}>
+            <Eye />
+            View product
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onSelect={() => handleOptionClick('assign')}>
+          <Plus />
+          Add to label
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  // Quick add to a label; the monitor icon means it's already in this channel
+  const renderAddButton = () => selectedChannel && (
+    <Button
+      variant={isInSelectedChannel ? 'secondary' : 'default'}
+      size="sm"
+      onClick={handleAssignClick}
+      aria-label="Add to label"
+      title="Add to label"
+      className={`flex items-center gap-1 relative ${
+        isInSelectedChannel
+          ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/70'
+          : 'bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
+      }`}
+    >
+      {isInSelectedChannel ? <Monitor className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+    </Button>
   );
 
   if (viewMode === 'list') {
     const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
     const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
-    const opensProduct = !!onEdit;
+    const opensProduct = !!onOpen;
 
     return (
       <>
@@ -507,7 +492,7 @@ export function MenuItem({
           itemName={item.name}
         />
         <div
-          onClick={opensProduct ? () => onEdit!(item) : undefined}
+          onClick={opensProduct ? () => onOpen!(item) : undefined}
           data-product-id={item.id}
           className={`group grid grid-cols-[minmax(0,1fr)_auto_auto] ${PRODUCT_ROW_COLS} gap-3 items-center px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 rounded-lg transition-all ${
             opensProduct ? 'hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm cursor-pointer' : ''
@@ -583,7 +568,8 @@ export function MenuItem({
           <span className="hidden lg:block text-xs text-gray-500 dark:text-gray-400 tabular-nums">{item.calories} cal</span>
           <span className="text-sm font-medium text-sky-600 dark:text-sky-400 tabular-nums">${item.price}</span>
 
-          <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+            {renderAddButton()}
             {renderOptionsMenu()}
           </div>
         </div>
@@ -600,7 +586,8 @@ export function MenuItem({
         itemName={item.name}
       />
       <Card
-        className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${
+        onClick={onOpen ? () => onOpen(item) : undefined}
+        className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${onOpen ? 'cursor-pointer' : ''} ${
           isInSelectedChannel ? 'ring-2 ring-sky-500 dark:ring-sky-400' : ''
         } ${!isActive ? 'opacity-50' : ''} relative overflow-hidden`}
       >
@@ -621,30 +608,13 @@ export function MenuItem({
               <Tag className="h-4 w-4 text-sky-500 dark:text-sky-400 flex-shrink-0" />
             )}
           </div>
-          <div className="flex items-center gap-2 relative z-10">
+          <div className="flex items-center gap-2 relative z-10" onClick={e => e.stopPropagation()}>
             {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
               <Badge variant="secondary" className="text-xs bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300">
                 {item.occurrenceCount}x
               </Badge>
             )}
-            {selectedChannel && (
-              <Button
-                variant={isInSelectedChannel ? 'secondary' : 'default'}
-                size="sm"
-                onClick={handleAssignClick}
-                className={`flex items-center gap-1 relative ${
-                  isInSelectedChannel
-                    ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/70'
-                    : 'bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
-                }`}
-              >
-                {isInSelectedChannel ? (
-                  <Monitor className="h-4 w-4" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-              </Button>
-            )}
+            {renderAddButton()}
           </div>
         </div>
       </CardHeader>
