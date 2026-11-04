@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { MenuItem as MenuItemComponent, PRODUCT_ROW_COLS } from './MenuItem';
 import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
+import { plainText } from '../lib/richText';
 
 interface MenuItemsProps {
   loading: boolean;
@@ -96,8 +97,9 @@ export function MenuItems({
   const filteredItems = menuItems.filter(item => {
     const matchesSearch = searchValue.trim() === '' ||
       item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-      (item.description?.toLowerCase().includes(searchValue.toLowerCase()) ?? false) ||
-      (item.enticingDescription?.toLowerCase().includes(searchValue.toLowerCase()) ?? false);
+      plainText(item.displayName).toLowerCase().includes(searchValue.toLowerCase()) ||
+      plainText(item.description).toLowerCase().includes(searchValue.toLowerCase()) ||
+      plainText(item.enticingDescription).toLowerCase().includes(searchValue.toLowerCase());
 
     const matchesFilters = applyFilters(item);
 

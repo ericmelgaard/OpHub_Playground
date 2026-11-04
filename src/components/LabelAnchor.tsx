@@ -2,6 +2,8 @@ import React from 'react';
 import { Device, DevicePage, LabelSize, ResolvedItem, Substitution, SubstitutionKey } from '../types';
 import { getShownItems, LabelDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
+import { plainText } from '../lib/richText';
+import { LabelName } from './RichText';
 
 interface LabelAnchorProps {
   device: Device;
@@ -134,9 +136,9 @@ export function LabelAnchor({
                     highlightItemId === shown[0].originalItemId ? 'border-sky-500 ring-4 ring-sky-500/25' : 'border-transparent'
                   }`}
                 >
-                  <span className="text-base font-bold leading-tight line-clamp-2">{shown[0].item.name}</span>
+                  <span className="text-base font-bold leading-tight line-clamp-2"><LabelName item={shown[0].item} breaks="line" /></span>
                   {shown[0].item.description && (
-                    <span className="text-[10px] text-[#555] leading-snug line-clamp-2 mt-0.5">{shown[0].item.description}</span>
+                    <span className="text-[10px] text-[#555] leading-snug line-clamp-2 mt-0.5">{plainText(shown[0].item.description)}</span>
                   )}
                   <span className="flex items-end justify-between mt-auto pt-1">
                     <span className="text-[10px] text-[#5F5F5F]">{shown[0].item.calories} cal</span>
@@ -161,7 +163,7 @@ export function LabelAnchor({
                       }`}
                     >
                       <span className="flex-1 min-w-0 flex flex-col">
-                        <span className={`${capacity > 4 ? 'text-xs' : 'text-sm'} font-bold truncate`}>{r.item.name}</span>
+                        <span className={`${capacity > 4 ? 'text-xs' : 'text-sm'} font-bold truncate`}><LabelName item={r.item} /></span>
                         {capacity <= 4 && <span className="text-[10px] text-[#5F5F5F]">{r.item.calories} cal</span>}
                       </span>
                       <span className={`${capacity > 4 ? 'text-xs' : 'text-base'} font-bold tabular-nums`}>{formatPrice(r.item.price)}</span>

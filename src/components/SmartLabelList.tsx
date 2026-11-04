@@ -10,6 +10,7 @@ import { SyncStatus, PendingPill } from './SyncStatus';
 import { daypartColor } from '../lib/daypartColors';
 import { filterLabels } from '../lib/labelFilter';
 import { ReviewedTag } from './ReviewedTag';
+import { LabelName } from './RichText';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -249,7 +250,7 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
           <div className="space-y-0.5">
             {items.slice(0, 3).map((item, idx) => (
               <div key={item.id} className="flex items-center gap-2 text-sm">
-                <span className="text-gray-900 dark:text-gray-100 truncate">{item.name}</span>
+                <span className="text-gray-900 dark:text-gray-100 truncate"><LabelName item={item} /></span>
                 <span className="text-xs text-gray-400 flex-shrink-0">${parseFloat(item.price).toFixed(2)}</span>
               </div>
             ))}

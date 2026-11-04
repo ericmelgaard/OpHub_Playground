@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
+import { plainText } from '../lib/richText';
 
 const DAY_OPTIONS = [
   { value: 0, label: 'Sun' },
@@ -90,7 +91,7 @@ export function QuickAddModal({
     if (!pickSearch.trim()) return menuItems.slice(0, 50);
     const q = pickSearch.toLowerCase();
     return menuItems
-      .filter(i => i.name.toLowerCase().includes(q) || (i.description?.toLowerCase().includes(q) ?? false))
+      .filter(i => i.name.toLowerCase().includes(q) || plainText(i.description).toLowerCase().includes(q))
       .slice(0, 50);
   }, [menuItems, pickSearch]);
 

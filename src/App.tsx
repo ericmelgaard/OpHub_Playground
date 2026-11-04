@@ -34,6 +34,19 @@ import { api, type ProductInput } from './services/api';
 import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
 
+// Each label item replaced by the current product with the same id (or MRN), when there is one
+function withCurrentProducts(devices: Device[], menuItems: MenuItem[]): Device[] {
+  if (menuItems.length === 0) return devices;
+  const byId = new Map(menuItems.map(i => [i.id, i]));
+  const byMrn = new Map(menuItems.map(i => [i.mrn, i]));
+  const current = (item: MenuItem) => byId.get(item.id) ?? byMrn.get(item.mrn) ?? item;
+  return devices.map(device => ({
+    ...device,
+    assignedItems: device.assignedItems.map(current),
+    pages: device.pages.map(page => ({ ...page, assignedItems: page.assignedItems.map(current) })),
+  }));
+}
+
 function App() {
   // Theme state
   const [theme, setTheme] = useState<Theme>('system');
@@ -132,8 +145,10 @@ function App() {
     localStorage.setItem('filterSidebarOpen', JSON.stringify(isFilterSidebarOpen));
   }, [isFilterSidebarOpen]);
 
-  // Device state
-  const [devices, setDevices] = useState<Device[]>([]);
+  // Device state. Labels keep a copy of each product from when it was added; `devices`
+  // swaps in the current product so renames and display names show on every label.
+  const [storedDevices, setDevices] = useState<Device[]>([]);
+  const devices = useMemo(() => withCurrentProducts(storedDevices, menuItems), [storedDevices, menuItems]);
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [showDeviceWorkflow, setShowDeviceWorkflow] = useState(false);
@@ -884,6 +899,14 @@ function App() {
     return saved;
   }, [createMenuItem]);
 
+  // Display name for any product (Webtrition ones only change it here)
+  const handleSaveDisplayName = useCallback(async (item: MenuItem, displayName: string) => {
+    await api.setDisplayName(item.mrn, displayName);
+    const updated = await api.getMenuItems();
+    setMenuItems(updated);
+    setProductSheetItem(updated.find(i => i.mrn === item.mrn) ?? item);
+  }, []);
+
   // Open a label the product is on, with the product searched in Available Items
   const handleOpenLabelFromProductSheet = useCallback((device: Device, daypart: string) => {
     const item = productSheetItem;
@@ -1380,6 +1403,7 @@ function App() {
           menuItems={menuItems}
           onClose={() => { setProductSheetItem(null); setCreatingProduct(false); }}
           onSave={handleSaveProduct}
+          onSaveDisplayName={handleSaveDisplayName}
           onAddToLabel={handleAddFromProductSheet}
           onOpenLabel={handleOpenLabelFromProductSheet}
         />

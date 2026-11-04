@@ -116,6 +116,10 @@ export interface ProductInput {
   allergens?: string;
   nutrition?: MenuItem['nutrition'];
   icons?: { name: string; url: string; rank?: number }[];
+  // What labels show instead of the name; blank uses the name
+  displayName?: string | null;
+  // Comma-separated, like Webtrition's
+  ingredients?: string;
   // Weekdays the product is offered (0 = Sunday); omit to leave days unset
   activeDays?: number[];
 }
@@ -129,6 +133,14 @@ async function findLookupId(table: 'meal_periods' | 'stations', name?: string) {
 // Same shape Webtrition sends, so custom and imported icons render the same way
 function toIconRows(icons?: ProductInput['icons']) {
   return (icons ?? []).map(i => ({ url: i.url, name: i.name, rank: i.rank ?? 0, fileName: i.url.split('/').pop() ?? '' }));
+}
+
+async function saveDisplayName(mrn: string, displayName: string | null | undefined) {
+  const value = displayName?.trim();
+  const { error } = value
+    ? await supabase.from('product_display_names').upsert({ mrn, display_name: value, updated_at: new Date().toISOString() })
+    : await supabase.from('product_display_names').delete().eq('mrn', mrn);
+  if (error) throw new Error(`Saved, but the display name didn't save: ${error.message}`);
 }
 
 async function setCustomDays(mrn: string, days: number[]) {
@@ -162,7 +174,7 @@ export const api = {
     }
 
     // Fetch meal periods and stations in parallel for name lookups
-    const [mpResult, stResult, avResult] = await Promise.all([
+    const [mpResult, stResult, avResult, dnResult] = await Promise.all([
       supabase.from('meal_periods').select('id, name'),
       supabase.from('stations').select('id, name'),
       (async () => {
@@ -180,10 +192,13 @@ export const api = {
         }
         return all;
       })(),
+      supabase.from('product_display_names').select('mrn, display_name'),
     ]);
 
     const mpMap = new Map((mpResult.data || []).map((mp: any) => [mp.id, mp.name]));
     const stMap = new Map((stResult.data || []).map((st: any) => [st.id, st.name]));
+    // Missing until the display names migration runs; products then just have none
+    const displayNames = new Map<string, string>((dnResult.data || []).map((d: any) => [d.mrn, d.display_name]));
 
     // A weekday counts only if the product was seen on it recently; one odd day long
     // ago shouldn't make it available that day forever
@@ -220,6 +235,7 @@ export const api = {
         id: item.id,
         date: (item.dates && item.dates[0]) || new Date().toISOString().split('T')[0],
         name: item.name,
+        displayName: displayNames.get(item.mrn) ?? null,
         description: item.description || null,
         enticingDescription: item.enticing_description || null,
         ingredients: item.ingredients || '',
@@ -299,6 +315,7 @@ export const api = {
       name: data.name.trim(),
       description: data.description || null,
       enticing_description: data.enticingDescription || null,
+      ingredients: data.ingredients || '',
       price: data.price || '0.00',
       mrn: `CUSTOM-${-id}`,
       calories: data.calories || '0',
@@ -311,8 +328,12 @@ export const api = {
     });
     if (error) throw new Error(error.message);
     if (data.activeDays) await setCustomDays(`CUSTOM-${-id}`, data.activeDays);
+    if (data.displayName?.trim()) await saveDisplayName(`CUSTOM-${-id}`, data.displayName);
     return id;
   },
+
+  // Sets what labels show for a product (any product); blank clears it. Throws on failure.
+  setDisplayName: (mrn: string, displayName: string | null | undefined): Promise<void> => saveDisplayName(mrn, displayName),
 
   // Saves changes to a custom product (only custom rows may be updated). Throws on failure.
   updateCustomProduct: async (mrn: string, data: ProductInput): Promise<void> => {
@@ -326,6 +347,7 @@ export const api = {
         name: data.name.trim(),
         description: data.description || null,
         enticing_description: data.enticingDescription || null,
+        ingredients: data.ingredients || '',
         price: data.price || '0.00',
         calories: data.calories || '0',
         allergens: data.allergens || '',
@@ -344,6 +366,7 @@ export const api = {
     }
     // Days follow the product's daypart and station, so rewrite them after every save
     await setCustomDays(mrn, data.activeDays ?? []);
+    if (data.displayName !== undefined) await saveDisplayName(mrn, data.displayName);
   },
 
   // Devices

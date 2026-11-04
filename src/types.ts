@@ -72,6 +72,8 @@ export interface MenuItem {
   id: number;
   date: string;
   name: string;
+  // What labels show instead of the name, when set (see labelName())
+  displayName?: string | null;
   description: string | null;
   enticingDescription: string | null;
   ingredients: string;

@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import {
   X, Plus, Tag, MapPin, Clock, CalendarDays, Leaf, ChevronRight, ChevronDown, Database, PenLine,
-  Pencil, Loader2, Check, Activity,
+  Pencil, Loader2, Check, Activity, ListChecks,
 } from 'lucide-react';
 import { Device, MenuItem } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { StationSelect } from './StationPicker';
 import { daypartColor } from '../lib/daypartColors';
 import { levelIconColor } from '../lib/levelColors';
 import { isCustomItem } from '../lib/labelDisplay';
+import { parseIngredients } from '../lib/richText';
 import { DAY_ABBR } from '../lib/availability';
 import { stationKey, stationOptions } from '../lib/stations';
 import type { ProductInput } from '../services/api';
+import { RichText, LabelName } from './RichText';
+import { RichTextEditor } from './RichTextEditor';
 
 interface ProductSheetProps {
   // The product being viewed, or null
@@ -29,6 +31,8 @@ interface ProductSheetProps {
   onOpenLabel: (device: Device, daypart: string) => void;
   // Saves a new (item null) or edited custom product; resolves to the saved product. Throws on failure.
   onSave: (input: ProductInput, item: MenuItem | null) => Promise<MenuItem | null>;
+  // Sets (or clears, with blank) what labels show for a product. Throws on failure.
+  onSaveDisplayName: (item: MenuItem, displayName: string) => Promise<void>;
 }
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -45,7 +49,7 @@ type NutrientKey = typeof NUTRIENTS[number]['key'];
 const splitAllergens = (s: string | undefined) => (s ? s.split(',').map(a => a.trim()).filter(Boolean) : []);
 
 // One product: view its details, or (custom products) edit them. Also the form for a new product.
-export function ProductSheet({ item, creating, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onSave }: ProductSheetProps) {
+export function ProductSheet({ item, creating, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onSave, onSaveDisplayName }: ProductSheetProps) {
   const [editing, setEditing] = useState(false);
   const open = creating || !!item;
   const showForm = creating || editing;
@@ -87,6 +91,7 @@ export function ProductSheet({ item, creating, devices, menuItems, onClose, onAd
             onEdit={isCustomItem(item) ? () => setEditing(true) : undefined}
             onAddToLabel={onAddToLabel}
             onOpenLabel={onOpenLabel}
+            onSaveDisplayName={onSaveDisplayName}
           />
         )}
       </div>
@@ -116,13 +121,14 @@ function SheetHeader({ title, subtitle, onClose, closeLabel = 'Close' }: {
   );
 }
 
-function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLabel }: {
+function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLabel, onSaveDisplayName }: {
   item: MenuItem;
   devices: Device[];
   onClose: () => void;
   onEdit?: () => void;
   onAddToLabel: (item: MenuItem) => void;
   onOpenLabel: (device: Device, daypart: string) => void;
+  onSaveDisplayName: (item: MenuItem, displayName: string) => Promise<void>;
 }) {
   // Labels showing this product, with the dayparts it's on
   const labels = useMemo(() => devices
@@ -138,6 +144,8 @@ function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLa
   const days = item.activeDays || [];
   const allergens = splitAllergens(item.allergens);
   const description = item.enticingDescription || item.description;
+  const ingredientList = useMemo(() => parseIngredients(item.ingredients), [item.ingredients]);
+  const [showAllIngredients, setShowAllIngredients] = useState(false);
 
   return (
     <>
@@ -167,8 +175,11 @@ function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLa
           </div>
         </div>
 
+        {/* Custom products change it in Edit; Webtrition products only here */}
+        <DisplayNameRow item={item} editable={!onEdit} onSave={value => onSaveDisplayName(item, value)} />
+
         {description && (
-          <p className="text-sm text-gray-600 dark:text-gray-300 leading-6">{description}</p>
+          <RichText value={description} className="text-sm text-gray-600 dark:text-gray-300 leading-6 space-y-2" />
         )}
 
         {/* Dietary */}
@@ -192,6 +203,19 @@ function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLa
                 ))}
               </div>
             )}
+          </Section>
+        )}
+
+        {ingredientList.length > 0 && (
+          <Section icon={ListChecks} title={`Ingredients (${ingredientList.length})`}>
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-6">
+              {(showAllIngredients ? ingredientList : ingredientList.slice(0, 10)).join(', ')}
+              {ingredientList.length > 10 && (
+                <button type="button" onClick={() => setShowAllIngredients(!showAllIngredients)} className="ml-1.5 text-sm font-medium text-sky-600 dark:text-sky-400 hover:underline">
+                  {showAllIngredients ? 'Show less' : `+${ingredientList.length - 10} more`}
+                </button>
+              )}
+            </p>
           </Section>
         )}
 
@@ -291,10 +315,12 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
   onSave: (input: ProductInput) => Promise<MenuItem | null>;
 }) {
   const [name, setName] = useState(item?.name.trim() ?? '');
+  const [displayName, setDisplayName] = useState(item?.displayName?.trim() ?? '');
   const [price, setPrice] = useState(item ? parseFloat(item.price || '0').toFixed(2) : '');
   const [calories, setCalories] = useState(item?.calories && item.calories !== '0' ? item.calories : '');
-  const [description, setDescription] = useState(item?.description ?? '');
-  const [enticing, setEnticing] = useState(item?.enticingDescription ?? '');
+  // One description: the enticing description when there is one, else the description
+  const [description, setDescription] = useState(item?.enticingDescription || item?.description || '');
+  const [ingredients, setIngredients] = useState<string[]>(parseIngredients(item?.ingredients));
   const [daypart, setDaypart] = useState(item?.mealPeriod && item.mealPeriod !== 'All Day' ? item.mealPeriod : '');
   const [station, setStation] = useState<string | null>(item?.mealStation ? stationKey(item.mealStation) : null);
   // New products start on every day; turn days off for products that aren't served daily
@@ -329,6 +355,11 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
     menuItems.forEach(i => i.iconImages?.forEach(icon => { if (!byName.has(icon.name)) byName.set(icon.name, icon); }));
     return [...byName.values()].sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0));
   }, [menuItems]);
+  const ingredientOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    menuItems.forEach(i => parseIngredients(i.ingredients).forEach(g => { if (!byKey.has(g.toLowerCase())) byKey.set(g.toLowerCase(), g); }));
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+  }, [menuItems]);
   const allergenOptions = useMemo(() => {
     const seen = new Set<string>(splitAllergens(item?.allergens));
     menuItems.forEach(i => splitAllergens(i.allergens).forEach(a => seen.add(a)));
@@ -354,10 +385,13 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
     try {
       await onSave({
         name,
+        displayName: displayName.trim() || null,
         price: price.trim() ? parseFloat(price).toFixed(2) : '0.00',
         calories: cal,
-        description: description.trim() || null,
-        enticingDescription: enticing.trim() || null,
+        // Saved back to the field it came from; clearing it clears both
+        description: !description ? null : item?.enticingDescription ? item.description : description,
+        enticingDescription: !description ? null : item?.enticingDescription ? description : null,
+        ingredients: ingredients.join(', '),
         mealPeriod: daypart || undefined,
         mealStation: station ? stationChoices.find(o => o.key === station)?.name : undefined,
         activeDays: [...days].sort(),
@@ -406,6 +440,17 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
             />
             {triedSave && nameMissing && <p className="text-xs text-red-600 dark:text-red-400">Add a name to save</p>}
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="product-display-name">Display name</Label>
+            <RichTextEditor
+              id="product-display-name"
+              value={displayName}
+              onChange={setDisplayName}
+              placeholder={name.trim() || 'Same as name'}
+              ariaLabel="Display name"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Shown on labels. Leave blank to use the name.</p>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="product-price">Price</Label>
@@ -421,13 +466,14 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="product-description">Description</Label>
-            <Textarea id="product-description" value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="What it is" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="product-enticing">Enticing description</Label>
-            <Textarea id="product-enticing" value={enticing} onChange={e => setEnticing(e.target.value)} rows={2} placeholder="Shown on labels instead of the description, when set" />
+            <RichTextEditor id="product-description" value={description} onChange={setDescription} placeholder="What it is" ariaLabel="Description" />
           </div>
         </div>
+
+        {/* Ingredients */}
+        <Section icon={ListChecks} title="Ingredients">
+          <IngredientInput value={ingredients} onChange={setIngredients} suggestions={ingredientOptions} />
+        </Section>
 
         {/* When */}
         <Section icon={Clock} title="When">
@@ -588,6 +634,126 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
         </div>
       </div>
     </>
+  );
+}
+
+// Ingredients as removable chips; type to add, with matches from the product data
+function IngredientInput({ value, onChange, suggestions }: {
+  value: string[];
+  onChange: (value: string[]) => void;
+  suggestions: string[];
+}) {
+  const [query, setQuery] = useState('');
+  const has = (g: string) => value.some(v => v.toLowerCase() === g.toLowerCase());
+  const add = (g: string) => {
+    const t = g.trim().replace(/,+$/, '');
+    if (t && !has(t)) onChange([...value, t]);
+    setQuery('');
+  };
+  const q = query.trim().toLowerCase();
+  const matches = q ? suggestions.filter(s => s.toLowerCase().includes(q) && !has(s)).slice(0, 6) : [];
+
+  return (
+    <div className="space-y-2">
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map(g => (
+            <span key={g} className="inline-flex items-center gap-1 h-8 pl-3 pr-1 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-200">
+              {g}
+              <button type="button" aria-label={`Remove ${g}`} onClick={() => onChange(value.filter(v => v !== g))} className="h-6 w-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <Input
+        id="product-ingredients"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            add(matches[0] && matches[0].toLowerCase() === q ? matches[0] : query);
+          }
+          if (e.key === 'Backspace' && !query && value.length) onChange(value.slice(0, -1));
+        }}
+        placeholder={value.length ? 'Add another ingredient' : 'Type an ingredient and press Enter'}
+        aria-label="Add ingredient"
+      />
+      {matches.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {matches.map(m => (
+            <button key={m} type="button" onClick={() => add(m)} className="inline-flex items-center gap-1 h-8 px-3 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:border-sky-300 hover:text-sky-700 dark:hover:text-sky-300">
+              <Plus className="h-3 w-3" />{m}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// What labels show for this product, with an inline change for products that have no Edit form
+function DisplayNameRow({ item, editable, onSave }: {
+  item: MenuItem;
+  editable: boolean;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const [editingName, setEditingName] = useState(false);
+  const [value, setValue] = useState(item.displayName?.trim() ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const custom = item.displayName?.trim();
+
+  useEffect(() => { setValue(item.displayName?.trim() ?? ''); setEditingName(false); setError(null); }, [item.id, item.displayName]);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(value);
+      setEditingName(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editingName) {
+    return (
+      <form className="space-y-1.5" onSubmit={e => { e.preventDefault(); save(); }}>
+        <Label htmlFor="display-name-inline">Display name</Label>
+        <RichTextEditor id="display-name-inline" value={value} onChange={setValue} placeholder={item.name.trim()} ariaLabel="Display name" />
+        <p className="text-xs text-gray-500 dark:text-gray-400">Shown on labels. Leave blank to use the name.</p>
+        <div className="flex gap-2">
+          <Button type="submit" disabled={saving} className="gap-1.5">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Save
+          </Button>
+          <Button type="button" variant="outline" disabled={saving} onClick={() => setEditingName(false)}>Cancel</Button>
+        </div>
+        {error && <p className="text-xs text-red-600 dark:text-red-400">Couldn't save · {error}</p>}
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5">
+      <Tag className="h-4 w-4 text-gray-400 flex-shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="text-xs text-gray-500 dark:text-gray-400">Labels show</div>
+        <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+          <LabelName item={item} />
+          {!custom && <span className="ml-1.5 text-xs font-normal text-gray-400">· same as name</span>}
+        </div>
+      </div>
+      {editable && (
+        <button type="button" onClick={() => setEditingName(true)} className="text-sm font-medium text-sky-600 dark:text-sky-400 hover:underline flex-shrink-0">
+          {custom ? 'Change' : 'Set display name'}
+        </button>
+      )}
+    </div>
   );
 }
 

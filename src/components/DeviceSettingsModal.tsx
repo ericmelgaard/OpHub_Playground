@@ -23,10 +23,12 @@ import { SubstitutionFlow } from './SubstitutionFlow';
 import { PageActionBar } from './PageActionBar';
 import type { DisplayToggle } from './InlineItemPicker';
 import { LabelAnchor } from './LabelAnchor';
-import { getShownItems, isBaseOffered, isOfferedOnDay, isCustomItem, offeredDays, toggleFor, LabelDayOverrides, ItemDayOverrides } from '../lib/labelDisplay';
+import { getShownItems, isBaseOffered, isOfferedOnDay, isCustomItem, offeredDays, toggleFor, labelName, LabelDayOverrides, ItemDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
 import { AutoFillPage, autoFillCandidates, inStations, servesDaypart, stationKey, stationOptions } from '../lib/stations';
 import { StationFilter, AutoFillPicker } from './StationPicker';
+import { plainText } from '../lib/richText';
+import { LabelName } from './RichText';
 
 interface DeviceSettingsModalProps {
   showDeviceSettingsModal: boolean;
@@ -329,7 +331,7 @@ export function DeviceSettingsModal({
       if (assignedIds.has(item.id)) return false;
       if (searchValue.trim()) {
         const q = searchValue.toLowerCase();
-        if (!item.name.toLowerCase().includes(q) && !(item.description?.toLowerCase().includes(q) ?? false)) return false;
+        if (!item.name.toLowerCase().includes(q) && !plainText(item.description).toLowerCase().includes(q)) return false;
       }
       if (effectiveStationFilter && !inStations(item, stationKeys)) return false;
       // Imported products not served that day stay out of the way; custom products are
@@ -502,7 +504,7 @@ export function DeviceSettingsModal({
                                               </div>
                                               <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-1.5">
-                                                  <span className="text-sm font-medium truncate text-gray-900 dark:text-white">{item.name}</span>
+                                                  <span className="text-sm font-medium truncate text-gray-900 dark:text-white"><LabelName item={item} /></span>
                                                   <span className="inline-flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0">
                                                     <ArrowLeftRight className="h-2.5 w-2.5" />
                                                     Sub
@@ -510,7 +512,7 @@ export function DeviceSettingsModal({
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                                   ${item.price}
-                                                  <span className="text-[10px] text-amber-600 dark:text-amber-400">replaces {resolved.originalItem?.name}</span>
+                                                  <span className="text-[10px] text-amber-600 dark:text-amber-400">replaces {resolved.originalItem && labelName(resolved.originalItem)}</span>
                                                   <RowStatus toggle={toggleState} showing={isDisplayed} day={dayNum} />
                                                 </div>
                                               </div>
@@ -541,7 +543,7 @@ export function DeviceSettingsModal({
                                                 <div className="flex items-center gap-1.5">
                                                   <span className={`text-sm font-medium truncate ${
                                                     toggleState === 'off' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'
-                                                  }`}>{item.name}</span>
+                                                  }`}><LabelName item={item} /></span>
                                                   {hasSub && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Has substitution on another day" />}
                                                   {autoFillIds.has(originalId) && (
                                                     <span
@@ -897,11 +899,11 @@ export function DeviceSettingsModal({
                           <span
                             key={r.originalItemId}
                             className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 max-w-full"
-                            title={r.isSubstituted && r.originalItem ? `Substituting for ${r.originalItem.name}` : undefined}
+                            title={r.isSubstituted && r.originalItem ? `Substituting for ${labelName(r.originalItem)}` : undefined}
                           >
                             <span className="text-gray-400 dark:text-gray-500 tabular-nums">{idx + 1}</span>
                             {r.isSubstituted && <ArrowLeftRight className="h-3 w-3 text-amber-500 flex-shrink-0" />}
-                            <span className="truncate">{r.item.name}</span>
+                            <span className="truncate"><LabelName item={r.item} /></span>
                           </span>
                         ))}
                         {open > 0 && (

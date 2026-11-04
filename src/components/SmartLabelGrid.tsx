@@ -8,6 +8,7 @@ import { SyncStatus, PendingPill } from './SyncStatus';
 import { getDeviceGaps, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
 import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
+import { LabelName } from './RichText';
 
 interface SmartLabelGridProps {
   loading: boolean;
@@ -252,7 +253,7 @@ function LabelFace({ size, items, fontSize }: { size: LabelSize; items: Device['
     const item = items[0];
     return (
       <div className="flex-1 flex flex-col justify-center px-3 py-1.5">
-        <p className={`font-bold text-gray-900 ${fontSize} leading-tight truncate`}>{item.name}</p>
+        <p className={`font-bold text-gray-900 ${fontSize} leading-tight truncate`}><LabelName item={item} /></p>
         <p className="text-lg font-bold text-gray-900 mt-0.5">{formatPrice(item.price)}</p>
       </div>
     );
@@ -262,7 +263,7 @@ function LabelFace({ size, items, fontSize }: { size: LabelSize; items: Device['
     const item = items[0];
     return (
       <div className="flex-1 flex flex-col px-3 py-2">
-        <p className="font-bold text-gray-900 text-base leading-tight truncate">{item.name}</p>
+        <p className="font-bold text-gray-900 text-base leading-tight truncate"><LabelName item={item} /></p>
         {item.description && (
           <p className="text-[10px] text-gray-600 leading-tight mt-1 line-clamp-2">{item.description}</p>
         )}
@@ -279,7 +280,7 @@ function LabelFace({ size, items, fontSize }: { size: LabelSize; items: Device['
     <div className="flex-1 flex flex-col px-2.5 py-1.5 overflow-hidden">
       {items.slice(0, labelSizeConfig[size].capacity).map((item, idx) => (
         <div key={item.id} className={`flex items-center justify-between py-0.5 ${idx > 0 ? 'border-t border-gray-200' : ''}`}>
-          <span className="text-xs font-medium text-gray-900 truncate flex-1 mr-2 leading-tight">{item.name}</span>
+          <span className="text-xs font-medium text-gray-900 truncate flex-1 mr-2 leading-tight"><LabelName item={item} /></span>
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-[9px] text-gray-400">{item.calories}</span>
             <span className="text-xs font-bold text-gray-900">{formatPrice(item.price)}</span>

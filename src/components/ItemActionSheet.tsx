@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { ArrowLeftRight, Trash2, X, Undo2, RefreshCw } from 'lucide-react';
 import { ResolvedItem } from '../types';
+import { labelName } from '../lib/labelDisplay';
 
 interface ItemActionSheetProps {
   resolvedItem: ResolvedItem;
@@ -59,7 +60,7 @@ export function ItemActionSheet({
           <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
             <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{itemName}</p>
             {isSubstituted && resolvedItem.originalItem && (
-              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">Substituting {resolvedItem.originalItem.name}</p>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">Substituting {labelName(resolvedItem.originalItem)}</p>
             )}
           </div>
           <div className="py-1">
@@ -100,7 +101,7 @@ export function ItemActionSheet({
             <div>
               <p className="text-sm font-semibold text-gray-900 dark:text-white">{itemName}</p>
               {isSubstituted && resolvedItem.originalItem && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Substituting {resolvedItem.originalItem.name}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Substituting {labelName(resolvedItem.originalItem)}</p>
               )}
             </div>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">

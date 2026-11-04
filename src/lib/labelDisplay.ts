@@ -1,5 +1,6 @@
 import { DevicePage, MenuItem, ResolvedItem, Substitution, SubstitutionKey } from '../types';
 import { resolveItemsForDay } from './substitutions';
+import { plainText } from './richText';
 
 export type DisplayToggleState = 'off' | 'auto' | 'on';
 
@@ -15,6 +16,10 @@ export const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
 // Products created in the app have no imported days of their own
 export const isCustomItem = (item: MenuItem) => item.mrn.startsWith('CUSTOM-');
+
+// The name a label shows, as plain text: the display name when set, else the product name.
+// The display name can carry bold/italic/line breaks; render those with <LabelName>.
+export const labelName = (item: MenuItem) => plainText(item.displayName).replace(/\s+/g, ' ').trim() || item.name.trim();
 
 function servesDaypart(item: MenuItem, daypart: string): boolean {
   if (!daypart || daypart === 'All Day' || daypart === 'Custom') return true;

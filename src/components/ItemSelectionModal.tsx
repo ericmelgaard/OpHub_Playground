@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { levelIconColor } from '@/lib/levelColors';
+import { plainText } from '../lib/richText';
 
 interface ItemSelectionModalProps {
   show: boolean;
@@ -179,7 +180,7 @@ export function ItemSelectionModal({
                   Description:
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {item.enticingDescription || item.description}
+                  {plainText(item.enticingDescription || item.description)}
                 </p>
               </div>
               {item.allergens && (
@@ -250,7 +251,7 @@ export function ItemSelectionModal({
               {item.name}
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-3 min-h-[4.5rem]">
-              {item.enticingDescription || item.description}
+              {plainText(item.enticingDescription || item.description)}
             </p>
           </div>
           <span className="text-lg font-bold text-sky-600 dark:text-sky-400 ml-4 whitespace-nowrap">

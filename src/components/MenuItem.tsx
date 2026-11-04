@@ -14,6 +14,8 @@ import { StationsModal } from './StationsModal';
 import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
 import { levelIconColor } from '@/lib/levelColors';
+import { plainText } from '../lib/richText';
+import { labelName } from '../lib/labelDisplay';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -512,6 +514,7 @@ export function MenuItem({
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 MRN: {item.mrn}
+                {item.displayName?.trim() && <> · Shows as “{labelName(item)}”</>}
                 <span className="lg:hidden">
                   {periods.length > 0 && ` · ${periods.join(', ')}`}
                   {stations.length > 0 && ` · ${stations.length} ${stations.length === 1 ? 'station' : 'stations'}`}
@@ -626,7 +629,7 @@ export function MenuItem({
         </h3>
         {(item.description || item.enticingDescription) && (
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-3">
-            {item.enticingDescription || item.description}
+            {plainText(item.enticingDescription || item.description)}
           </p>
         )}
       </CardContent>

@@ -14,8 +14,8 @@ existing component and copy its patterns.**
   stop and propose it with a reason. Don't just add it.
 - When a deviation is approved, add it to this guide so it becomes the standard.
 
-Stack: React + TypeScript + Vite, Tailwind CSS, shadcn/ui (`src/components/ui/`), Lucide icons.
-Do not add other UI kits, icon sets, or CSS frameworks.
+Stack: React + TypeScript + Vite, Tailwind CSS, shadcn/ui (`src/components/ui/`), Lucide icons,
+Tiptap v2 for rich text (approved 2026-11-04). Do not add other UI kits, icon sets, or CSS frameworks.
 
 ## Components
 - Use the shadcn/ui components in `src/components/ui/` first (`Button`, `Card`, `Badge`, `Input`,
@@ -131,6 +131,18 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   (product sheet → Edit); with no days they show only where a label turns a day on.
 - **Products:** custom products (`CUSTOM-` MRN) are created and edited in the product sheet.
   Webtrition products are read-only there — their data comes from the sync.
+- **Description** is one field: `enticingDescription || description`, shown and edited as one;
+  saving writes back to the field it came from. **Display name** and description are the two
+  rich text fields: plain text (Webtrition) or a small HTML subset from `RichTextEditor` —
+  paragraphs, line breaks, bold, italic, nothing else. Render with `RichText` / `LabelName`
+  (`src/components/RichText.tsx`); use `plainText()` / `labelName()` for search, tooltips and
+  one-line text.
+- **Ingredients** come from the product's comma-separated `ingredients`; split them with
+  `parseIngredients()` (keeps commas inside parentheses, drops Webtrition's `^` sub-recipe marker on purpose, removes repeats).
+- **Name vs display name:** anything that shows what a label displays (label preview, label list
+  and grid, page item lists, substitution notes) uses `labelName()` from `src/lib/labelDisplay.ts`.
+  Product lists, Available Items, and search show the product's own name. Any product can have a
+  display name (`product_display_names`, keyed by MRN).
 - Label sync has three states only: `Synced 2m ago`, `Syncing…`, `Sync failed` (with Retry, icon-only
   on cards). There's no "saved but not sent" state — unapplied edits are the amber `3 pending` pill.
   Details go in the tooltip.

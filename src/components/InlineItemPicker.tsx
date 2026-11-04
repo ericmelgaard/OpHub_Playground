@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { plainText } from '../lib/richText';
 
 export type DisplayToggle = 'on' | 'auto' | 'off';
 
@@ -57,7 +58,7 @@ export function InlineItemPicker({
         const q = search.toLowerCase();
         if (
           !item.name.toLowerCase().includes(q) &&
-          !(item.description?.toLowerCase().includes(q) ?? false)
+          !plainText(item.description).toLowerCase().includes(q)
         )
           return false;
       }
