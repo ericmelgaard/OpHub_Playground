@@ -364,8 +364,8 @@ export const api = {
     if (!rows || rows.length === 0) {
       throw new Error('The database didn\'t accept the change. Apply the "edit custom products" migration in Supabase.');
     }
-    // Days follow the product's daypart and station, so rewrite them after every save
-    await setCustomDays(mrn, data.activeDays ?? []);
+    // Days come from labels now; only rewrite them when a caller passes days
+    if (data.activeDays) await setCustomDays(mrn, data.activeDays);
     if (data.displayName !== undefined) await saveDisplayName(mrn, data.displayName);
   },
 

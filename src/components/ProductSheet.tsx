@@ -12,7 +12,8 @@ import { daypartColor } from '../lib/daypartColors';
 import { levelIconColor } from '../lib/levelColors';
 import { isCustomItem } from '../lib/labelDisplay';
 import { parseIngredients } from '../lib/richText';
-import { DAY_ABBR } from '../lib/availability';
+import { menuDaysInWeek, getWeekStartString, formatWeekRange } from '../lib/weekSchedule';
+import { ProductDayRows } from './ProductDays';
 import { stationKey, stationOptions } from '../lib/stations';
 import type { ProductInput } from '../services/api';
 import { RichText, LabelName } from './RichText';
@@ -23,6 +24,10 @@ interface ProductSheetProps {
   item: MenuItem | null;
   // Opens the sheet on an empty form for a new custom product
   creating: boolean;
+  // Week picked in the Products week selector (offset from this week)
+  weekOffset: number;
+  // Days this product is on labels that week
+  labelDays?: Set<number>;
   devices: Device[];
   // All products, for the daypart, station, icon and allergen choices
   menuItems: MenuItem[];
@@ -35,8 +40,6 @@ interface ProductSheetProps {
   onSaveDisplayName: (item: MenuItem, displayName: string) => Promise<void>;
 }
 
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const DAYPART_ORDER = ['Breakfast', 'Lunch', 'Dinner', 'Late Night', 'All Day'];
 const NUTRIENTS = [
   { key: 'protein', label: 'Protein' },
@@ -49,7 +52,7 @@ type NutrientKey = typeof NUTRIENTS[number]['key'];
 const splitAllergens = (s: string | undefined) => (s ? s.split(',').map(a => a.trim()).filter(Boolean) : []);
 
 // One product: view its details, or (custom products) edit them. Also the form for a new product.
-export function ProductSheet({ item, creating, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onSave, onSaveDisplayName }: ProductSheetProps) {
+export function ProductSheet({ item, creating, weekOffset, labelDays, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onSave, onSaveDisplayName }: ProductSheetProps) {
   const [editing, setEditing] = useState(false);
   const open = creating || !!item;
   const showForm = creating || editing;
@@ -86,6 +89,8 @@ export function ProductSheet({ item, creating, devices, menuItems, onClose, onAd
         ) : item && (
           <ProductDetails
             item={item}
+            weekOffset={weekOffset}
+            labelDays={labelDays}
             devices={devices}
             onClose={onClose}
             onEdit={isCustomItem(item) ? () => setEditing(true) : undefined}
@@ -121,8 +126,10 @@ function SheetHeader({ title, subtitle, onClose, closeLabel = 'Close' }: {
   );
 }
 
-function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLabel, onSaveDisplayName }: {
+function ProductDetails({ item, weekOffset, labelDays, devices, onClose, onEdit, onAddToLabel, onOpenLabel, onSaveDisplayName }: {
   item: MenuItem;
+  weekOffset: number;
+  labelDays?: Set<number>;
   devices: Device[];
   onClose: () => void;
   onEdit?: () => void;
@@ -141,7 +148,7 @@ function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLa
   const custom = isCustomItem(item);
   const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
   const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
-  const days = item.activeDays || [];
+  const menuDays = useMemo(() => menuDaysInWeek(item, weekOffset), [item, weekOffset]);
   const allergens = splitAllergens(item.allergens);
   const description = item.enticingDescription || item.description;
   const ingredientList = useMemo(() => parseIngredients(item.ingredients), [item.ingredients]);
@@ -228,28 +235,16 @@ function ProductDetails({ item, devices, onClose, onEdit, onAddToLabel, onOpenLa
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-gray-400 flex-shrink-0" />
-            {days.length > 0 ? (
-              <div className="flex gap-1">
-                {WEEK_ORDER.map(d => (
-                  <span
-                    key={d}
-                    title={DAY_ABBR[d]}
-                    className={`h-7 w-7 rounded-md flex items-center justify-center text-[11px] font-semibold ${
-                      days.includes(d)
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'
-                    }`}
-                  >
-                    {DAY_ABBR[d][0]}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                {custom ? 'No days yet · turned on per label' : 'No days from Webtrition'}
-              </span>
+          <div className="space-y-1.5">
+            <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+              <CalendarDays className="h-3.5 w-3.5 flex-shrink-0" />
+              {formatWeekRange(getWeekStartString(weekOffset))}
+            </p>
+            <ProductDayRows menuDays={menuDays} labelDays={labelDays} showMenu={!custom} />
+            {(labelDays?.size ?? 0) === 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {custom ? 'Not on any labels this week · days come from the labels it\'s added to' : 'Not on any labels this week'}
+              </p>
             )}
           </div>
         </Section>
@@ -323,8 +318,6 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
   const [ingredients, setIngredients] = useState<string[]>(parseIngredients(item?.ingredients));
   const [daypart, setDaypart] = useState(item?.mealPeriod && item.mealPeriod !== 'All Day' ? item.mealPeriod : '');
   const [station, setStation] = useState<string | null>(item?.mealStation ? stationKey(item.mealStation) : null);
-  // New products start on every day; turn days off for products that aren't served daily
-  const [days, setDays] = useState<Set<number>>(new Set(item ? item.activeDays ?? [] : ALL_DAYS));
   const [icons, setIcons] = useState<Set<string>>(new Set(item?.iconImages?.map(i => i.name) ?? []));
   const [allergens, setAllergens] = useState<Set<string>>(new Set(splitAllergens(item?.allergens)));
   const [nutrition, setNutrition] = useState<Record<NutrientKey, string>>(() => ({
@@ -371,7 +364,6 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
     if (next.has(value)) next.delete(value); else next.add(value);
     return next;
   };
-  const everyDay = days.size === 7;
   const nameMissing = !name.trim();
   const nutritionFilled = NUTRIENTS.filter(n => nutrition[n.key].trim()).length;
 
@@ -394,7 +386,6 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
         ingredients: ingredients.join(', '),
         mealPeriod: daypart || undefined,
         mealStation: station ? stationChoices.find(o => o.key === station)?.name : undefined,
-        activeDays: [...days].sort(),
         icons: iconOptions.filter(i => icons.has(i.name)),
         allergens: [...allergens].join(', '),
         nutrition: {
@@ -498,38 +489,7 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">{daypart ? `Offered at ${daypart}` : 'No daypart · offered at all of them'}</p>
 
-          <div className="flex items-center gap-1.5 pt-1">
-            {WEEK_ORDER.map(d => {
-              const on = days.has(d);
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  aria-pressed={on}
-                  aria-label={DAY_ABBR[d]}
-                  title={DAY_ABBR[d]}
-                  onClick={() => setDays(toggle(days, d))}
-                  className={`h-10 w-10 rounded-lg text-xs font-semibold transition-colors ${
-                    on
-                      ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {DAY_ABBR[d][0]}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setDays(new Set(everyDay ? [] : ALL_DAYS))}
-              className="ml-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline whitespace-nowrap"
-            >
-              {everyDay ? 'Clear' : 'Every day'}
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {days.size === 0 ? 'No days · labels can still turn it on for a day' : 'Labels show it on these days unless a label turns a day on or off'}
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Days come from the labels it's added to.</p>
         </Section>
 
         {/* Where */}

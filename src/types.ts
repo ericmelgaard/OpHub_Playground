@@ -264,7 +264,7 @@ export interface DeviceScheduleItem {
   createdAt: string;
 }
 
-export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement';
+export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement' | 'usage';
 
 export interface DateRange {
   start: string;

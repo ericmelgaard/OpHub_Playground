@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   ChevronDown,
@@ -9,6 +9,7 @@ import {
   MapPin,
   Hash,
   Type,
+  Tag,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -25,9 +26,20 @@ interface FilterSidebarProps {
   placements?: Placement[];
   filteredCount?: number;
   totalCount?: number;
+  // Products: days each product (by MRN) is on labels in the selected week; turns on the Usage section
+  labelDaysByMrn?: Map<string, Set<number>>;
+  // e.g. "Nov 16 – 22", shown in the Usage section
+  usageWeekLabel?: string;
 }
 
+// Signage options (On signage, In use) join when signage exists
+const USAGE_OPTIONS = [
+  { value: 'labels', label: 'On labels' },
+  { value: 'unused', label: 'Not in use' },
+] as const;
+
 interface SectionState {
+  usage: boolean;
   daypart: boolean;
   station: boolean;
   menu_item_name: boolean;
@@ -43,8 +55,11 @@ export function FilterSidebar({
   menuItems,
   filteredCount,
   totalCount,
+  labelDaysByMrn,
+  usageWeekLabel,
 }: FilterSidebarProps) {
   const [expandedSections, setExpandedSections] = useState<SectionState>({
+    usage: true,
     daypart: true,
     station: true,
     menu_item_name: false,
@@ -95,6 +110,11 @@ export function FilterSidebar({
   const filteredStations = stationSearch
     ? availableStations.filter(s => s.toLowerCase().includes(stationSearch.toLowerCase()))
     : availableStations;
+
+  const usageCounts = useMemo(() => {
+    const onLabels = menuItems.filter(i => (labelDaysByMrn?.get(i.mrn)?.size ?? 0) > 0).length;
+    return { labels: onLabels, unused: menuItems.length - onLabels } as Record<string, number>;
+  }, [menuItems, labelDaysByMrn]);
 
   const getFilterValues = (type: FilterType): string[] => {
     const filter = activeFilters.find(f => f.type === type);
@@ -375,6 +395,10 @@ export function FilterSidebar({
                     label = filter.selectedValues.length === 1
                       ? filter.selectedValues[0]
                       : `${filter.selectedValues.length} stations`;
+                  } else if (filter.type === 'usage') {
+                    label = filter.selectedValues
+                      .map(v => USAGE_OPTIONS.find(o => o.value === v)?.label ?? v)
+                      .join(' or ');
                   } else if (filter.type === 'menu_item_name') {
                     label = `Name: ${filter.selectedValues[0]}`;
                   } else if (filter.type === 'menu_item_mrn') {
@@ -407,6 +431,46 @@ export function FilterSidebar({
 
           {/* Filter sections */}
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
+            {/* Usage Section (for the week in the week selector) */}
+            {labelDaysByMrn && (
+              <div className="border-b border-gray-100 dark:border-gray-800">
+                <SectionHeader
+                  title="Usage"
+                  icon={Tag}
+                  sectionKey="usage"
+                  hasActive={hasActiveFilter('usage')}
+                />
+                {expandedSections.usage && (
+                  <div className="pb-3 px-1 space-y-1">
+                    {usageWeekLabel && <p className="px-2 pb-1 text-xs text-gray-500 dark:text-gray-400">{usageWeekLabel}</p>}
+                    {USAGE_OPTIONS.map(option => (
+                      <label
+                        key={option.value}
+                        className="flex items-center gap-2.5 py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={getFilterValues('usage').includes(option.value)}
+                          onChange={(e) => updateCheckboxFilter('usage', option.value, e.target.checked)}
+                          className="rounded border-gray-300 dark:border-gray-600 text-sky-500 focus:ring-sky-500 h-3.5 w-3.5"
+                        />
+                        <span className="flex-1 text-sm text-gray-700 dark:text-gray-300">{option.label}</span>
+                        <span className="text-xs tabular-nums text-gray-400 dark:text-gray-500">{usageCounts[option.value]}</span>
+                      </label>
+                    ))}
+                    {hasActiveFilter('usage') && (
+                      <button
+                        onClick={() => clearSection('usage')}
+                        className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mt-1 px-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Dayparts Section */}
             <div className="border-b border-gray-100 dark:border-gray-800">
               <SectionHeader

@@ -21,6 +21,8 @@ interface MenuItemsProps {
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
   onOpen?: (item: MenuItemType) => void;
+  // Days each product (by MRN) is on labels in the selected week
+  labelDaysByMrn?: Map<string, Set<number>>;
   searchValue?: string;
   activeFilters?: FilterConfig[];
   onFilteredCountChange?: (count: number) => void;
@@ -46,6 +48,7 @@ export function MenuItems({
   devices,
   onEdit,
   onOpen,
+  labelDaysByMrn,
   searchValue = '',
   activeFilters = [],
   onFilteredCountChange,
@@ -67,6 +70,11 @@ export function MenuItems({
             return filter.selectedValues.some(value => item.mealStations!.includes(value));
           }
           return filter.selectedValues.includes(item.mealStation);
+        case 'usage': {
+          // Same week as the day strips
+          const onLabels = (labelDaysByMrn?.get(item.mrn)?.size ?? 0) > 0;
+          return filter.selectedValues.some(v => (v === 'labels' ? onLabels : !onLabels));
+        }
         case 'menu_item_name':
           return filter.selectedValues.some(value =>
             item.name.toLowerCase().includes(value.toLowerCase())
@@ -167,6 +175,7 @@ export function MenuItems({
             devices={devices}
             onEdit={onEdit}
             onOpen={onOpen}
+            labelDays={labelDaysByMrn?.get(item.mrn)}
             selectedCycleWeek={selectedCycleWeek}
             refreshTag={refreshTags?.get(item.id)}
           />
@@ -185,7 +194,7 @@ export function MenuItems({
         <span>Product</span>
         <span>Dayparts</span>
         <span>Stations</span>
-        <span>Labels</span>
+        <span>Days</span>
         <span>Calories</span>
         <span>Price</span>
         <span />
@@ -208,6 +217,7 @@ export function MenuItems({
           devices={devices}
           onEdit={onEdit}
           onOpen={onOpen}
+          labelDays={labelDaysByMrn?.get(item.mrn)}
           selectedCycleWeek={selectedCycleWeek}
           refreshTag={refreshTags?.get(item.id)}
         />

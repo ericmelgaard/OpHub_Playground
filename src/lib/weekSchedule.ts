@@ -1,4 +1,4 @@
-import { DeviceWeekSchedule } from '../types';
+import { DeviceWeekSchedule, MenuItem } from '../types';
 
 // Monday of the week at the given offset from the current week.
 export function getWeekStartDate(weekOffset: number): Date {
@@ -125,4 +125,36 @@ export function formatEditingDay(day: number | 'every-day', weekStart: string | 
   const date = new Date(weekStart + 'T00:00:00');
   date.setDate(date.getDate() + ((day + 6) % 7));
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+const localDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// Days Webtrition's menu serves the product in a week (offset from this week). Custom products
+// have none: their days come only from the labels they're scheduled on.
+export function menuDaysInWeek(item: MenuItem, weekOffset: number): number[] {
+  if (item.mrn.startsWith('CUSTOM-')) return [];
+  if (!item.dates || item.dates.length === 0) return item.activeDays || [];
+  const start = getWeekStartDate(weekOffset);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const from = localDate(start);
+  const to = localDate(end);
+  const days = new Set<number>();
+  for (const d of item.dates) {
+    if (d >= from && d <= to) days.add(new Date(d + 'T12:00:00').getDay());
+  }
+  return [...days].sort();
+}
+
+// Days each product (by MRN) is scheduled on any label, from a week's resolved schedules
+export function scheduledDaysByMrn(schedules: DeviceWeekSchedule[]): Map<string, Set<number>> {
+  const byMrn = new Map<string, Set<number>>();
+  for (const s of schedules) {
+    for (const i of s.items ?? []) {
+      if (!byMrn.has(i.menuItemMrn)) byMrn.set(i.menuItemMrn, new Set());
+      byMrn.get(i.menuItemMrn)!.add(i.dayOfWeek);
+    }
+  }
+  return byMrn;
 }

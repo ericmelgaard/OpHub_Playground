@@ -233,6 +233,17 @@ export function DeviceSettingsModal({
     setActionSheetState({ isOpen: false, resolvedItem: null, anchorRect: null });
   };
 
+  // One add path: a custom product has no days of its own, so adding it turns it on for the
+  // day being edited (every day in Every day); otherwise Auto would leave it hidden
+  const addToPage = (target: Device, item: MenuItem, pageId: string) => {
+    if (!onInlineAddItems) return;
+    onInlineAddItems(target, [item], pageId);
+    if (isCustomItem(item) && !(item.activeDays?.length) && !dayOverridesLocked && onToggleItemDisplay) {
+      const days = selectedDay === 'every-day' ? [0, 1, 2, 3, 4, 5, 6] : [selectedDay];
+      for (const d of days) onToggleItemDisplay(target, pageId, item.id, d, 'on');
+    }
+  };
+
   const handleDragEnd = useCallback((result: DropResult) => {
     if (!result.destination || !selectedDeviceSettings) return;
     const { source, destination } = result;
@@ -255,7 +266,7 @@ export function DeviceSettingsModal({
       const itemId = parseInt(result.draggableId.replace('avail-', ''), 10);
       const item = menuItems.find(i => i.id === itemId);
       if (item && onInlineAddItems) {
-        onInlineAddItems(selectedDeviceSettings, [item], pageId);
+        addToPage(selectedDeviceSettings, item, pageId);
         setRecentlyAddedIds(new Set([itemId]));
         setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
       }
@@ -280,7 +291,7 @@ export function DeviceSettingsModal({
     }
 
     reorderItems(selectedDeviceSettings.id, source.droppableId, source.index, destination.index);
-  }, [selectedDeviceSettings, reorderItems, menuItems, onInlineAddItems, onInlineRemoveItems, removeItemFromDevice]);
+  }, [selectedDeviceSettings, reorderItems, menuItems, onInlineAddItems, onInlineRemoveItems, removeItemFromDevice, addToPage]);
 
   if (!showDeviceSettingsModal || !selectedDeviceSettings) return null;
 
@@ -356,12 +367,13 @@ export function DeviceSettingsModal({
   const handleQuickAdd = async (data: { name: string; price: string; mealPeriod: string; mealStation: string; activeDays?: number[] }) => {
     if (!onCreateMenuItem) return;
     try {
-      const item = await onCreateMenuItem(data);
+      const { activeDays: labelDays, ...product } = data;
+      const item = await onCreateMenuItem(product);
       if (item && currentPage && onInlineAddItems) {
         onInlineAddItems(device, [item], currentPage.id);
         // A new product has no days of its own; the days picked turn it on for this week
         if (!dayOverridesLocked && onToggleItemDisplay) {
-          for (const d of data.activeDays ?? []) onToggleItemDisplay(device, currentPage.id, item.id, d, 'on');
+          for (const d of labelDays ?? []) onToggleItemDisplay(device, currentPage.id, item.id, d, 'on');
         }
         setRecentlyAddedIds(new Set([item.id]));
         setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
@@ -761,7 +773,7 @@ export function DeviceSettingsModal({
                                       // Tap to add, for touch; dragging still works
                                       <button
                                         onClick={() => {
-                                          onInlineAddItems(device, [item], currentPage.id);
+                                          addToPage(device, item, currentPage.id);
                                           setRecentlyAddedIds(new Set([item.id]));
                                           setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
                                         }}
@@ -811,7 +823,7 @@ export function DeviceSettingsModal({
                               <button
                                 onClick={() => {
                                   if (currentPage && onInlineAddItems) {
-                                    onInlineAddItems(device, [item], currentPage.id);
+                                    addToPage(device, item, currentPage.id);
                                     setRecentlyAddedIds(new Set([item.id]));
                                     setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
                                   }

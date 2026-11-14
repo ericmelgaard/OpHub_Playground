@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Coffee, MapPin, MoreVertical, Monitor, Plus, Tag, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar, Eye } from 'lucide-react';
+import { Coffee, MapPin, MoreVertical, Plus, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar, Eye } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
   Card,
@@ -11,10 +11,11 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { StationsModal } from './StationsModal';
-import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
 import { levelIconColor } from '@/lib/levelColors';
 import { plainText } from '../lib/richText';
+import { menuDaysInWeek } from '../lib/weekSchedule';
+import { ProductDayStrip } from './ProductDays';
 import { labelName } from '../lib/labelDisplay';
 
 interface MenuItemProps {
@@ -33,76 +34,41 @@ interface MenuItemProps {
   onEdit?: (item: MenuItemType) => void;
   // Opens the product sheet (card / row click, and View product in the menu)
   onOpen?: (item: MenuItemType) => void;
+  // Days this product is on labels in the selected week
+  labelDays?: Set<number>;
   selectedCycleWeek?: number;
   refreshTag?: 'new' | 'updated';
 }
 
 // Columns shared by the product list header (MenuItems) and each row
-export const PRODUCT_ROW_COLS = 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_120px_70px_80px_84px]';
-
-function getWeekDateRange(weekOffset: number): { start: Date; end: Date } {
-  const today = new Date();
-  const day = today.getDay();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
-  monday.setDate(monday.getDate() + weekOffset * 7);
-  monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  return { start: monday, end: sunday };
-}
+export const PRODUCT_ROW_COLS = 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_150px_70px_80px_84px]';
 
 export function MenuItem({
   item,
-  selectedChannel,
   expandedItem,
   toggleItemExpansion,
-  isItemInChannel,
-  toggleItemInChannel,
   setSelectedItem,
   setShowDeviceModal,
   setShowPageSelectionModal,
   setWorkflowType,
   viewMode,
-  devices,
   onEdit,
   onOpen,
+  labelDays,
   selectedCycleWeek,
   refreshTag,
 }: MenuItemProps) {
   const [expandedDetails, setExpandedDetails] = useState(false);
 
-  const weekActiveDays = useMemo(() => {
-    if (selectedCycleWeek === undefined || !item.dates || item.dates.length === 0) {
-      return item.activeDays || [];
-    }
-    const { start, end } = getWeekDateRange(selectedCycleWeek);
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = end.toISOString().split('T')[0];
-    const daysInWeek = new Set<number>();
-    for (const dateStr of item.dates) {
-      if (dateStr >= startStr && dateStr <= endStr) {
-        const d = new Date(dateStr + 'T12:00:00');
-        daysInWeek.add(d.getDay());
-      }
-    }
-    return [...daysInWeek].sort();
-  }, [selectedCycleWeek, item.dates, item.activeDays]);
+  const menuDays = useMemo(
+    () => menuDaysInWeek(item, selectedCycleWeek ?? 0),
+    [item, selectedCycleWeek],
+  );
   const [showStationsModal, setShowStationsModal] = useState(false);
 
-  const deviceCount = devices.filter((device) =>
-    device.pages.some((page) =>
-      page.assignedItems.some((assignedItem) => assignedItem.id === item.id)
-    )
-  ).length;
-
-  const isInSelectedChannel = selectedChannel
-    ? isItemInChannel(item.id, selectedChannel)
-    : false;
   const isActive = item.isActive !== false;
 
-  const handleOptionClick = (action: 'manage' | 'edit' | 'add' | 'assign') => {
+  const handleOptionClick = (action: 'manage' | 'edit' | 'assign') => {
 
     switch (action) {
       case 'manage':
@@ -112,11 +78,6 @@ export function MenuItem({
         break;
       case 'edit':
         onEdit?.(item);
-        break;
-      case 'add':
-        if (selectedChannel) {
-          toggleItemInChannel(item, selectedChannel);
-        }
         break;
       case 'assign':
         setSelectedItem(item);
@@ -128,17 +89,7 @@ export function MenuItem({
 
   const handleAssignClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Add button clicked!', { item: item.name, selectedChannel, isInSelectedChannel });
-    if (selectedChannel) {
-      if (!isInSelectedChannel) {
-        // If not in channel, add to channel first
-        toggleItemInChannel(item, selectedChannel);
-      }
-      // Then show device assignment modal
-      setSelectedItem(item);
-      setWorkflowType('assign');
-      setShowDeviceModal(true);
-    }
+    handleOptionClick('assign');
   };
 
   const getDaypartColor = (daypart: string) => daypartColor(daypart).chip;
@@ -363,32 +314,15 @@ export function MenuItem({
     // Normalize data - handle both grouped (arrays) and single (string) values
     const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
     const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
-    const activeDays = weekActiveDays;
+    const activeDays = menuDays;
 
     return (
       <div className="flex flex-col gap-2 w-full min-w-0">
-        {/* Active Days */}
-        {activeDays.length > 0 && (
+        {/* Days: Webtrition menu, on labels, or both */}
+        {(activeDays.length > 0 || (labelDays?.size ?? 0) > 0) && (
           <div className="flex items-center gap-2 w-full">
             <Calendar className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            <div className="flex gap-0.5">
-              {[0, 1, 2, 3, 4, 5, 6].map(day => {
-                const isActive = activeDays.includes(day);
-                return (
-                  <div
-                    key={day}
-                    className={`text-xs px-1 py-0.5 rounded ${
-                      isActive
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'
-                    }`}
-                    title={DAY_ABBR[day]}
-                  >
-                    {DAY_ABBR[day][0]}
-                  </div>
-                );
-              })}
-            </div>
+            <ProductDayStrip menuDays={activeDays} labelDays={labelDays} />
           </div>
         )}
 
@@ -462,21 +396,17 @@ export function MenuItem({
     </DropdownMenu>
   );
 
-  // Quick add to a label; the monitor icon means it's already in this channel
-  const renderAddButton = () => selectedChannel && (
+  // Quick add to a label
+  const renderAddButton = () => (
     <Button
-      variant={isInSelectedChannel ? 'secondary' : 'default'}
+      variant="outline"
       size="sm"
       onClick={handleAssignClick}
       aria-label="Add to label"
       title="Add to label"
-      className={`flex items-center gap-1 relative ${
-        isInSelectedChannel
-          ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/70'
-          : 'bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
-      }`}
+      className="h-9 w-9 p-0 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30"
     >
-      {isInSelectedChannel ? <Monitor className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+      <Plus className="h-4 w-4" />
     </Button>
   );
 
@@ -502,11 +432,6 @@ export function MenuItem({
         >
           {/* Product name + MRN (dayparts and stations fold in under lg) */}
           <div className="flex items-center gap-3 min-w-0">
-            {isActive ? (
-              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-            ) : (
-              <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-            )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</span>
@@ -560,12 +485,9 @@ export function MenuItem({
             )}
           </div>
 
-          {/* Labels it's on */}
-          <div className="hidden lg:flex items-center gap-1.5 min-w-0">
-            <Tag className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-            <span className={`text-xs truncate ${deviceCount > 0 ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-500'}`}>
-              {deviceCount > 0 ? `On ${deviceCount} ${deviceCount === 1 ? 'label' : 'labels'}` : 'Not on labels'}
-            </span>
+          {/* Days: Webtrition menu, on labels, or both */}
+          <div className="hidden lg:flex items-center min-w-0">
+            <ProductDayStrip menuDays={menuDays} labelDays={labelDays} />
           </div>
 
           <span className="hidden lg:block text-xs text-gray-500 dark:text-gray-400 tabular-nums">{item.calories} cal</span>
@@ -590,33 +512,18 @@ export function MenuItem({
       />
       <Card
         onClick={onOpen ? () => onOpen(item) : undefined}
-        className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${onOpen ? 'cursor-pointer' : ''} ${
-          isInSelectedChannel ? 'ring-2 ring-sky-500 dark:ring-sky-400' : ''
-        } ${!isActive ? 'opacity-50' : ''} relative overflow-hidden`}
+        className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${onOpen ? 'cursor-pointer' : ''} ${!isActive ? 'opacity-50' : ''} relative overflow-hidden`}
       >
-      {/* Top row with status, MRN, and actions */}
+      {/* Top row with MRN and the quick add */}
       <CardHeader className="p-0 mb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 flex-wrap">
-            {isActive ? (
-              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-            ) : (
-              <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-            )}
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
               MRN: {item.mrn}
             </span>
             {refreshTag && <RefreshTagBadge tag={refreshTag} />}
-            {isInSelectedChannel && (
-              <Tag className="h-4 w-4 text-sky-500 dark:text-sky-400 flex-shrink-0" />
-            )}
           </div>
           <div className="flex items-center gap-2 relative z-10" onClick={e => e.stopPropagation()}>
-            {item.isGrouped && item.occurrenceCount && item.occurrenceCount > 1 && (
-              <Badge variant="secondary" className="text-xs bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300">
-                {item.occurrenceCount}x
-              </Badge>
-            )}
             {renderAddButton()}
           </div>
         </div>

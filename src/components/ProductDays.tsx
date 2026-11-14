@@ -1,0 +1,124 @@
+import { DAY_ABBR } from '../lib/availability';
+
+// A product's day has two independent parts, shown without any fill:
+// - Outline: the product's source (the API feeding products in; Webtrition today) offers it that day.
+// - Color of the letter (and outline): how it's used here that week — gray unused, sky on labels.
+//   Labels and signage get their own colors once signage exists; until then labels use the accent.
+// Lists and cards show one strip; the product sheet shows a row per source.
+
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+type Use = 'none' | 'labels' | 'signage';
+
+// Letter color, and the outline's color when the source offers the day.
+// Contrast on the card (white / gray-800) is at least 4.5:1 for every letter.
+const COLOR: Record<Use, { text: string; outline: string }> = {
+  none: { text: 'text-gray-700 dark:text-gray-200', outline: 'border-gray-500 dark:border-gray-400' },
+  labels: { text: 'text-sky-700 dark:text-sky-400', outline: 'border-sky-700 dark:border-sky-400' },
+  // Placeholder until signage exists and its color is decided
+  signage: { text: 'text-sky-900 dark:text-sky-200', outline: 'border-sky-900 dark:border-sky-200' },
+};
+// Unused and not offered: quieter, but still readable
+const FAINT = 'text-gray-500 dark:text-gray-400';
+
+const sizes = {
+  sm: 'h-5 w-5 text-[10px] rounded',
+  md: 'h-7 w-7 text-[11px] rounded-md',
+};
+
+interface DayUse {
+  menuDays: number[];
+  labelDays?: Set<number>;
+  // Not built yet
+  signageDays?: Set<number>;
+}
+
+// How labels + signage on the same day should look is still open; until signage exists it can't happen
+const useOf = (onLabels: boolean, onSignage: boolean): Use => (onSignage ? 'signage' : onLabels ? 'labels' : 'none');
+
+function describe(d: number, onMenu: boolean, onLabels: boolean, onSignage: boolean) {
+  const use = onLabels && onSignage ? 'on labels and signage' : onLabels ? 'on labels' : onSignage ? 'on signage' : 'not used';
+  return `${DAY_ABBR[d]} · ${onMenu ? 'offered by the source' : 'not offered by the source'} · ${use}`;
+}
+
+function dayClass(onMenu: boolean, use: Use) {
+  const outline = onMenu ? `border-2 ${COLOR[use].outline}` : 'border-2 border-transparent';
+  const text = !onMenu && use === 'none' ? FAINT : COLOR[use].text;
+  return `${outline} ${text}`;
+}
+
+// One strip (lists and cards)
+export function ProductDayStrip({ menuDays, labelDays, signageDays, size = 'sm' }: DayUse & { size?: 'sm' | 'md' }) {
+  return (
+    <div className="flex gap-0.5">
+      {WEEK_ORDER.map(d => {
+        const onMenu = menuDays.includes(d);
+        const onLabels = !!labelDays?.has(d);
+        const onSignage = !!signageDays?.has(d);
+        return (
+          <span
+            key={d}
+            title={describe(d, onMenu, onLabels, onSignage)}
+            className={`${sizes[size]} ${dayClass(onMenu, useOf(onLabels, onSignage))} flex items-center justify-center font-bold flex-shrink-0`}
+          >
+            {DAY_ABBR[d][0]}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// A row per source, lined up by day, with a legend (product sheet)
+export function ProductDayRows({ menuDays, labelDays, signageDays, showMenu }: DayUse & {
+  // Webtrition products only; custom products have no menu days
+  showMenu: boolean;
+}) {
+  const rows: { label: string; on: (d: number) => boolean; className: string }[] = [
+    ...(showMenu ? [{ label: 'Source', on: (d: number) => menuDays.includes(d), className: dayClass(true, 'none') }] : []),
+    { label: 'On labels', on: (d: number) => !!labelDays?.has(d), className: dayClass(false, 'labels') },
+    ...(signageDays ? [{ label: 'On signage', on: (d: number) => signageDays.has(d), className: dayClass(false, 'signage') }] : []),
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[auto_repeat(7,1.75rem)] items-center gap-x-1 gap-y-1.5">
+        {rows.map(row => (
+          <Row key={row.label} label={row.label} isOn={row.on} onClass={row.className} />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+        {showMenu && <LegendSwatch className={dayClass(true, 'none')} label="Outline · offered by the source" />}
+        <LegendSwatch className={dayClass(false, 'labels')} label="Blue · on labels" />
+        {signageDays && <LegendSwatch className={dayClass(false, 'signage')} label="Dark blue · on signage" />}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, isOn, onClass }: { label: string; isOn: (d: number) => boolean; onClass: string }) {
+  return (
+    <>
+      <span className="pr-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{label}</span>
+      {WEEK_ORDER.map(d => (
+        <span
+          key={d}
+          title={`${DAY_ABBR[d]} · ${isOn(d) ? label : `not ${label.toLowerCase()}`}`}
+          className={`h-7 w-7 rounded-md flex items-center justify-center text-[11px] font-bold ${
+            isOn(d) ? onClass : `border-2 border-transparent ${FAINT}`
+          }`}
+        >
+          {DAY_ABBR[d][0]}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function LegendSwatch({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`h-4 w-4 rounded flex items-center justify-center text-[9px] font-bold ${className}`}>M</span>
+      {label}
+    </span>
+  );
+}

@@ -127,8 +127,22 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   (`src/lib/labelDisplay.ts`). Auto follows the product's days; On adds the day for this label,
   Off removes it. It never means priority — drag order does. "Every day" sets all 7 days and shows
   Mixed when they differ. Removing an item applies to the whole week. The Default Week can't hold
-  day overrides (toggles are disabled there). Custom products use the days set on the product
-  (product sheet → Edit); with no days they show only where a label turns a day on.
+  day overrides (toggles are disabled there). Custom products have no days of their own: adding
+  one to a label turns it On for the day being edited (all 7 in Every day).
+- **Product days are view-only**, drawn with no fill. Each day has two independent parts: an
+  **outline** when the product's **source** offers it that day (the API feeding products in —
+  Webtrition today; the UI says "Source", not a vendor name), and the **color of the letter and
+  outline** for how it's used here that week — gray unused (lighter gray when the source doesn't
+  offer it either), `sky` on labels. Every letter keeps 4.5:1 contrast on the card in both modes.
+  Separate colors for labels vs signage (and both) are still open; decide them when signage exists. Week = the week selector. Lists and cards show one strip
+  (`ProductDayStrip`); the product sheet shows a row per source plus a legend (`ProductDayRows`).
+  Reference: `src/components/ProductDays.tsx`.
+- **Finding products by use:** the Products Filters panel has a **Usage** section (On labels /
+  Not in use, with counts) for the same week as the day strips. Signage options join it when
+  signage exists. Usage is a filter, not a mark on the card.
+- **Product cards and rows** carry no status marks beyond the refresh's New / Updated tag: no
+  active check, channel state, or duplicate count. The day strip says how a product is used; the
+  quick action is a plain outline `+` (Add to label).
 - **Products:** custom products (`CUSTOM-` MRN) are created and edited in the product sheet.
   Webtrition products are read-only there — their data comes from the sync.
 - **Description** is one field: `enticingDescription || description`, shown and edited as one;

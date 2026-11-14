@@ -7,7 +7,7 @@ import { MenuItems } from './components/MenuItems';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
 import { WeekScheduleBar, DayPicker, DaypartPicker, getWeekStartString } from './components/WeekScheduleBar';
-import { resolveWeekSchedules, getScheduleSource, ScheduleSource, formatWeekRange, formatEditingDay } from './lib/weekSchedule';
+import { resolveWeekSchedules, getScheduleSource, ScheduleSource, formatWeekRange, formatEditingDay, scheduledDaysByMrn } from './lib/weekSchedule';
 import { filterLabels } from './lib/labelFilter';
 import { projectScheduleOntoDevice } from './lib/deviceWeekProjection';
 import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
@@ -376,7 +376,21 @@ function App() {
     refreshScheduleMeta().catch(() => {});
   }, [selectedQuickAction, refreshScheduleMeta]);
 
+  // Products: which days each product is on labels, for the week picked in the Products week selector
+  const [productWeekOverrides, setProductWeekOverrides] = useState<DeviceWeekSchedule[]>([]);
+  useEffect(() => {
+    if (selectedQuickAction !== 'products') return;
+    refreshScheduleMeta().catch(() => {});
+    api.getWeekSchedules(getWeekStartString(selectedCycleWeek))
+      .then(setProductWeekOverrides)
+      .catch(() => setProductWeekOverrides([]));
+  }, [selectedQuickAction, selectedCycleWeek, refreshScheduleMeta]);
+
   const deviceIds = useMemo(() => devices.map(d => d.id), [devices]);
+
+  const productLabelDays = useMemo(() => scheduledDaysByMrn(resolveWeekSchedules(
+    getWeekStartString(selectedCycleWeek), productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds,
+  )), [selectedCycleWeek, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds]);
 
   // The schedules actually shown for the current selection (override -> recurring -> default)
   const effectiveSchedules = useMemo(() => {
@@ -1124,6 +1138,8 @@ function App() {
                     menuItems={menuItems}
                     filteredCount={filteredItemCount}
                     totalCount={menuItems.length}
+                    labelDaysByMrn={productLabelDays}
+                    usageWeekLabel={formatWeekRange(getWeekStartString(selectedCycleWeek))}
                   />
                 )}
 
@@ -1259,6 +1275,7 @@ function App() {
                         onFilteredCountChange={setFilteredItemCount}
                         refreshTags={refreshTags}
                         onOpen={setProductSheetItem}
+                        labelDaysByMrn={productLabelDays}
                         selectedCycleWeek={selectedCycleWeek}
                       />
                     </div>
@@ -1399,6 +1416,8 @@ function App() {
         <ProductSheet
           item={productSheetItem}
           creating={creatingProduct}
+          weekOffset={selectedCycleWeek}
+          labelDays={productSheetItem ? productLabelDays.get(productSheetItem.mrn) : undefined}
           devices={devices}
           menuItems={menuItems}
           onClose={() => { setProductSheetItem(null); setCreatingProduct(false); }}
