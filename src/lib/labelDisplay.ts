@@ -14,8 +14,20 @@ export type LabelDayOverrides = Record<string, PageDayOverrides>;
 
 export const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-// Products created in the app have no imported days of their own
+// Products created in the app have no imported days of their own.
+// (Internal: today this also means "not linked to a source item". Never show "CUSTOM-".)
 export const isCustomItem = (item: MenuItem) => item.mrn.startsWith('CUSTOM-');
+
+// Every product is a WAND item with its own ID; that ID is the one people see first.
+// Items brought in from a source are linked to the source item (Webtrition's MRN today) for
+// their values. Linking itself isn't built yet; this only shows the IDs that way.
+export const wandId = (item: MenuItem) => String(Math.abs(item.id));
+export const linkedSourceId = (item: MenuItem): string | null => (isCustomItem(item) ? null : item.mrn);
+// Matches an ID search against the WAND ID or the linked source ID
+export const matchesItemId = (item: MenuItem, query: string) => {
+  const q = query.trim().toLowerCase();
+  return !q || wandId(item).startsWith(q) || !!linkedSourceId(item)?.toLowerCase().startsWith(q);
+};
 
 // The name a label shows, as plain text: the display name when set, else the product name.
 // The display name can carry bold/italic/line breaks; render those with <LabelName>.
@@ -50,17 +62,26 @@ export function offeredDays(item: MenuItem, daypart: string, overrides?: ItemDay
   return WEEK_DAYS.filter(d => isOfferedOnDay(item, daypart, d, overrides));
 }
 
-// Offered on this day (or, with no day picked, on any day this week)
+// On all 7 days: part of the everyday menu
+export function isOfferedEveryDay(item: MenuItem, daypart: string, overrides?: ItemDayOverrides): boolean {
+  return WEEK_DAYS.every(d => isOfferedOnDay(item, daypart, d, overrides));
+}
+
+// Offered on this day, or with no day picked (Every day), on every day of the week.
+// Every day previews the everyday menu; items on some days only show when their day is picked.
 export function isItemOfferedOn(item: MenuItem, daypart: string, day: number | null, overrides?: ItemDayOverrides): boolean {
   return day === null
-    ? offeredDays(item, daypart, overrides).length > 0
+    ? isOfferedEveryDay(item, daypart, overrides)
     : isOfferedOnDay(item, daypart, day, overrides);
 }
 
 // The toggle for one day, or for the whole week (Mixed when days differ)
-export function toggleFor(overrides: ItemDayOverrides | undefined, day: number | null): DisplayToggleState | 'mixed' {
-  if (day !== null) return overrides?.[day] ?? 'auto';
-  const states = new Set(WEEK_DAYS.map(d => overrides?.[d] ?? 'auto'));
+// Items not linked to a source have no days to follow, so they have no Auto: a day without
+// an override is Off.
+export function toggleFor(overrides: ItemDayOverrides | undefined, day: number | null, linked = true): DisplayToggleState | 'mixed' {
+  const unset: DisplayToggleState = linked ? 'auto' : 'off';
+  if (day !== null) return overrides?.[day] ?? unset;
+  const states = new Set(WEEK_DAYS.map(d => overrides?.[d] ?? unset));
   return states.size === 1 ? [...states][0] : 'mixed';
 }
 

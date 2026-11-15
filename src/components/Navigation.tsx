@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Bell,
+  BookOpen,
   Settings,
   Plus,
   Sun,
@@ -29,6 +30,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LocationSelectionModal } from './LocationSelectionModal';
+import { UserGuideSheet } from './UserGuideSheet';
+import { unseenUpdates, markUpdatesSeen } from '@/lib/userGuide';
 import { levelIconColor } from '@/lib/levelColors';
 import type { DemoSecondaryDomain } from '../services/mockData';
 
@@ -113,6 +116,16 @@ export function Navigation({
 }: NavigationProps) {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
+  // User guide: a dot on the button until new What's new entries have been seen
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideNewIds, setGuideNewIds] = useState<Set<string>>(() => new Set(unseenUpdates().map(u => u.id)));
+  const [guideHasNew, setGuideHasNew] = useState(() => unseenUpdates().length > 0);
+  const openGuide = () => {
+    setGuideNewIds(new Set(unseenUpdates().map(u => u.id)));
+    markUpdatesSeen();
+    setGuideHasNew(false);
+    setShowGuide(true);
+  };
   const [showDismissAllConfirm, setShowDismissAllConfirm] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
@@ -597,6 +610,19 @@ export function Navigation({
 
             <div className="h-6 w-px bg-gray-700 dark:bg-gray-800" />
 
+            <Button
+              variant="ghost"
+              className="relative p-2 rounded-full hover:bg-white/10 dark:hover:bg-gray-900 transition-colors"
+              onClick={openGuide}
+              aria-label={guideHasNew ? 'User guide (new updates)' : 'User guide'}
+              title={guideHasNew ? 'User guide · new updates' : 'User guide'}
+            >
+              <BookOpen className="h-6 w-6 text-gray-300 dark:text-gray-400" />
+              {guideHasNew && (
+                <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-sky-500 ring-2 ring-brand-navy dark:ring-gray-950" />
+              )}
+            </Button>
+
             <div className="relative">
               <Button
                 variant="ghost"
@@ -701,6 +727,8 @@ export function Navigation({
         </div>
       </div>
     </nav>
+
+      <UserGuideSheet open={showGuide} newIds={guideNewIds} onClose={() => setShowGuide(false)} />
 
       <LocationSelectionModal
         isOpen={showLocationModal}

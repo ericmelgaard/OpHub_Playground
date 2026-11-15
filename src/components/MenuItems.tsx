@@ -3,6 +3,9 @@ import { AlertCircle } from 'lucide-react';
 import { MenuItem as MenuItemComponent, PRODUCT_ROW_COLS } from './MenuItem';
 import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
 import { plainText } from '../lib/richText';
+import { isCustomItem, matchesItemId } from '../lib/labelDisplay';
+import { productDayparts } from '../lib/stations';
+import type { LabelUse } from '../lib/weekSchedule';
 
 interface MenuItemsProps {
   loading: boolean;
@@ -23,6 +26,8 @@ interface MenuItemsProps {
   onOpen?: (item: MenuItemType) => void;
   // Days each product (by MRN) is on labels in the selected week
   labelDaysByMrn?: Map<string, Set<number>>;
+  // Dayparts and stations each product is on labels (custom products take theirs from here)
+  labelUseByMrn?: Map<string, LabelUse>;
   searchValue?: string;
   activeFilters?: FilterConfig[];
   onFilteredCountChange?: (count: number) => void;
@@ -49,6 +54,7 @@ export function MenuItems({
   onEdit,
   onOpen,
   labelDaysByMrn,
+  labelUseByMrn,
   searchValue = '',
   activeFilters = [],
   onFilteredCountChange,
@@ -60,12 +66,15 @@ export function MenuItems({
 
     return activeFilters.every(filter => {
       switch (filter.type) {
-        case 'daypart':
-          if (item.isGrouped && item.mealPeriods) {
-            return filter.selectedValues.some(value => item.mealPeriods!.includes(value));
-          }
-          return filter.selectedValues.includes(item.mealPeriod);
+        case 'daypart': {
+          // The product's own dayparts; none means it's offered at all of them
+          const dayparts = productDayparts(item);
+          return dayparts.length === 0 || filter.selectedValues.some(value => dayparts.includes(value));
+        }
         case 'station':
+          if (isCustomItem(item)) {
+            return filter.selectedValues.some(value => labelUseByMrn?.get(item.mrn)?.stations.has(value));
+          }
           if (item.isGrouped && item.mealStations) {
             return filter.selectedValues.some(value => item.mealStations!.includes(value));
           }
@@ -80,9 +89,7 @@ export function MenuItems({
             item.name.toLowerCase().includes(value.toLowerCase())
           );
         case 'menu_item_mrn':
-          return filter.selectedValues.some(value =>
-            item.mrn.toLowerCase().startsWith(value.toLowerCase())
-          );
+          return filter.selectedValues.some(value => matchesItemId(item, value));
         case 'date':
           if (filter.singleDate) {
             return item.date === filter.singleDate;
@@ -176,6 +183,7 @@ export function MenuItems({
             onEdit={onEdit}
             onOpen={onOpen}
             labelDays={labelDaysByMrn?.get(item.mrn)}
+            labelUse={labelUseByMrn?.get(item.mrn)}
             selectedCycleWeek={selectedCycleWeek}
             refreshTag={refreshTags?.get(item.id)}
           />
@@ -218,6 +226,7 @@ export function MenuItems({
           onEdit={onEdit}
           onOpen={onOpen}
           labelDays={labelDaysByMrn?.get(item.mrn)}
+          labelUse={labelUseByMrn?.get(item.mrn)}
           selectedCycleWeek={selectedCycleWeek}
           refreshTag={refreshTags?.get(item.id)}
         />

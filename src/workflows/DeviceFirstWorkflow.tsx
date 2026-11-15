@@ -14,7 +14,7 @@ import { api } from '../services/api';
 import { MergeMode, getDraft, getAppliedLocalState, saveDraft, useHasDraft } from '../lib/pendingChanges';
 import { DAY_ABBR } from '../lib/availability';
 import { AutoFillPage, autoFillCandidates, inStations, stationKey } from '../lib/stations';
-import { LabelDayOverrides, WEEK_DAYS } from '../lib/labelDisplay';
+import { LabelDayOverrides, WEEK_DAYS, type ItemDayOverrides } from '../lib/labelDisplay';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -34,6 +34,10 @@ interface DeviceFirstWorkflowProps {
   draftKey: string;
   // Edits kept on this page only (day On / Off, substitutions, auto-fill) that still change the label
   onLocalChange?: (deviceId: string, change: LocalChange) => void;
+  // An item's day settings changed on a page (stored with the week when applied)
+  onItemDaysChange?: (deviceId: string, pageId: string, itemId: number, change: LocalChange) => void;
+  // Day settings stored for this label and week (none for a label opened outside a week)
+  storedToggles?: LabelDayOverrides;
   // Set when day On / Off can't be used here (the Default Week), with the reason
   dayOverridesLocked?: string;
   onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
@@ -84,6 +88,8 @@ export function DeviceFirstWorkflow({
   weekContextNote,
   draftKey,
   onLocalChange,
+  onItemDaysChange,
+  storedToggles,
   dayOverridesLocked,
   onAddItems,
   onRemoveItem,
@@ -125,9 +131,9 @@ export function DeviceFirstWorkflow({
   }, [onDayChange]);
   const [recentlyAddedItemIds, setRecentlyAddedItemIds] = useState<Set<number>>(new Set());
   const localStateFor = (key: string) => getDraft(key) ?? getAppliedLocalState(key);
-  const [itemDisplayToggles, setItemDisplayToggles] = useState<LabelDayOverrides>(
-    () => localStateFor(draftKey)?.toggles ?? {}
-  );
+  // Day settings: pending ones, else what's stored for the week, else applied this session
+  const togglesFor = (key: string) => getDraft(key)?.toggles ?? storedToggles ?? getAppliedLocalState(key)?.toggles ?? {};
+  const [itemDisplayToggles, setItemDisplayToggles] = useState<LabelDayOverrides>(() => togglesFor(draftKey));
   const [substitutions, setSubstitutions] = useState<Substitution[]>(() => localStateFor(draftKey)?.substitutions ?? []);
   const [autoFill, setAutoFill] = useState<Record<string, AutoFillPage>>(() => localStateFor(draftKey)?.autoFill ?? {});
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
@@ -151,7 +157,7 @@ export function DeviceFirstWorkflow({
     setLastAssignedPageId(null);
     setDuplicateCount(0);
     setRecentlyAddedItemIds(new Set());
-    setItemDisplayToggles(local?.toggles ?? {});
+    setItemDisplayToggles(togglesFor(draftKey));
     setSubstitutions(local?.substitutions ?? []);
     setAutoFill(local?.autoFill ?? {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,10 +183,10 @@ export function DeviceFirstWorkflow({
     const local = getAppliedLocalState(draftKey);
     setSelectedDevice(clone(preSelectedDevice));
     setOptimisticDevice(clone(preSelectedDevice));
-    setItemDisplayToggles(local?.toggles ?? {});
+    setItemDisplayToggles(storedToggles ?? local?.toggles ?? {});
     setSubstitutions(local?.substitutions ?? []);
     setAutoFill(local?.autoFill ?? {});
-  }, [hasDraft, draftKey, preSelectedDevice]);
+  }, [hasDraft, draftKey, preSelectedDevice, storedToggles]);
 
   useEffect(() => {
     Promise.all([api.getDeviceGroups(), api.getBrands()]).then(([g, b]) => {
@@ -239,8 +245,8 @@ export function DeviceFirstWorkflow({
     });
   }, [optimisticDevice, onLocalChange, substitutions, itemName, pageDaypart]);
 
-  const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod))];
-  const stations = ['all', ...new Set(menuItems.map(item => item.mealStation))];
+  const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod).filter(Boolean))];
+  const stations = ['all', ...new Set(menuItems.map(item => item.mealStation).filter(Boolean))];
 
   const handleCloseModals = () => {
     setShowDeviceSettingsModal(false);
@@ -443,6 +449,12 @@ export function DeviceFirstWorkflow({
     });
   };
 
+  // Day settings are stored with the week when there is one; otherwise kept like other page-only edits
+  const queueItemDays = (deviceId: string, pageId: string, itemId: number, change: LocalChange) => {
+    if (onItemDaysChange) onItemDaysChange(deviceId, pageId, itemId, change);
+    else onLocalChange?.(deviceId, change);
+  };
+
   // On / Off / Auto for one day of the week being edited, or every day at once
   const handleToggleItemDisplay = (device: Device, pageId: string, itemId: number, day: number | 'every-day', toggle: DisplayToggle) => {
     setItemDisplayToggles(prev => {
@@ -456,12 +468,28 @@ export function DeviceFirstWorkflow({
       else pageOverrides[itemId] = itemOverrides;
       return { ...prev, [pageId]: pageOverrides };
     });
-    onLocalChange?.(device.id, {
+    queueItemDays(device.id, pageId, itemId, {
       summary: `${displayToggleSummary(toggle, itemName(itemId))} · ${day === 'every-day' ? 'every day' : DAY_ABBR[day]}`,
       mergeKey: `day|${pageId}|${itemId}|${day}`,
       mode: 'replace',
       daypart: pageDaypart(pageId),
       day: day === 'every-day' ? undefined : day,
+    });
+  };
+
+  // Sets an item's whole week on a page at once (used when it's added for one day)
+  const handleSetItemDays = (device: Device, pageId: string, itemId: number, days: ItemDayOverrides, summary: string) => {
+    setItemDisplayToggles(prev => {
+      const pageOverrides = { ...(prev[pageId] || {}) };
+      if (Object.keys(days).length === 0) delete pageOverrides[itemId];
+      else pageOverrides[itemId] = { ...days };
+      return { ...prev, [pageId]: pageOverrides };
+    });
+    queueItemDays(device.id, pageId, itemId, {
+      summary,
+      mergeKey: `days|${pageId}|${itemId}`,
+      mode: 'replace',
+      daypart: pageDaypart(pageId),
     });
   };
 
@@ -601,6 +629,7 @@ export function DeviceFirstWorkflow({
         onInlineAddItems={handleInlineAddItems}
         onInlineRemoveItems={handleInlineRemoveItems}
         onToggleItemDisplay={handleToggleItemDisplay}
+        onSetItemDays={handleSetItemDays}
         dayOverridesLocked={dayOverridesLocked}
         itemDisplayToggles={itemDisplayToggles}
         recentlyAddedItemIds={recentlyAddedItemIds}

@@ -115,7 +115,26 @@ export interface MenuItem {
     mealPeriod: string;
     lastSeen: string;
   }[];
+  // Linked to a source: the source's own values, and the fields changed here (local values)
+  source?: ProductValues;
+  localFields?: ProductField[];
 }
+
+// A product's editable values (see src/lib/productValues.ts)
+export interface ProductValues {
+  name: string;
+  // The one description: enticing description when there is one, else the description
+  description: string | null;
+  price: string;
+  calories: string;
+  ingredients: string;
+  allergens: string;
+  icons: { name: string; url: string; rank?: number }[];
+  nutrition: MenuItem['nutrition'];
+  // Empty = all dayparts
+  dayparts: string[];
+}
+export type ProductField = keyof ProductValues;
 
 export interface CustomAttribute {
   definitionId: string;
@@ -250,6 +269,15 @@ export interface DeviceWeekSchedule {
   createdAt: string;
   updatedAt: string;
   items?: DeviceScheduleItem[];
+  // Off / On per item and day on this schedule's labels; no entry is Auto
+  daySettings?: DaySetting[];
+}
+
+export interface DaySetting {
+  daypart: string;
+  menuItemMrn: string;
+  dayOfWeek: number;
+  state: 'on' | 'off';
 }
 
 export interface DeviceScheduleItem {

@@ -66,3 +66,10 @@ export function autoFillCandidates(
     .filter(i => !assignedIds.has(i.id) && servesDaypart(i, daypart) && inStations(i, keys))
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 }
+
+export const ALL_DAYPARTS = 'All dayparts';
+
+// The dayparts a product may be offered at; empty means all dayparts (shown as ALL_DAYPARTS)
+export function productDayparts(item: MenuItem): string[] {
+  return item.mealPeriods?.length ? item.mealPeriods : item.mealPeriod ? [item.mealPeriod] : [];
+}

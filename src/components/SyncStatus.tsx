@@ -118,7 +118,7 @@ export function SyncStatus({ deviceId, size = 'sm', showActions = false, compact
   );
 }
 
-// Edits on this label not applied yet (they live on the label page until Send now / Save)
+// Edits on this label not saved yet (they live on the label page until Save)
 export function PendingPill({ deviceId, size = 'sm' }: { deviceId: string; size?: keyof typeof sizes }) {
   const { count } = usePendingSummary([deviceId]);
   if (count === 0) return null;

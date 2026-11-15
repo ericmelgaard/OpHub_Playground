@@ -102,44 +102,6 @@ function StationRow({ label, count, selected, multiple, onClick }: {
   );
 }
 
-// Picks one station for a product (form field); null means no station
-export function StationSelect({ options, value, onChange, id }: {
-  options: StationOption[];
-  value: string | null;          // station key
-  onChange: (key: string | null) => void;
-  id?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const current = value ? options.find(o => o.key === value) : null;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          id={id}
-          type="button"
-          className="w-full h-10 px-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-left focus:outline-none focus:ring-2 focus:ring-sky-500"
-        >
-          <span className={`flex-1 truncate ${current ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-            {current ? current.name : 'Choose a station'}
-          </span>
-          <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0">
-        <StationList
-          options={options}
-          selected={new Set(value ? [value] : [])}
-          multiple={false}
-          onPick={key => { onChange(key); setOpen(false); }}
-          countLabel="Products at each station"
-          allRow={{ label: 'No station', selected: !value, onPick: () => { onChange(null); setOpen(false); } }}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 interface StationFilterProps {
   options: StationOption[];
   value: string | null;          // station key, or null for all
@@ -280,6 +242,58 @@ export function AutoFillPicker({ options, stations, preview, onApply }: AutoFill
             {draft.size === 0 && active ? `Turn off${remove > 0 ? ` · remove ${remove}` : ''}` : confirmLabel}
           </Button>
         </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export interface DaypartOption {
+  // '' = all dayparts
+  value: string;
+  label: string;
+  count: number;
+}
+
+// Which daypart's products Available Items lists. Starts on the page's daypart; another one
+// (the source's "Brunch" while working on Lunch) is a deliberate choice
+export function DaypartFilter({ options, value, pageDaypart, onChange, triggerClassName }: {
+  options: DaypartOption[];
+  value: string;
+  pageDaypart: string;
+  onChange: (value: string) => void;
+  triggerClassName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find(o => o.value === value);
+  const label = value === pageDaypart ? pageDaypart : value === '' ? 'All dayparts' : `From ${current?.label ?? value}`;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Products offered in this daypart"
+          className={`${triggerClassName} inline-flex items-center gap-1 max-w-[11rem]`}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDown className="h-3 w-3 flex-shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        <div role="listbox" className="max-h-72 overflow-y-auto scrollbar-thin p-1">
+          {options.map(o => (
+            <StationRow
+              key={o.value || 'all'}
+              label={o.value === pageDaypart ? `${o.label} (this page)` : o.label}
+              count={o.count}
+              selected={o.value === value}
+              multiple={false}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+            />
+          ))}
+        </div>
+        <p className="px-3 py-1.5 border-t border-gray-200 dark:border-gray-700 text-[11px] text-gray-500 dark:text-gray-400">
+          Products from another daypart are turned On when added
+        </p>
       </PopoverContent>
     </Popover>
   );

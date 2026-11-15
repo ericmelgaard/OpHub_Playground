@@ -67,21 +67,22 @@ export function LabelAnchor({
   const isAll = activeDaypart === null;
   const shownFor = (page: DevicePage, d: number | null) => getShownItems(page, d, toggles[page.id], substitutionMap);
 
-  // "All" previews whichever page is on the label right now
-  const previewPage = isAll
-    ? device.pages.find(isPageLiveNow) ?? device.pages[0]
-    : device.pages.find(p => p.daypart === activeDaypart) ?? device.pages[0];
-  if (!previewPage) return null;
+  // The label shows one daypart at a time, so All dayparts has nothing to preview
+  const livePage = device.pages.find(isPageLiveNow);
+  const previewPage = isAll ? null : device.pages.find(p => p.daypart === activeDaypart) ?? device.pages[0];
+  if (device.pages.length === 0) return null;
+  // All only means something with more than one daypart
+  const showAllTile = device.pages.length > 1;
 
-  const shown = shownFor(previewPage, day);
-  const capacity = previewPage.displayCapacity;
-  const color = daypartHex(previewPage.daypart);
+  const shown = previewPage ? shownFor(previewPage, day) : [];
+  const capacity = previewPage?.displayCapacity ?? 0;
+  const color = previewPage ? daypartHex(previewPage.daypart) : '';
   const thisWeek = (() => {
     const d = new Date();
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     return d.toISOString().slice(0, 10);
   })();
-  const isLive = isPageLiveNow(previewPage) && day === today && (!weekStart || weekStart === thisWeek);
+  const isLive = !!previewPage && isPageLiveNow(previewPage) && day === today && (!weekStart || weekStart === thisWeek);
 
   const dateFor = (jsDay: number) => {
     if (!weekStart) return null;
@@ -91,7 +92,7 @@ export function LabelAnchor({
   };
 
   // A day has open rows when the page (or any page, in All) shows fewer than it can
-  const dayHasGaps = (jsDay: number) => (isAll ? device.pages : [previewPage])
+  const dayHasGaps = (jsDay: number) => (isAll || !previewPage ? device.pages : [previewPage])
     .some(p => shownFor(p, jsDay).length < p.displayCapacity);
 
   const tileClass = (selected: boolean) =>
@@ -103,12 +104,42 @@ export function LabelAnchor({
 
   return (
     <aside className="grid grid-cols-1 sm:grid-cols-[minmax(0,280px)_minmax(0,1fr)] lg:flex lg:flex-col gap-x-5 gap-y-3 lg:gap-4 p-4 lg:w-[360px] flex-shrink-0 lg:overflow-y-auto scrollbar-thin bg-gray-50 dark:bg-slate-900 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-slate-800">
-      {/* The label */}
+      {/* The label: one daypart at a time, so All dayparts asks for one */}
+      {isAll || !previewPage ? (
+        <div className="flex flex-col gap-2 sm:row-span-2">
+          <div className="flex items-center gap-2 min-h-[22px]">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              All dayparts · {day === null ? 'Every day' : DAY_LONG[day]}
+            </span>
+          </div>
+          <div className="p-2.5 rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700">
+            <div className={`${ASPECT[device.labelSize]} w-full flex flex-col items-center justify-center gap-1.5 px-3 text-center`}>
+              <p className="text-sm font-medium text-gray-800 dark:text-slate-200">Pick a daypart to preview</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">The label shows one daypart at a time.</p>
+              <div className="flex flex-wrap justify-center gap-1.5 mt-1">
+                {device.pages.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => onSelectDaypart(p.daypart)}
+                    className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-medium ${daypartColor(p.daypart).chip}`}
+                  >
+                    {p === livePage && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                    {p.daypart}
+                    {p === livePage && <span className="font-normal">· Live</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="flex flex-col gap-2 sm:row-span-2">
         <div className="flex items-center gap-2 min-h-[22px]">
           <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
           <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-            {isAll && 'Live page · '}{previewPage.daypart} · {day === null ? 'Every day' : DAY_LONG[day]}
+            {previewPage.daypart} · {day === null ? 'Every day' : DAY_LONG[day]}
           </span>
           {isLive && (
             <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300 flex-shrink-0">
@@ -128,7 +159,13 @@ export function LabelAnchor({
               )}
             </div>
 
-            {capacity === 1 ? (
+            {day === null && shown.length === 0 && previewPage.assignedItems.length > 0 ? (
+              // Every day previews the everyday menu
+              <div className="flex-1 flex flex-col items-center justify-center gap-0.5 px-3 pb-2 text-center text-[#5F5F5F]">
+                <span className="text-xs font-semibold">Nothing shows every day</span>
+                <span className="text-[10px]">Pick a day to see it</span>
+              </div>
+            ) : capacity === 1 ? (
               shown[0] ? (
                 <button
                   onClick={(e) => onItemTap?.(shown[0], e)}
@@ -176,18 +213,21 @@ export function LabelAnchor({
         </div>
       </div>
 
+        </>
+      )}
+
       {/* Pages */}
       <div className="flex flex-col gap-1.5 min-w-0">
         <span className="text-[11px] font-semibold tracking-wider uppercase text-gray-500 dark:text-slate-400">Pages on this label</span>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(58px,1fr))] gap-1.5">
-          <button onClick={() => onSelectDaypart(null)} className={tileClass(isAll)} aria-pressed={isAll}>
+          {showAllTile && <button onClick={() => onSelectDaypart(null)} className={tileClass(isAll)} aria-pressed={isAll}>
             <span className="grid grid-cols-2 gap-[3px] h-10">
               {device.pages.slice(0, 4).map(p => (
                 <span key={p.id} className="rounded-sm bg-[#F3F3EE] border-t-[3px]" style={{ borderTopColor: daypartHex(p.daypart) }} />
               ))}
             </span>
             <span className="mt-1 text-xs font-semibold text-gray-800 dark:text-slate-200">All</span>
-          </button>
+          </button>}
           {device.pages.map(p => {
             const s = shownFor(p, day);
             const full = s.length >= p.displayCapacity;

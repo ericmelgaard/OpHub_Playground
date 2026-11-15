@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Coffee, MapPin, MoreVertical, Plus, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar, Eye } from 'lucide-react';
+import { Coffee, MapPin, MoreVertical, Plus, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar, Eye, Link2 } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
   Card,
@@ -14,9 +14,10 @@ import { StationsModal } from './StationsModal';
 import { daypartColor } from '../lib/daypartColors';
 import { levelIconColor } from '@/lib/levelColors';
 import { plainText } from '../lib/richText';
-import { menuDaysInWeek } from '../lib/weekSchedule';
+import { menuDaysInWeek, sortDayparts, type LabelUse } from '../lib/weekSchedule';
+import { productDayparts, ALL_DAYPARTS } from '../lib/stations';
 import { ProductDayStrip } from './ProductDays';
-import { labelName } from '../lib/labelDisplay';
+import { labelName, isCustomItem, wandId, linkedSourceId } from '../lib/labelDisplay';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -36,6 +37,8 @@ interface MenuItemProps {
   onOpen?: (item: MenuItemType) => void;
   // Days this product is on labels in the selected week
   labelDays?: Set<number>;
+  // Where it's on labels; a custom product's dayparts and stations come only from here
+  labelUse?: LabelUse;
   selectedCycleWeek?: number;
   refreshTag?: 'new' | 'updated';
 }
@@ -55,10 +58,20 @@ export function MenuItem({
   onEdit,
   onOpen,
   labelDays,
+  labelUse,
   selectedCycleWeek,
   refreshTag,
 }: MenuItemProps) {
   const [expandedDetails, setExpandedDetails] = useState(false);
+
+  // Dayparts are the product's own (none = all dayparts). Stations: from the source for imported
+  // products, from the labels it's on for custom ones
+  const placement = useMemo(() => ({
+    periods: sortDayparts(productDayparts(item)),
+    stations: isCustomItem(item)
+      ? [...(labelUse?.stations ?? [])].sort()
+      : item.mealStations || (item.mealStation ? [item.mealStation] : []),
+  }), [item, labelUse]);
 
   const menuDays = useMemo(
     () => menuDaysInWeek(item, selectedCycleWeek ?? 0),
@@ -312,8 +325,7 @@ export function MenuItem({
 
   const renderDaypartsAndStations = () => {
     // Normalize data - handle both grouped (arrays) and single (string) values
-    const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
-    const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
+    const { periods, stations } = placement;
     const activeDays = menuDays;
 
     return (
@@ -326,20 +338,18 @@ export function MenuItem({
           </div>
         )}
 
-        {/* Dayparts - color coded, no icon */}
-        {periods.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 w-full">
-            {periods.map((period, idx) => (
-              <Badge
-                key={idx}
-                variant="outline"
-                className={`text-xs border ${getDaypartColor(period)}`}
-              >
-                {period}
-              </Badge>
-            ))}
-          </div>
-        )}
+        {/* Dayparts - color coded, no icon; none means all of them */}
+        <div className="flex flex-wrap gap-1.5 w-full">
+          {(periods.length > 0 ? periods : [ALL_DAYPARTS]).map((period, idx) => (
+            <Badge
+              key={idx}
+              variant="outline"
+              className={`text-xs border ${getDaypartColor(period)}`}
+            >
+              {period}
+            </Badge>
+          ))}
+        </div>
 
         {/* Stations - show first one with expand button */}
         {stations.length > 0 && (
@@ -411,8 +421,7 @@ export function MenuItem({
   );
 
   if (viewMode === 'list') {
-    const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
-    const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
+    const { periods, stations } = placement;
     const opensProduct = !!onOpen;
 
     return (
@@ -438,10 +447,10 @@ export function MenuItem({
                 {refreshTag && <RefreshTagBadge tag={refreshTag} />}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                MRN: {item.mrn}
+                <ItemIds item={item} />
                 {item.displayName?.trim() && <> · Shows as “{labelName(item)}”</>}
                 <span className="lg:hidden">
-                  {periods.length > 0 && ` · ${periods.join(', ')}`}
+                  {` · ${periods.length > 0 ? periods.join(', ') : ALL_DAYPARTS}`}
                   {stations.length > 0 && ` · ${stations.length} ${stations.length === 1 ? 'station' : 'stations'}`}
                 </span>
               </p>
@@ -449,8 +458,8 @@ export function MenuItem({
           </div>
 
           {/* Dayparts */}
-          <div className="hidden lg:flex items-center gap-1 min-w-0" title={periods.join(', ')}>
-            {periods.slice(0, 2).map(period => (
+          <div className="hidden lg:flex items-center gap-1 min-w-0" title={periods.length ? periods.join(', ') : ALL_DAYPARTS}>
+            {(periods.length > 0 ? periods : [ALL_DAYPARTS]).slice(0, 2).map(period => (
               <Badge key={period} variant="outline" className={`text-xs border flex-shrink-0 ${getDaypartColor(period)}`}>
                 {period}
               </Badge>
@@ -507,7 +516,7 @@ export function MenuItem({
       <StationsModal
         isOpen={showStationsModal}
         onClose={() => setShowStationsModal(false)}
-        stations={item.mealStations || []}
+        stations={placement.stations}
         itemName={item.name}
       />
       <Card
@@ -519,7 +528,7 @@ export function MenuItem({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              MRN: {item.mrn}
+              <ItemIds item={item} />
             </span>
             {refreshTag && <RefreshTagBadge tag={refreshTag} />}
           </div>
@@ -569,5 +578,21 @@ function RefreshTagBadge({ tag }: { tag: 'new' | 'updated' }) {
     <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold text-white">New</span>
   ) : (
     <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">Updated</span>
+  );
+}
+
+// The WAND ID first; a linked item also shows the source item it's linked to
+function ItemIds({ item }: { item: MenuItemType }) {
+  const source = linkedSourceId(item);
+  return (
+    <>
+      ID {wandId(item)}
+      {source && (
+        <span className="inline-flex items-center gap-1 ml-2 font-normal text-gray-400 dark:text-gray-500" title={`Linked to source item ${source}`}>
+          <Link2 className="h-3 w-3 flex-shrink-0" />
+          {source}
+        </span>
+      )}
+    </>
   );
 }

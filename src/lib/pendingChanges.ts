@@ -194,7 +194,7 @@ export interface PendingSummary {
   changes: PendingChange[];
   count: number;
   labelCount: number;
-  // Any change goes to the label right away, so applying reads as Send now
+  // Any change goes to the label right away (not shown: the button always says Save)
   anyLive: boolean;
   applying: boolean;
 }

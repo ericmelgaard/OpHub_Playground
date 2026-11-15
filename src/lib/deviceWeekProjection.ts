@@ -1,4 +1,5 @@
 import { Device, MenuItem, DeviceWeekSchedule } from '../types';
+import type { LabelDayOverrides } from './labelDisplay';
 
 // Builds a device whose page items reflect a resolved week schedule.
 // Weeks are the source of truth: each page's assignedItems/itemOrder come from
@@ -37,4 +38,18 @@ export function projectScheduleOntoDevice(
 
   projected.assignedItems = Array.from(usedItems.values()).map(i => JSON.parse(JSON.stringify(i)));
   return projected;
+}
+
+// The schedule's stored day settings as the label page's toggles (page id -> item id -> day)
+export function scheduleDayToggles(device: Device, schedule: DeviceWeekSchedule | undefined): LabelDayOverrides {
+  const out: LabelDayOverrides = {};
+  for (const s of schedule?.daySettings ?? []) {
+    const page = device.pages.find(p => p.daypart === s.daypart);
+    const item = page?.assignedItems.find(i => i.mrn === s.menuItemMrn);
+    if (!page || !item) continue;
+    const pageOverrides = out[page.id] ?? (out[page.id] = {});
+    const itemOverrides = pageOverrides[item.id] ?? (pageOverrides[item.id] = {});
+    itemOverrides[s.dayOfWeek] = s.state;
+  }
+  return out;
 }

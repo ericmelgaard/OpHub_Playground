@@ -1,4 +1,4 @@
-import { DeviceWeekSchedule, MenuItem } from '../types';
+import { DeviceScheduleItem, DeviceWeekSchedule, MenuItem } from '../types';
 
 // Monday of the week at the given offset from the current week.
 export function getWeekStartDate(weekOffset: number): Date {
@@ -147,14 +147,46 @@ export function menuDaysInWeek(item: MenuItem, weekOffset: number): number[] {
   return [...days].sort();
 }
 
-// Days each product (by MRN) is scheduled on any label, from a week's resolved schedules
-export function scheduledDaysByMrn(schedules: DeviceWeekSchedule[]): Map<string, Set<number>> {
-  const byMrn = new Map<string, Set<number>>();
+// Where a product is used on labels in a week: days, dayparts and stations (a label's placement).
+// Custom products get all three only from here; they aren't set on the product.
+export interface LabelUse {
+  days: Set<number>;
+  dayparts: Set<string>;
+  stations: Set<string>;
+}
+
+// `daysFor` gives the days an item on a label page actually shows (after its day settings);
+// without it, the days it has schedule rows for.
+export function labelUseByMrn(
+  schedules: DeviceWeekSchedule[],
+  stationOf: (deviceId: string) => string | undefined,
+  daysFor?: (schedule: DeviceWeekSchedule, daypart: string, mrn: string, rowDays: number[]) => number[],
+): Map<string, LabelUse> {
+  const byMrn = new Map<string, LabelUse>();
   for (const s of schedules) {
-    for (const i of s.items ?? []) {
-      if (!byMrn.has(i.menuItemMrn)) byMrn.set(i.menuItemMrn, new Set());
-      byMrn.get(i.menuItemMrn)!.add(i.dayOfWeek);
+    const station = stationOf(s.deviceId);
+    const groups = new Map<string, { daypart: string; mrn: string; days: number[] }>();
+    for (const i of (s.items ?? []) as DeviceScheduleItem[]) {
+      const key = `${i.daypart}|${i.menuItemMrn}`;
+      const g = groups.get(key) ?? { daypart: i.daypart, mrn: i.menuItemMrn, days: [] };
+      g.days.push(i.dayOfWeek);
+      groups.set(key, g);
+    }
+    for (const g of groups.values()) {
+      const days = daysFor ? daysFor(s, g.daypart, g.mrn, g.days) : g.days;
+      if (days.length === 0) continue;
+      let use = byMrn.get(g.mrn);
+      if (!use) { use = { days: new Set(), dayparts: new Set(), stations: new Set() }; byMrn.set(g.mrn, use); }
+      days.forEach(d => use!.days.add(d));
+      if (g.daypart) use.dayparts.add(g.daypart);
+      if (station) use.stations.add(station);
     }
   }
   return byMrn;
 }
+
+const DAYPART_ORDER = ['Breakfast', 'Lunch', 'Dinner', 'Late Night', 'All Day'];
+
+// Dayparts in serving order
+export const sortDayparts = (dayparts: Iterable<string>) =>
+  [...dayparts].sort((a, b) => (DAYPART_ORDER.indexOf(a) + 1 || 99) - (DAYPART_ORDER.indexOf(b) + 1 || 99));

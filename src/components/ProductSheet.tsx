@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import {
-  X, Plus, Tag, MapPin, Clock, CalendarDays, Leaf, ChevronRight, ChevronDown, Database, PenLine,
+  X, Plus, Tag, MapPin, Clock, CalendarDays, Leaf, ChevronRight, ChevronDown, Link2, Unlink, PenLine,
   Pencil, Loader2, Check, Activity, ListChecks,
 } from 'lucide-react';
-import { Device, MenuItem } from '../types';
+import { SaveButton } from './SaveButton';
+import { Device, MenuItem, ProductField, ProductValues } from '../types';
+import { valuesOf, sameValue, FIELD_LABELS, PRODUCT_FIELDS } from '../lib/productValues';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { StationSelect } from './StationPicker';
 import { daypartColor } from '../lib/daypartColors';
 import { levelIconColor } from '../lib/levelColors';
-import { isCustomItem } from '../lib/labelDisplay';
+import { isCustomItem, wandId, linkedSourceId } from '../lib/labelDisplay';
 import { parseIngredients } from '../lib/richText';
-import { menuDaysInWeek, getWeekStartString, formatWeekRange } from '../lib/weekSchedule';
+import { menuDaysInWeek, getWeekStartString, formatWeekRange, sortDayparts, type LabelUse } from '../lib/weekSchedule';
+import { productDayparts, ALL_DAYPARTS } from '../lib/stations';
 import { ProductDayRows } from './ProductDays';
-import { stationKey, stationOptions } from '../lib/stations';
 import type { ProductInput } from '../services/api';
 import { RichText, LabelName } from './RichText';
 import { RichTextEditor } from './RichTextEditor';
@@ -28,6 +29,8 @@ interface ProductSheetProps {
   weekOffset: number;
   // Days this product is on labels that week
   labelDays?: Set<number>;
+  // Dayparts and stations it's on labels that week; custom products take theirs only from here
+  labelUse?: LabelUse;
   devices: Device[];
   // All products, for the daypart, station, icon and allergen choices
   menuItems: MenuItem[];
@@ -40,7 +43,6 @@ interface ProductSheetProps {
   onSaveDisplayName: (item: MenuItem, displayName: string) => Promise<void>;
 }
 
-const DAYPART_ORDER = ['Breakfast', 'Lunch', 'Dinner', 'Late Night', 'All Day'];
 const NUTRIENTS = [
   { key: 'protein', label: 'Protein' },
   { key: 'carbohydrates', label: 'Carbs' },
@@ -52,7 +54,7 @@ type NutrientKey = typeof NUTRIENTS[number]['key'];
 const splitAllergens = (s: string | undefined) => (s ? s.split(',').map(a => a.trim()).filter(Boolean) : []);
 
 // One product: view its details, or (custom products) edit them. Also the form for a new product.
-export function ProductSheet({ item, creating, weekOffset, labelDays, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onSave, onSaveDisplayName }: ProductSheetProps) {
+export function ProductSheet({ item, creating, weekOffset, labelDays, labelUse, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onSave, onSaveDisplayName }: ProductSheetProps) {
   const [editing, setEditing] = useState(false);
   const open = creating || !!item;
   const showForm = creating || editing;
@@ -91,9 +93,10 @@ export function ProductSheet({ item, creating, weekOffset, labelDays, devices, m
             item={item}
             weekOffset={weekOffset}
             labelDays={labelDays}
+            labelUse={labelUse}
             devices={devices}
             onClose={onClose}
-            onEdit={isCustomItem(item) ? () => setEditing(true) : undefined}
+            onEdit={() => setEditing(true)}
             onAddToLabel={onAddToLabel}
             onOpenLabel={onOpenLabel}
             onSaveDisplayName={onSaveDisplayName}
@@ -126,10 +129,11 @@ function SheetHeader({ title, subtitle, onClose, closeLabel = 'Close' }: {
   );
 }
 
-function ProductDetails({ item, weekOffset, labelDays, devices, onClose, onEdit, onAddToLabel, onOpenLabel, onSaveDisplayName }: {
+function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClose, onEdit, onAddToLabel, onOpenLabel, onSaveDisplayName }: {
   item: MenuItem;
   weekOffset: number;
   labelDays?: Set<number>;
+  labelUse?: LabelUse;
   devices: Device[];
   onClose: () => void;
   onEdit?: () => void;
@@ -146,8 +150,10 @@ function ProductDetails({ item, weekOffset, labelDays, devices, onClose, onEdit,
     .filter(l => l.dayparts.length > 0), [item, devices]);
 
   const custom = isCustomItem(item);
-  const periods = item.mealPeriods || (item.mealPeriod ? [item.mealPeriod] : []);
-  const stations = item.mealStations || (item.mealStation ? [item.mealStation] : []);
+  // Custom products have no daypart or station of their own: show where they're on labels
+  // The product's own dayparts; none means it's offered at all of them
+  const periods = sortDayparts(productDayparts(item));
+  const stations = custom ? [...(labelUse?.stations ?? [])].sort() : item.mealStations || (item.mealStation ? [item.mealStation] : []);
   const menuDays = useMemo(() => menuDaysInWeek(item, weekOffset), [item, weekOffset]);
   const allergens = splitAllergens(item.allergens);
   const description = item.enticingDescription || item.description;
@@ -160,12 +166,22 @@ function ProductDetails({ item, weekOffset, labelDays, devices, onClose, onEdit,
         title={item.name.trim()}
         onClose={onClose}
         subtitle={<>
-          {custom ? (
-            <><PenLine className="h-3.5 w-3.5 flex-shrink-0" />Custom product</>
+          <span className="font-medium text-gray-700 dark:text-gray-200">ID {wandId(item)}</span>
+          {linkedSourceId(item) ? (
+            <span className="inline-flex items-center gap-1" title="Its values come from the source item">
+              · <Link2 className="h-3.5 w-3.5 flex-shrink-0 text-brand" />Linked to source {linkedSourceId(item)}
+            </span>
           ) : (
-            <><Database className="h-3.5 w-3.5 flex-shrink-0 text-brand" />From Webtrition · MRN {item.mrn}</>
+            <span className="inline-flex items-center gap-1">
+              · <Unlink className="h-3.5 w-3.5 flex-shrink-0" />Not linked
+            </span>
           )}
           {item.isActive === false && <span className="text-red-600 dark:text-red-400">· Inactive</span>}
+          {(item.localFields?.length ?? 0) > 0 && (
+            <span title={`Changed here: ${item.localFields!.map(f => FIELD_LABELS[f]).join(', ')}. The source isn't changed.`}>
+              · {item.localFields!.length} local {item.localFields!.length === 1 ? 'value' : 'values'}
+            </span>
+          )}
         </>}
       />
 
@@ -182,7 +198,7 @@ function ProductDetails({ item, weekOffset, labelDays, devices, onClose, onEdit,
           </div>
         </div>
 
-        {/* Custom products change it in Edit; Webtrition products only here */}
+        {/* Changed in Edit (every product can be edited) */}
         <DisplayNameRow item={item} editable={!onEdit} onSave={value => onSaveDisplayName(item, value)} />
 
         {description && (
@@ -228,13 +244,11 @@ function ProductDetails({ item, weekOffset, labelDays, devices, onClose, onEdit,
 
         {/* When */}
         <Section icon={Clock} title="When">
-          {periods.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {periods.map(p => (
-                <span key={p} className={`text-xs font-medium px-2 py-0.5 rounded-full border ${daypartColor(p).chip}`}>{p}</span>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            {(periods.length > 0 ? periods : [ALL_DAYPARTS]).map(p => (
+              <span key={p} className={`text-xs font-medium px-2 py-0.5 rounded-full border ${daypartColor(p).chip}`}>{p}</span>
+            ))}
+          </div>
           <div className="space-y-1.5">
             <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
               <CalendarDays className="h-3.5 w-3.5 flex-shrink-0" />
@@ -316,8 +330,10 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
   // One description: the enticing description when there is one, else the description
   const [description, setDescription] = useState(item?.enticingDescription || item?.description || '');
   const [ingredients, setIngredients] = useState<string[]>(parseIngredients(item?.ingredients));
-  const [daypart, setDaypart] = useState(item?.mealPeriod && item.mealPeriod !== 'All Day' ? item.mealPeriod : '');
-  const [station, setStation] = useState<string | null>(item?.mealStation ? stationKey(item.mealStation) : null);
+  // Linked to a source: the source's values, to mark what's changed here (local)
+  const source: ProductValues | null = item && !isCustomItem(item) ? item.source ?? valuesOf(item) : null;
+  // Empty = all dayparts
+  const [dayparts, setDayparts] = useState<Set<string>>(new Set(item ? (source ? valuesOf(item).dayparts : productDayparts(item)) : []));
   const [icons, setIcons] = useState<Set<string>>(new Set(item?.iconImages?.map(i => i.name) ?? []));
   const [allergens, setAllergens] = useState<Set<string>>(new Set(splitAllergens(item?.allergens)));
   const [nutrition, setNutrition] = useState<Record<NutrientKey, string>>(() => ({
@@ -332,22 +348,19 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
   const [triedSave, setTriedSave] = useState(false);
 
   // Choices come from the products themselves
-  const daypartOptions = useMemo(() => {
-    const seen = new Set<string>();
-    menuItems.forEach(i => (i.mealPeriods?.length ? i.mealPeriods : [i.mealPeriod]).forEach(p => p && seen.add(p)));
-    return [...seen]
-      .filter(p => p !== 'All Day')
-      .sort((a, b) => (DAYPART_ORDER.indexOf(a) + 1 || 99) - (DAYPART_ORDER.indexOf(b) + 1 || 99));
-  }, [menuItems]);
-  const stationChoices = useMemo(
-    () => stationOptions(menuItems, () => true, item?.mealStation ? [item.mealStation] : []),
-    [menuItems, item],
-  );
   const iconOptions = useMemo(() => {
     const byName = new Map<string, { name: string; url: string; rank?: number }>();
+    source?.icons.forEach(icon => byName.set(icon.name, icon));
     menuItems.forEach(i => i.iconImages?.forEach(icon => { if (!byName.has(icon.name)) byName.set(icon.name, icon); }));
     return [...byName.values()].sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0));
   }, [menuItems]);
+  // Dayparts in the data. All Day isn't offered as a choice: an All Day page already shows everything
+  const daypartOptions = useMemo(() => {
+    const seen = new Set<string>(productDayparts(item ?? ({} as MenuItem)));
+    menuItems.forEach(i => productDayparts(i).forEach(p => seen.add(p)));
+    seen.delete('All Day');
+    return sortDayparts(seen);
+  }, [menuItems, item]);
   const ingredientOptions = useMemo(() => {
     const byKey = new Map<string, string>();
     menuItems.forEach(i => parseIngredients(i.ingredients).forEach(g => { if (!byKey.has(g.toLowerCase())) byKey.set(g.toLowerCase(), g); }));
@@ -365,15 +378,85 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
     return next;
   };
   const nameMissing = !name.trim();
+
+  // What the form holds now, to compare with the source field by field
+  const nutrient = (v: string, unit: string) => ({ value: v.trim() || '0', dailyValue: null, displayValue: `${v.trim() || '0'}${unit}` });
+  const current: Partial<ProductValues> = {
+    name, description: description || null, price, calories,
+    ingredients: ingredients.join(', '), allergens: [...allergens].join(', '),
+    icons: iconOptions.filter(i => icons.has(i.name)),
+    nutrition: {
+      calories: { value: calories || '0', dailyValue: null, displayValue: calories || '0' },
+      protein: nutrient(nutrition.protein, 'g'), carbohydrates: nutrient(nutrition.carbohydrates, 'g'),
+      fat: nutrient(nutrition.fat, 'g'), sugar: nutrient(nutrition.sugar, 'g'),
+    },
+    dayparts: [...dayparts],
+  };
+  // What the form opened with: Save stays off until something changes (see "Saving changes")
+  const [initial] = useState(() => ({ values: current, displayName }));
+  const changedFields = item
+    ? PRODUCT_FIELDS.filter(f => !sameValue(f, current[f] as never, initial.values[f] as never))
+    : [];
+  const changeCount = changedFields.length + (item && displayName.trim() !== initial.displayName.trim() ? 1 : 0);
+  const discardChanges = () => {
+    const v = initial.values;
+    setName(v.name ?? '');
+    setDisplayName(initial.displayName);
+    setPrice(v.price ?? '');
+    setCalories(v.calories ?? '');
+    setDescription(v.description ?? '');
+    setIngredients(parseIngredients(v.ingredients));
+    setAllergens(new Set(splitAllergens(v.allergens)));
+    setIcons(new Set((v.icons ?? []).map(i => i.name)));
+    setNutrition({
+      protein: v.nutrition?.protein?.value === '0' ? '' : v.nutrition?.protein?.value ?? '',
+      carbohydrates: v.nutrition?.carbohydrates?.value === '0' ? '' : v.nutrition?.carbohydrates?.value ?? '',
+      fat: v.nutrition?.fat?.value === '0' ? '' : v.nutrition?.fat?.value ?? '',
+      sugar: v.nutrition?.sugar?.value === '0' ? '' : v.nutrition?.sugar?.value ?? '',
+    });
+    setDayparts(new Set(v.dayparts ?? []));
+    setTriedSave(false);
+    setError(null);
+  };
+
+  const useSource: Record<ProductField, () => void> = {
+    name: () => setName(source!.name),
+    description: () => setDescription(source!.description ?? ''),
+    price: () => setPrice(source!.price),
+    calories: () => setCalories(source!.calories !== '0' ? source!.calories : ''),
+    ingredients: () => setIngredients(parseIngredients(source!.ingredients)),
+    allergens: () => setAllergens(new Set(splitAllergens(source!.allergens))),
+    icons: () => setIcons(new Set(source!.icons.map(i => i.name))),
+    nutrition: () => setNutrition({
+      protein: source!.nutrition?.protein?.value ?? '',
+      carbohydrates: source!.nutrition?.carbohydrates?.value ?? '',
+      fat: source!.nutrition?.fat?.value ?? '',
+      sugar: source!.nutrition?.sugar?.value ?? '',
+    }),
+    dayparts: () => setDayparts(new Set(source!.dayparts)),
+  };
+  // "Local" plus a way back to the source's value, on fields that differ from the source
+  const localMark = (field: ProductField) => source && !sameValue(field, current[field] as never, source[field] as never) ? (
+    <span className="inline-flex items-center gap-1.5 ml-2 text-xs font-normal">
+      <span
+        title="Changed here. The source isn't changed."
+        className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+      >
+        Local
+      </span>
+      <button type="button" onClick={useSource[field]} className="text-sky-600 dark:text-sky-400 hover:underline">
+        Use source
+      </button>
+    </span>
+  ) : null;
   const nutritionFilled = NUTRIENTS.filter(n => nutrition[n.key].trim()).length;
 
   const handleSave = async () => {
     setTriedSave(true);
-    if (nameMissing) return;
+    if (nameMissing || (item && changeCount === 0)) return;
     setSaving(true);
     setError(null);
     const cal = calories.trim() || '0';
-    const nutrient = (v: string, unit: string) => ({ value: v.trim() || '0', dailyValue: null, displayValue: `${v.trim() || '0'}${unit}` });
     try {
       await onSave({
         name,
@@ -384,8 +467,7 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
         description: !description ? null : item?.enticingDescription ? item.description : description,
         enticingDescription: !description ? null : item?.enticingDescription ? description : null,
         ingredients: ingredients.join(', '),
-        mealPeriod: daypart || undefined,
-        mealStation: station ? stationChoices.find(o => o.key === station)?.name : undefined,
+        dayparts: sortDayparts(dayparts),
         icons: iconOptions.filter(i => icons.has(i.name)),
         allergens: [...allergens].join(', '),
         nutrition: {
@@ -406,7 +488,11 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
     <>
       <SheetHeader
         title={item ? 'Edit product' : 'New product'}
-        subtitle={<><PenLine className="h-3.5 w-3.5 flex-shrink-0" />Custom product</>}
+        subtitle={item && source
+          ? <><Link2 className="h-3.5 w-3.5 flex-shrink-0 text-brand" />ID {wandId(item)} · Linked to source {linkedSourceId(item)} · changes stay here</>
+          : item
+          ? <><PenLine className="h-3.5 w-3.5 flex-shrink-0" />ID {wandId(item)} · Not linked</>
+          : <><PenLine className="h-3.5 w-3.5 flex-shrink-0" />Not linked to a source</>}
         onClose={onCancel}
         closeLabel="Cancel"
       />
@@ -419,7 +505,7 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
         {/* Basics */}
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="product-name">Name</Label>
+            <div className="flex items-center"><Label htmlFor="product-name">Name</Label>{localMark('name')}</div>
             <Input
               id="product-name"
               value={name}
@@ -444,42 +530,48 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="product-price">Price</Label>
+              <div className="flex items-center"><Label htmlFor="product-price">Price</Label>{localMark('price')}</div>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                 <Input id="product-price" value={price} onChange={e => setPrice(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="0.00" className="pl-6 tabular-nums" />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="product-calories">Calories</Label>
+              <div className="flex items-center"><Label htmlFor="product-calories">Calories</Label>{localMark('calories')}</div>
               <Input id="product-calories" value={calories} onChange={e => setCalories(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="0" className="tabular-nums" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="product-description">Description</Label>
+            <div className="flex items-center"><Label htmlFor="product-description">Description</Label>{localMark('description')}</div>
             <RichTextEditor id="product-description" value={description} onChange={setDescription} placeholder="What it is" ariaLabel="Description" />
           </div>
         </div>
 
-        {/* Ingredients */}
-        <Section icon={ListChecks} title="Ingredients">
-          <IngredientInput value={ingredients} onChange={setIngredients} suggestions={ingredientOptions} />
-        </Section>
-
-        {/* When */}
-        <Section icon={Clock} title="When">
-          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Daypart">
+        {/* Dayparts it may be offered at; stations and days come from labels */}
+        <Section icon={Clock} title="Dayparts" aside={localMark('dayparts')}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Dayparts">
+            <button
+              type="button"
+              aria-pressed={dayparts.size === 0}
+              onClick={() => setDayparts(new Set())}
+              className={`h-9 px-3 rounded-full border text-sm font-medium transition-colors ${
+                dayparts.size === 0
+                  ? 'bg-sky-50 dark:bg-sky-900/30 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+              }`}
+            >
+              {ALL_DAYPARTS}
+            </button>
             {daypartOptions.map(p => {
-              const selected = daypart === p;
+              const on = dayparts.has(p);
               return (
                 <button
                   key={p}
                   type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => setDaypart(selected ? '' : p)}
+                  aria-pressed={on}
+                  onClick={() => setDayparts(toggle(dayparts, p))}
                   className={`h-9 px-3 rounded-full border text-sm font-medium transition-colors ${
-                    selected ? daypartColor(p).chip : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    on ? daypartColor(p).chip : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
                   {p}
@@ -487,18 +579,25 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
               );
             })}
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{daypart ? `Offered at ${daypart}` : 'No daypart · offered at all of them'}</p>
-
-          <p className="text-xs text-gray-500 dark:text-gray-400">Days come from the labels it's added to.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {source
+              ? (dayparts.size === 0
+                ? 'Offered at every daypart on the days its source offers it.'
+                : `Offered at ${sortDayparts(dayparts).join(', ')} on the days its source offers it.`)
+              : dayparts.size === 0
+              ? 'Can be added at any daypart. Stations and days come from the labels it\'s added to.'
+              : `Can be added at ${sortDayparts(dayparts).join(', ')}. Stations and days come from the labels it's added to.`}
+          </p>
         </Section>
 
-        {/* Where */}
-        <Section icon={MapPin} iconClassName={levelIconColor('placement')} title="Station">
-          <StationSelect id="product-station" options={stationChoices} value={station} onChange={setStation} />
+        {/* Ingredients */}
+        <Section icon={ListChecks} title="Ingredients" aside={localMark('ingredients')}>
+          <IngredientInput value={ingredients} onChange={setIngredients} suggestions={ingredientOptions} />
         </Section>
+
 
         {/* Dietary */}
-        <Section icon={Leaf} title="Dietary">
+        <Section icon={Leaf} title="Dietary" aside={localMark('icons')}>
           {iconOptions.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {iconOptions.map(icon => {
@@ -524,7 +623,7 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
             </div>
           )}
           <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Contains</div>
+            <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-1.5">Contains{localMark('allergens')}</div>
             <div className="flex flex-wrap gap-1.5">
               {allergenOptions.map(a => {
                 const on = allergens.has(a);
@@ -563,6 +662,7 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
             )}
             <ChevronDown className={`ml-auto h-4 w-4 text-gray-400 transition-transform ${showNutrition ? 'rotate-180' : ''}`} />
           </button>
+          {localMark('nutrition') && <div className="-mt-1 -ml-2">{localMark('nutrition')}</div>}
           {showNutrition && (
             <div className="grid grid-cols-2 gap-3">
               {NUTRIENTS.map(n => (
@@ -587,10 +687,21 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
         {error && <p className="text-sm text-red-600 dark:text-red-400">Couldn't save · {error}</p>}
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={onCancel} disabled={saving} className="h-11">Cancel</Button>
-          <Button type="submit" form="product-form" disabled={saving} className="flex-1 h-11 gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {saving ? 'Saving…' : item ? 'Save changes' : 'Create product'}
-          </Button>
+          {item ? (
+            <SaveButton
+              block
+              form="product-form"
+              count={changeCount}
+              saving={saving}
+              onSave={handleSave}
+              onDiscard={discardChanges}
+            />
+          ) : (
+            <Button type="submit" form="product-form" disabled={saving} className="flex-1 h-11 gap-2">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {saving ? 'Saving…' : 'Create product'}
+            </Button>
+          )}
         </div>
       </div>
     </>
@@ -726,10 +837,12 @@ function DietaryIcon({ url, dim }: { url: string; dim?: boolean }) {
   );
 }
 
-function Section({ icon: Icon, iconClassName = 'text-gray-400', title, children }: {
+function Section({ icon: Icon, iconClassName = 'text-gray-400', title, aside, children }: {
   icon: ElementType;
   iconClassName?: string;
   title: string;
+  // Next to the title (e.g. Local · Use source)
+  aside?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -737,6 +850,7 @@ function Section({ icon: Icon, iconClassName = 'text-gray-400', title, children 
       <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
         <Icon className={`h-4 w-4 ${iconClassName}`} />
         {title}
+        {aside}
       </h3>
       {children}
     </section>

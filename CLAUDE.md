@@ -93,6 +93,20 @@ items uses one flat list of compact rows, not cards or grouped sections.
 - **Under `lg`:** keep the name, the key value (price), and the actions; fold the rest into a
   `text-xs` gray second line under the name.
 
+### User guide → `BookOpen` in the top nav (approved 2026-11-14)
+Reference: `src/components/UserGuideSheet.tsx`, content in `src/lib/userGuide.ts`.
+- Written for store and menu staff: short how-to text in plain words, using the terms on screen.
+- The `BookOpen` button sits left of the alerts bell and opens a right-side sheet (same as the
+  product sheet): search, **What's new** (dated, newest first, latest 3 with "Show all"), then
+  one section per topic.
+- **The alert is a `sky-500` dot on the guide button** while What's new has entries this browser
+  hasn't seen (`localStorage` `guideSeen`). Opening the guide clears it and marks those entries New.
+- **Pictures** are drawn with the app's own components (`src/components/UserGuideFigures.tsx`),
+  not screenshots, so they match the app and follow dark mode. They're inert examples in a gray
+  frame with a one-line caption. Keep them to a few key sections (a section's `figure`).
+- When a change is something staff will notice, add a What's new entry (stable `id`, date, a
+  `section` to read more) and update the matching guide section in the same change.
+
 ### Item details → right-side sheet
 Reference: `src/components/ProductSheet.tsx` (clicking a product card or row).
 - Opening one item to see its details uses a sheet docked on the right: `md:w-[480px]`, full height,
@@ -103,31 +117,91 @@ Reference: `src/components/ProductSheet.tsx` (clicking a product card or row).
 - Cards and rows that open a sheet keep their quick action (`+`) and `⋯` menu; those stop the click
   from also opening the sheet.
 
+### Saving changes → one apply button
+Component: `SaveButton` (`src/components/SaveButton.tsx`). Every place that saves edits uses it,
+not a hand-built button: the label header, the pending changes bar, and the product form
+(`block` for a sheet footer: full width, `h-11`). The chevron opens the side actions:
+Save, Review changes (when there's a list), Discard changes.
+- **Off until something changes.** Save stays visible but disabled with no changes ("No changes
+  to save" tooltip), on the label header too. Changing a value back to what it was counts as no change.
+- **Count in the button:** a `bg-white/25` pill with the number of changes (fields for a form,
+  pending changes for labels).
+- **Split button** (`Button` + `DropdownMenu`, chevron on the right): the menu holds related actions:
+  "Review changes" where there's a list to review, and a red **Discard changes** (puts back what
+  was there; doesn't leave the screen). Cancel / close is separate and leaves.
+- **Wording:** always **Save** (labels and forms alike); creating says
+  **Create product** (no split, nothing to discard). Never say how a change is delivered
+  ("Send now", "nightly", "tonight") — see below (decided 2026-11-15).
+- **Coming:** saving changes for a future date ("Save on a date…"). It will be another item in
+  this menu; not built yet — design it with the label pending changes when it's needed.
+
 ### Label edits → pending changes, then apply
 Reference: `src/lib/pendingChanges.ts`, `src/components/PendingChanges.tsx`.
 Edits on a label page are **pending changes** until applied; nothing is written before that.
-- **Apply is one action.** The person doesn't choose where changes go: changes that affect what
-  the label shows today are sent right away; later days and weeks are saved for the nightly
-  update. The button reads **Send now** when anything goes out now, otherwise **Save**.
-  Saved is final — there's no "undo save".
-- **Per label:** split button in the label header — apply / Review changes / Discard changes.
-- **Everything:** floating bar at the bottom ("5 pending changes · 3 labels", Review, apply),
+- **Save is one action, and it always reads Save.** How a change reaches the label is ours to
+  handle and isn't shown: changes that affect what the label shows today go out right away;
+  later days and weeks go with the nightly update. People see when it shows from what they're
+  editing (the day and week), and whether it reached the label from the sync status
+  (Syncing… / Synced / Sync failed). Saved is final — there's no "undo save".
+- **Per label:** split button in the label header — Save / Review changes / Discard changes.
+- **Everything:** floating bar at the bottom ("5 pending changes · 3 labels", Review, Save),
   shown on the grid and on a label page when other labels have changes.
 - Pending changes survive stepping between labels and returning to the grid. Leaving Smart
-  Labels (or the page) with pending changes asks first: Keep editing / Discard and leave / apply and leave.
+  Labels (or the page) with pending changes asks first: Keep editing / Discard and leave / Save and leave.
 - **Auto Fill** (per page) is its own deliberate action, top right of Available Items: pick one or
   more stations, then confirm ("Add 12 items"). It adds those stations' items for the daypart to
   the page list (teal "Auto" tag), where they're ordered and turned on/off like any item. The
   station filter is disabled while a page auto-fills. On tablets, no single tap should add or
   remove a batch of items.
-- **All dayparts** on a label page is a read-only overview: one compact row per daypart (items in
-  display order, "3 of 4", open slots, gaps) with Edit / Add items opening that daypart. Adding
-  and reordering only happen inside one daypart, so it's always clear where an item goes.
+- **Available Items daypart** is a dropdown chip (`DaypartFilter` in `src/components/StationPicker.tsx`)
+  next to Station: it starts on the page's daypart each time a page opens and lists every daypart
+  in the product data (the source may use ones labels don't, like Brunch) plus All dayparts, with
+  counts. Another daypart shows as "From Brunch". A product from another daypart has no days to
+  follow on the page, so adding it turns it **On** for the day in scope and its toggle is Off / On
+  (same as unlinked items). In All dayparts, adding only goes to dayparts the product is offered at.
+- **The label preview shows one real screen** (`src/components/LabelAnchor.tsx`): one daypart, one
+  day. **Every day** previews the **everyday menu** — items on all 7 days, in page order, cut to
+  capacity (`isOfferedEveryDay()`; "showing" counts and statuses use the same rule). Items on some
+  days only stay in the list with a gray **Some days** tag and "Pick a day to see it"; with none on
+  every day the preview says "Nothing shows every day". **All dayparts** has no preview: it shows
+  "Pick a daypart to preview" with a button per daypart (the live one marked). A label with only
+  one daypart has no All dayparts choice and always opens on its page.
+- **Every day and All dayparts mirror each other** on a label page: Every day edits one daypart
+  across the week; **All dayparts** edits the day (or week) in scope across every daypart
+  (`src/components/AllDaypartsEditor.tsx`). It lists each item on the label once (offered that
+  day in any daypart; the rest under "Not available"), in daypart order then each item's place.
+  Daypart chips show where it is (tap to open that daypart) and dashed `+ Lunch` chips add it to
+  one more. Adding from Available Items goes to every daypart the product is offered at that
+  isn't already holding it. Off / On (Auto) applies to every daypart it's on (Mixed when they
+  differ). Removing asks first ("Remove from 3"). A capacity strip at the top ("Lunch 3 of 4 ·
+  1 open", amber when empty) opens a daypart. **Reorder, substitutions, Auto Fill and Clear page
+  stay inside one daypart** — they belong to that daypart's list.
 - **Day availability (Off / Auto / On)** on a label page is per day of the week being edited
   (`src/lib/labelDisplay.ts`). Auto follows the product's days; On adds the day for this label,
   Off removes it. It never means priority — drag order does. "Every day" sets all 7 days and shows
-  Mixed when they differ. Removing an item applies to the whole week. The Default Week can't hold
-  day overrides (toggles are disabled there). Custom products have no days of their own: adding
+  Mixed when they differ. **Every item on a label has its own week**, set when it's added:
+  added in Every day = all 7 days on Auto (follows the source); added on one day = that day only,
+  the other six Off (one pending change, "Pancakes on Tue only"). To follow the source all week,
+  add it in Every day. On a single day, items that are Off or not offered that day go under the
+  collapsed **Not available {day}** section (with an "On {day}" button), not in the page list.
+  They also stay in **Available Items** for that day, marked "On this page": adding one again
+  turns that day on — Auto when the source offers it that day, else On. Items showing that day
+  aren't listed there.
+  **Available Items: up top vs Not available** is decided by the source alone (the product's
+  days and dayparts), or for an item without a source by its dayparts alone (a blank slate) —
+  never by this week's label settings. So Wednesday's bacon on Tuesday is under
+  **Not available Tue** ("Add anyway" turns Tue On); a custom item is up top.
+  The exception: an item turned Off while you're on that day stays in the page list, struck through, so it can
+  be undone (until the day or daypart changes). Removing an item applies to the whole week.
+  **Layers:** source days (read-only) → the item's **base week** on that label = its day settings
+  in the **Default Week** (Auto follows the source; On / Off overrule it) → a specific week's own
+  settings, only when that week has its own schedule (a full copy, like its item list; it
+  doesn't pick up later base changes). Bases are per label, not per product. Day settings are
+  stored in `label_day_settings` with the week schedule (copy / paste / recurring carry them);
+  the first edit to a week without its own schedule copies what it shows first.
+  Items not linked to a source have no days to follow,
+  so their toggle is **Off / On** only (no Auto; an unset day is Off). Auto appears once an item
+  is linked. Custom products have no days of their own: adding
   one to a label turns it On for the day being edited (all 7 in Every day).
 - **Product days are view-only**, drawn with no fill. Each day has two independent parts: an
   **outline** when the product's **source** offers it that day (the API feeding products in —
@@ -143,8 +217,29 @@ Edits on a label page are **pending changes** until applied; nothing is written 
 - **Product cards and rows** carry no status marks beyond the refresh's New / Updated tag: no
   active check, channel state, or duplicate count. The day strip says how a product is used; the
   quick action is a plain outline `+` (Add to label).
+- **Item identity (direction; linking not built yet):** every product is a WAND item with its own
+  ID, and the WAND ID is always shown first ("ID 1362996575"). Items brought in from a source are
+  *linked* to the source item for their values — editing one will make a local value on the WAND
+  item, never change the source. Linked items show the source ID after the WAND ID with a gray
+  `Link2` icon; the product sheet says "Linked to source 13404.3" or "Not linked". Never show the
+  `CUSTOM-` prefix — it's internal. Use `wandId()` / `linkedSourceId()` / `matchesItemId()` in
+  `src/lib/labelDisplay.ts`. A mapping of source attributes to WAND fields is still to come.
+- **Editing linked products (approved 2026-11-15):** every product has Edit, in the same form as
+  custom products. For a linked product only the fields that differ from the source are saved, as
+  **local values** (`product_local_values`, keyed by MRN, jsonb of changed fields), laid over the
+  source when products load (`applyLocalValues()` in `src/lib/productValues.ts`; the source's own
+  values stay on `item.source`). The sync never touches them and the source is never changed.
+  In the form each changed field shows a gray **Local** tag and **Use source**; the sheet header
+  says "2 local values". Changing a linked product's **dayparts** changes where it's offered
+  (Available Items and Auto) on the days its source offers it. Days stay with the source.
 - **Products:** custom products (`CUSTOM-` MRN) are created and edited in the product sheet.
-  Webtrition products are read-only there — their data comes from the sync.
+  **Dayparts** are set on the product (multi-select, default **All dayparts**; `product_dayparts`,
+  keyed by MRN) — they decide which dayparts' Available Items list it. **Stations and days** are
+  never set on the product: they show where it's on labels that week (`labelUseByMrn()` in
+  `src/lib/weekSchedule.ts`; a label's station is its placement). Any product with no daypart is
+  offered at all of them and shows "All dayparts" (`productDayparts()` / `ALL_DAYPARTS` in
+  `src/lib/stations.ts`) — not the "All Day" daypart.
+  Linked products are edited there too, as local values (see above).
 - **Description** is one field: `enticingDescription || description`, shown and edited as one;
   saving writes back to the field it came from. **Display name** and description are the two
   rich text fields: plain text (Webtrition) or a small HTML subset from `RichTextEditor` —

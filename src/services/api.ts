@@ -1,4 +1,5 @@
-import { MenuItem, Device, Concept, Company, Store, Rule, Brand, DeviceGroup, DeviceWeekSchedule, DeviceScheduleItem } from '../types';
+import { MenuItem, Device, Concept, Company, Store, Rule, Brand, DeviceGroup, DeviceWeekSchedule, DeviceScheduleItem, DaySetting, ProductValues } from '../types';
+import { applyLocalValues } from '../lib/productValues';
 import { mockDevices, mockPlacements } from './mockData';
 import { supabase } from '../lib/supabase';
 
@@ -85,8 +86,39 @@ async function ensureScheduleRow(deviceId: string, target: ScheduleTarget): Prom
   return created?.id ?? null;
 }
 
-// Replaces all items on a schedule row.
-async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput[]): Promise<void> {
+// Day settings for these schedules. Missing (left empty) until their migration runs.
+async function attachDaySettings(schedules: DeviceWeekSchedule[]): Promise<DeviceWeekSchedule[]> {
+  if (schedules.length === 0) return schedules;
+  const { data, error } = await supabase
+    .from('label_day_settings')
+    .select('schedule_id, daypart, menu_item_mrn, day_of_week, state')
+    .in('schedule_id', schedules.map(s => s.id));
+  if (error) return schedules;
+  const bySchedule = new Map<string, DaySetting[]>();
+  for (const r of data || []) {
+    const list = bySchedule.get(r.schedule_id) ?? [];
+    list.push({ daypart: r.daypart, menuItemMrn: r.menu_item_mrn, dayOfWeek: r.day_of_week, state: r.state });
+    bySchedule.set(r.schedule_id, list);
+  }
+  return schedules.map(s => ({ ...s, daySettings: bySchedule.get(s.id) ?? [] }));
+}
+
+// Replaces a schedule row's day settings (copy, paste and recurring carry them with the items)
+async function replaceDaySettings(scheduleId: string, settings: DaySetting[]): Promise<void> {
+  const { error } = await supabase.from('label_day_settings').delete().eq('schedule_id', scheduleId);
+  if (error || settings.length === 0) return;
+  await supabase.from('label_day_settings').insert(settings.map(s => ({
+    schedule_id: scheduleId,
+    daypart: s.daypart,
+    menu_item_mrn: s.menuItemMrn,
+    day_of_week: s.dayOfWeek,
+    state: s.state,
+  })));
+}
+
+// Replaces all items on a schedule row, and its day settings with them.
+async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput[], settings: DaySetting[] = []): Promise<void> {
+  await replaceDaySettings(scheduleId, settings);
   await supabase.from('device_schedule_items').delete().eq('schedule_id', scheduleId);
   if (items.length > 0) {
     await supabase.from('device_schedule_items').insert(items.map(i => ({
@@ -120,6 +152,8 @@ export interface ProductInput {
   displayName?: string | null;
   // Comma-separated, like Webtrition's
   ingredients?: string;
+  // Dayparts it may be offered at; empty = all dayparts
+  dayparts?: string[];
   // Weekdays the product is offered (0 = Sunday); omit to leave days unset
   activeDays?: number[];
 }
@@ -141,6 +175,14 @@ async function saveDisplayName(mrn: string, displayName: string | null | undefin
     ? await supabase.from('product_display_names').upsert({ mrn, display_name: value, updated_at: new Date().toISOString() })
     : await supabase.from('product_display_names').delete().eq('mrn', mrn);
   if (error) throw new Error(`Saved, but the display name didn't save: ${error.message}`);
+}
+
+// Empty clears the row, which means all dayparts
+async function saveDayparts(mrn: string, dayparts: string[]) {
+  const { error } = dayparts.length
+    ? await supabase.from('product_dayparts').upsert({ mrn, dayparts, updated_at: new Date().toISOString() })
+    : await supabase.from('product_dayparts').delete().eq('mrn', mrn);
+  if (error) throw new Error(`Saved, but the dayparts didn't save: ${error.message}`);
 }
 
 async function setCustomDays(mrn: string, days: number[]) {
@@ -174,7 +216,7 @@ export const api = {
     }
 
     // Fetch meal periods and stations in parallel for name lookups
-    const [mpResult, stResult, avResult, dnResult] = await Promise.all([
+    const [mpResult, stResult, avResult, dnResult, dpResult, lvResult] = await Promise.all([
       supabase.from('meal_periods').select('id, name'),
       supabase.from('stations').select('id, name'),
       (async () => {
@@ -193,12 +235,18 @@ export const api = {
         return all;
       })(),
       supabase.from('product_display_names').select('mrn, display_name'),
+      supabase.from('product_dayparts').select('mrn, dayparts'),
+      supabase.from('product_local_values').select('mrn, local_values'),
     ]);
+    // Local values on linked products; missing until its migration runs
+    const localValues = new Map<string, Partial<ProductValues>>((lvResult.data || []).map((d: any) => [d.mrn, d.local_values || {}]));
 
     const mpMap = new Map((mpResult.data || []).map((mp: any) => [mp.id, mp.name]));
     const stMap = new Map((stResult.data || []).map((st: any) => [st.id, st.name]));
     // Missing until the display names migration runs; products then just have none
     const displayNames = new Map<string, string>((dnResult.data || []).map((d: any) => [d.mrn, d.display_name]));
+    // Custom products' dayparts (no row = all dayparts); missing until its migration runs
+    const customDayparts = new Map<string, string[]>((dpResult.data || []).map((d: any) => [d.mrn, d.dayparts || []]));
 
     // A weekday counts only if the product was seen on it recently; one odd day long
     // ago shouldn't make it available that day forever
@@ -213,16 +261,22 @@ export const api = {
       availabilityByMrn.get(av.mrn)!.push(av);
     });
 
-    return allData.map((item: any) => {
-      const mealPeriodIds: number[] = item.meal_period_ids || [];
-      const stationIds: number[] = item.station_ids || [];
+    const items: MenuItem[] = allData.map((item: any) => {
+      // Custom products have no daypart, station or days of their own; they come from the labels
+      // they're on (see labelUseByMrn). Ignore anything stored on older custom rows.
+      const custom = String(item.mrn || '').startsWith('CUSTOM-');
+      const mealPeriodIds: number[] = custom ? [] : item.meal_period_ids || [];
+      const stationIds: number[] = custom ? [] : item.station_ids || [];
 
-      const mealPeriodNames = mealPeriodIds.map(id => mpMap.get(id) || 'All Day');
+      // Custom products carry their own dayparts; an empty list means all dayparts
+      const mealPeriodNames = custom ? customDayparts.get(item.mrn) ?? [] : mealPeriodIds.map(id => mpMap.get(id) || 'All Day');
       const stationNames = stationIds.map(id => stMap.get(id) || 'Uncategorized');
 
-      const availability = availabilityByMrn.get(item.mrn) || [];
+      const availability = custom ? [] : availabilityByMrn.get(item.mrn) || [];
       const activeDays = [...new Set(availability.map((av: any) => av.day_of_week))].sort();
-      const activeMealPeriods = [...new Set(availability.map((av: any) => av.meal_period?.name).filter(Boolean))];
+      const activeMealPeriods = custom
+        ? mealPeriodNames
+        : [...new Set(availability.map((av: any) => av.meal_period?.name).filter(Boolean))];
       const availabilityDataFormatted = availability.map((av: any) => ({
         dayOfWeek: av.day_of_week,
         mealPeriod: av.meal_period?.name || '',
@@ -279,21 +333,37 @@ export const api = {
           : [],
         calories: item.calories || '0',
         mealPeriodId: mealPeriodIds[0] || 0,
-        mealStation: stationNames[0] || 'Uncategorized',
-        mealPeriod: mealPeriodNames[0] || 'All Day',
+        mealStation: custom ? '' : stationNames[0] || 'Uncategorized',
+        // No daypart means offered at all of them (shown as "All dayparts"), not the All Day daypart
+        mealPeriod: mealPeriodNames[0] || '',
         sortOrder: item.sort_order || 0,
         isActive: true,
         activeDays,
-        hasAvailability: hasAnyAvailability.has(item.mrn),
+        hasAvailability: !custom && hasAnyAvailability.has(item.mrn),
         activeMealPeriods,
         availabilityData: availabilityDataFormatted,
         isGrouped,
         dates: item.dates || [],
-        mealPeriods: isGrouped ? mealPeriodNames : undefined,
+        mealPeriods: isGrouped || custom ? mealPeriodNames : undefined,
         mealStations: isGrouped ? stationNames : undefined,
         occurrenceCount: item.occurrence_count || 1,
       };
     });
+    // Linked products: local values over the source's (custom products are edited in place)
+    return items.map(i => (String(i.mrn).startsWith('CUSTOM-') ? i : applyLocalValues(i, localValues.get(i.mrn))));
+  },
+
+  // Saves the local values of a product linked to a source: only the fields that differ from
+  // the source. Nothing changed means none (it follows the source). Throws on failure.
+  setLocalValues: async (mrn: string, local: Partial<ProductValues>): Promise<void> => {
+    const { error } = Object.keys(local).length
+      ? await supabase.from('product_local_values').upsert({ mrn, local_values: local, updated_at: new Date().toISOString() })
+      : await supabase.from('product_local_values').delete().eq('mrn', mrn);
+    if (error) {
+      throw new Error(/relation|does not exist|schema cache/i.test(error.message)
+        ? 'Apply the "product local values" migration in Supabase.'
+        : error.message);
+    }
   },
 
   // Saves a product created in the app. It's tagged 'converge-custom' (the only rows the app
@@ -329,6 +399,7 @@ export const api = {
     if (error) throw new Error(error.message);
     if (data.activeDays) await setCustomDays(`CUSTOM-${-id}`, data.activeDays);
     if (data.displayName?.trim()) await saveDisplayName(`CUSTOM-${-id}`, data.displayName);
+    if (data.dayparts?.length) await saveDayparts(`CUSTOM-${-id}`, data.dayparts);
     return id;
   },
 
@@ -367,6 +438,7 @@ export const api = {
     // Days come from labels now; only rewrite them when a caller passes days
     if (data.activeDays) await setCustomDays(mrn, data.activeDays);
     if (data.displayName !== undefined) await saveDisplayName(mrn, data.displayName);
+    if (data.dayparts !== undefined) await saveDayparts(mrn, data.dayparts);
   },
 
   // Devices
@@ -749,7 +821,7 @@ export const api = {
       .eq('week_start', weekStart)
       .eq('is_default', false);
     if (error) { console.error('Error fetching week schedules:', error); return []; }
-    return (data || []).map(mapScheduleRow);
+    return attachDaySettings((data || []).map(mapScheduleRow));
   },
 
   // Persistent per-device default week (week_start IS NULL, is_default = true)
@@ -762,7 +834,7 @@ export const api = {
       `)
       .eq('is_default', true);
     if (error) { console.error('Error fetching default schedules:', error); return []; }
-    return (data || []).map(mapScheduleRow);
+    return attachDaySettings((data || []).map(mapScheduleRow));
   },
 
   // All recurring override weeks, used to resolve which weeks a pattern repeats into
@@ -776,7 +848,7 @@ export const api = {
       .eq('is_recurring', true)
       .eq('is_default', false);
     if (error) { console.error('Error fetching recurring schedules:', error); return []; }
-    return (data || []).map(mapScheduleRow);
+    return attachDaySettings((data || []).map(mapScheduleRow));
   },
 
   // Distinct week_start values that have an explicit (non-default) override row.
@@ -812,7 +884,7 @@ export const api = {
         menuItemName: i.menuItemName,
         menuItemPrice: i.menuItemPrice,
         sortOrder: i.sortOrder,
-      })));
+      })), schedule.daySettings ?? []);
     }
     return true;
   },
@@ -834,7 +906,7 @@ export const api = {
         menuItemName: i.menuItemName,
         menuItemPrice: i.menuItemPrice,
         sortOrder: i.sortOrder,
-      })));
+      })), schedule.daySettings ?? []);
     }
     return true;
   },
@@ -897,7 +969,54 @@ export const api = {
       .eq('schedule_id', rowId)
       .eq('daypart', daypart)
       .eq('menu_item_mrn', mrn);
+    // Its day settings go with it
+    await supabase
+      .from('label_day_settings')
+      .delete()
+      .eq('schedule_id', rowId)
+      .eq('daypart', daypart)
+      .eq('menu_item_mrn', mrn);
     return true;
+  },
+
+  // Before the first edit to a week that has no schedule of its own (it shows the Default Week or
+  // a recurring one), copy what it shows into it, so the edit doesn't leave the week empty.
+  ensureWeekCopy: async (weekStart: string, deviceId: string, shown: DeviceWeekSchedule | undefined): Promise<void> => {
+    if (!shown) return;
+    const { data } = await supabase
+      .from('device_week_schedules')
+      .select('id')
+      .eq('device_id', deviceId)
+      .eq('is_default', false)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    if (data) return;
+    await api.pasteWeekSchedule(weekStart, [{ ...shown, deviceId }], null);
+  },
+
+  // Sets one item's week on a label page (Off / On per day; missing days are Auto)
+  setItemDaySettings: async (
+    target: ScheduleTarget,
+    deviceId: string,
+    daypart: string,
+    mrn: string,
+    days: Partial<Record<number, 'on' | 'off'>>,
+  ): Promise<void> => {
+    const rowId = await ensureScheduleRow(deviceId, target);
+    if (!rowId) throw new Error('Could not find the schedule to save day settings to');
+    const { error } = await supabase
+      .from('label_day_settings')
+      .delete()
+      .eq('schedule_id', rowId)
+      .eq('daypart', daypart)
+      .eq('menu_item_mrn', mrn);
+    if (error) throw new Error(`Day settings didn't save (has the label_day_settings migration run?): ${error.message}`);
+    const rows = Object.entries(days)
+      .filter(([, state]) => state === 'on' || state === 'off')
+      .map(([d, state]) => ({ schedule_id: rowId, daypart, menu_item_mrn: mrn, day_of_week: Number(d), state }));
+    if (rows.length === 0) return;
+    const { error: insertError } = await supabase.from('label_day_settings').insert(rows);
+    if (insertError) throw new Error(`Day settings didn't save: ${insertError.message}`);
   },
 
   // Marks a week as recurring every N weeks. Persists the given (resolved) items

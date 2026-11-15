@@ -402,7 +402,7 @@ export function FilterSidebar({
                   } else if (filter.type === 'menu_item_name') {
                     label = `Name: ${filter.selectedValues[0]}`;
                   } else if (filter.type === 'menu_item_mrn') {
-                    label = `MRN: ${filter.selectedValues[0]}`;
+                    label = `ID: ${filter.selectedValues[0]}`;
                   } else if (filter.type === 'date') {
                     if (filter.singleDate) {
                       label = new Date(filter.singleDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -629,7 +629,7 @@ export function FilterSidebar({
             {/* Menu Item MRN Section */}
             <div className="border-b border-gray-100 dark:border-gray-800">
               <SectionHeader
-                title="Item MRN"
+                title="Item ID"
                 icon={Hash}
                 sectionKey="menu_item_mrn"
                 hasActive={hasActiveFilter('menu_item_mrn')}
@@ -638,7 +638,7 @@ export function FilterSidebar({
                 <div className="pb-3 px-1">
                   <Input
                     type="text"
-                    placeholder="Enter MRN..."
+                    placeholder="ID or linked source ID..."
                     value={mrnSearch}
                     onChange={(e) => handleMrnChange(e.target.value)}
                     className="h-8 text-sm"

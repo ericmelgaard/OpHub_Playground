@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Send, Save, ChevronDown, ListChecks, Trash2, X, Loader2, CheckCircle2, AlertCircle, Moon } from 'lucide-react';
+import { Save, Trash2, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Device } from '../types';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
 import { daypartColor } from '../lib/daypartColors';
+import { SaveButton } from './SaveButton';
 import {
   PendingChange,
   PendingSummary,
@@ -24,67 +17,25 @@ import {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-// Send now when anything reaches the label today; Save when it's all for later
-function applyAction(summary: PendingSummary) {
-  return summary.anyLive
-    ? { label: 'Send now', icon: Send }
-    : { label: 'Save', icon: Save };
+// Always Save: how a change reaches the label (right away for today, the nightly update for
+// later days) is ours to handle, not something people choose or need to see
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function applyAction(_summary: PendingSummary) {
+  return { label: 'Save', icon: Save };
 }
 
-// Pending changes on one label: apply, review, or discard (label page header)
+// Pending changes on one label: Save, review, or discard (label page header)
 export function PendingChangesButton({ deviceId }: { deviceId: string }) {
   const summary = usePendingSummary([deviceId]);
-  if (summary.count === 0) return null;
-  const action = applyAction(summary);
-  const ActionIcon = summary.applying ? Loader2 : action.icon;
-
   return (
-    <div className="flex items-stretch">
-      <Button
-        size="sm"
-        onClick={() => applyPendingChanges([deviceId])}
-        disabled={summary.applying}
-        title={`${plural(summary.count, 'pending change')}. ${action.label} applies them.`}
-        className="rounded-r-none gap-1.5 px-2.5 sm:px-3"
-      >
-        <ActionIcon className={`h-4 w-4 ${summary.applying ? 'animate-spin' : ''}`} />
-        <span className="hidden sm:inline">{action.label}</span>
-        <span className="min-w-5 h-5 px-1.5 rounded-full bg-white/25 text-xs font-semibold tabular-nums flex items-center justify-center">
-          {summary.count}
-        </span>
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="sm"
-            disabled={summary.applying}
-            aria-label="Pending changes options"
-            className="rounded-l-none px-2 border-l border-white/30"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>{plural(summary.count, 'pending change')}</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => applyPendingChanges([deviceId])}>
-            <action.icon />
-            {action.label}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => openPendingSheet({ mode: 'review', deviceIds: [deviceId] })}>
-            <ListChecks />
-            Review changes
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => openPendingSheet({ mode: 'discard', deviceIds: [deviceId] })}
-            className="text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-900/30"
-          >
-            <Trash2 />
-            Discard changes
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <SaveButton
+      count={summary.count}
+      saving={summary.applying}
+      noun="pending change"
+      onSave={() => applyPendingChanges([deviceId])}
+      onReview={() => openPendingSheet({ mode: 'review', deviceIds: [deviceId] })}
+      onDiscard={() => openPendingSheet({ mode: 'discard', deviceIds: [deviceId] })}
+    />
   );
 }
 
@@ -128,9 +79,6 @@ export function PendingChangesBar({ openDeviceId }: { openDeviceId?: string }) {
     );
   }
 
-  const action = applyAction(summary);
-  const ActionIcon = summary.applying ? Loader2 : action.icon;
-
   return (
     <div className="fixed inset-x-4 bottom-4 z-50 flex justify-center pointer-events-none safe-area-bottom">
       <div className="refresh-sheet-in pointer-events-auto flex items-center gap-2 sm:gap-3 w-full max-w-xl pl-4 pr-2 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
@@ -139,25 +87,14 @@ export function PendingChangesBar({ openDeviceId }: { openDeviceId?: string }) {
           <span className="font-semibold">{plural(summary.count, 'pending change')}</span>
           <span className="text-gray-500 dark:text-gray-400"> · {plural(summary.labelCount, 'label')}</span>
         </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => openPendingSheet({ mode: 'review' })}
-          disabled={summary.applying}
-          className="gap-1.5 text-gray-600 dark:text-gray-300"
-        >
-          <ListChecks className="h-4 w-4" />
-          <span className="hidden sm:inline">Review</span>
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => applyPendingChanges()}
-          disabled={summary.applying}
-          className="gap-1.5"
-        >
-          <ActionIcon className={`h-4 w-4 ${summary.applying ? 'animate-spin' : ''}`} />
-          {action.label}
-        </Button>
+        <SaveButton
+          count={summary.count}
+          saving={summary.applying}
+          noun="pending change"
+          onSave={() => applyPendingChanges()}
+          onReview={() => openPendingSheet({ mode: 'review' })}
+          onDiscard={() => openPendingSheet({ mode: 'discard' })}
+        />
       </div>
     </div>
   );
@@ -304,23 +241,12 @@ export function PendingChangesSheet({ devices, leaving }: PendingChangesSheetPro
   );
 }
 
-// Where a change goes when applied
+// Which week a change is for (when it isn't this week's label as shown)
 function WhenTag({ change }: { change: PendingChange }) {
-  return change.live ? (
-    <span
-      title="Affects what the label shows today, so it's sent right away"
-      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800"
-    >
-      <Send className="h-3 w-3" />
-      Now
-    </span>
-  ) : (
-    <span
-      title={`${change.context ? `${change.context}: ` : ''}saved and sent with the nightly update`}
-      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 bg-gray-50 dark:bg-gray-900/30 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
-    >
-      <Moon className="h-3 w-3" />
-      Tonight
+  if (!change.context) return null;
+  return (
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border flex-shrink-0 bg-gray-50 dark:bg-gray-900/30 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700">
+      {change.context}
     </span>
   );
 }
