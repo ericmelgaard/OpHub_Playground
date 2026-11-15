@@ -67,9 +67,11 @@ export function autoFillCandidates(
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 }
 
-export const ALL_DAYPARTS = 'All dayparts';
+// Older custom products with no dayparts stored are offered at each one; shown as this.
+// (Not a daypart, and not the label page's "All dayparts" view.)
+export const ALL_DAYPARTS = 'Every daypart';
 
-// The dayparts a product may be offered at; empty means all dayparts (shown as ALL_DAYPARTS)
+// The dayparts a product may be offered at; empty (older custom products) means every daypart
 export function productDayparts(item: MenuItem): string[] {
   return item.mealPeriods?.length ? item.mealPeriods : item.mealPeriod ? [item.mealPeriod] : [];
 }

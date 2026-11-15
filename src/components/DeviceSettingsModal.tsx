@@ -25,7 +25,7 @@ import type { DisplayToggle } from './InlineItemPicker';
 import { ThreeStageToggle, SomeDaysTag } from './DayToggle';
 import { AllDaypartsEditor } from './AllDaypartsEditor';
 import { LabelAnchor } from './LabelAnchor';
-import { getShownItems, isBaseOffered, isOfferedOnDay, isOfferedEveryDay, isCustomItem, offeredDays, toggleFor, labelName, followsSource, LabelDayOverrides, ItemDayOverrides } from '../lib/labelDisplay';
+import { getShownItems, isBaseOffered, isOfferedOnDay, isOfferedEveryDay, isCustomItem, offeredDays, toggleFor, labelName, followsSource, followsLabel, localDaypartSource, LabelDayOverrides, ItemDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
 import { AutoFillPage, autoFillCandidates, inStations, servesDaypart, stationKey, stationOptions } from '../lib/stations';
 import { StationFilter, AutoFillPicker, DaypartFilter, type DaypartOption } from './StationPicker';
@@ -179,7 +179,7 @@ export function DeviceSettingsModal({
 
   // Station key, or null for all stations
   const [stationFilter, setStationFilter] = useState<string | null>(null);
-  // Daypart whose products Available Items lists: null = the page's own, '' = all dayparts
+  // Source daypart Available Items lists; null = the page's default (see browseDp)
   const [browseDaypart, setBrowseDaypart] = useState<string | null>(null);
   useEffect(() => { setBrowseDaypart(null); }, [activeDaypart]);
   // Every daypart in the product data (the source may use ones labels don't, like Brunch)
@@ -291,6 +291,8 @@ export function DeviceSettingsModal({
       const added = selectedDay === 'every-day' || d === selectedDay;
       if (!added) days[d] = 'off';
       else if (noDaysHere) days[d] = 'on';
+      // Added on a day its source doesn't offer ("Add anyway"): On, or Auto would hide it
+      else if (selectedDay !== 'every-day' && !isBaseOffered(item, pageDaypart, d)) days[d] = 'on';
     }
     if (Object.keys(days).length === 0) return;
     const summary = selectedDay === 'every-day'
@@ -364,12 +366,19 @@ export function DeviceSettingsModal({
   // Station filtering is off while the page auto-fills from stations
   const effectiveStationFilter = pageAutoFill ? null : stationFilter;
 
-  // Daypart Available Items lists ('' = all); the page's own unless another one is picked
-  // An All Day / Custom page takes products from any daypart, so its own list is all dayparts
-  const pageBrowseDp = activeDaypart === 'All Day' || activeDaypart === 'Custom' ? '' : activeDaypart ?? '';
-  const browseDp = browseDaypart ?? pageBrowseDp;
-  // Adding while another source daypart is picked links the item to it (follows its days)
-  const browseFollow = browseDp && browseDp !== pageBrowseDp ? browseDp : undefined;
+  // The dayparts Available Items can list: the source's (and custom products' own), plus the
+  // page's daypart while custom products are offered there (a Dinner page with no Dinner source)
+  const browseDayparts = useMemo(() => {
+    const page = activeDaypart ?? '';
+    const customHere = !!page && menuItems.some(i => isCustomItem(i) && servesDaypart(i, page));
+    return customHere && !dataDayparts.includes(page) ? sortDayparts(new Set([...dataDayparts, page])) : dataDayparts;
+  }, [dataDayparts, menuItems, activeDaypart]);
+  // Available Items always lists one daypart, and what's added follows that daypart's days.
+  // It opens on the page's daypart when there is one to list; otherwise nothing is picked.
+  const pageBrowseDp = activeDaypart && browseDayparts.includes(activeDaypart) ? activeDaypart : null;
+  const browseDp: string | null = browseDaypart ?? pageBrowseDp;
+  // Adding from another daypart links the item to it (follows its days)
+  const browseFollow = browseDp && browseDp !== activeDaypart ? browseDp : undefined;
   // Product offered on the selected day (any day this week in Every day) in a daypart ('' = any).
   // Custom products have no days of their own: they're available wherever their dayparts allow,
   // and adding one turns it On for the day being edited
@@ -383,14 +392,32 @@ export function DeviceSettingsModal({
     const asFollowed = dp ? { ...item, followsDaypart: dp } : item;
     return dayNum === null ? offeredDays(asFollowed, dp).length > 0 : isBaseOffered(asFollowed, dp, dayNum);
   };
-  const offeredHere = (item: MenuItem) => offeredIn(item, browseDp);
+  const offeredHere = (item: MenuItem) => !!browseDp && offeredIn(item, browseDp);
+  // Belongs to a daypart, on any day: its Not available list holds the days it isn't offered
+  const inDaypart = (item: MenuItem, dp: string) => {
+    if (isCustomItem(item)) return offeredIn(item, dp);
+    const dps = itemDayparts(item);
+    return dps.length === 0 || dps.includes(dp);
+  };
   const daypartFilterOptions: DaypartOption[] = currentPage
     ? [
-        ...[...new Set([...dataDayparts, ...(browseDp ? [browseDp] : [])])].map(dp => ({
+        ...browseDayparts.map(dp => ({
           value: dp, label: dp, count: menuItems.filter(i => !assignedIds.has(i.id) && offeredIn(i, dp)).length,
         })),
-        { value: '', label: 'All dayparts', count: menuItems.filter(i => !assignedIds.has(i.id) && offeredIn(i, '')).length },
       ]
+    : [];
+
+  // A search that finds more in other dayparts says so ("2 more in Breakfast"); tap to switch
+  const moreInOtherDayparts = currentPage && searchValue.trim()
+    ? daypartFilterOptions
+        .filter(o => o.value !== browseDp)
+        .map(o => {
+          const q = searchValue.toLowerCase();
+          const count = menuItems.filter(i => !assignedIds.has(i.id) && offeredIn(i, o.value)
+            && (i.name.toLowerCase().includes(q) || plainText(i.description).toLowerCase().includes(q))).length;
+          return { daypart: o.value, count };
+        })
+        .filter(o => o.count > 0)
     : [];
 
   const stationFilterOptions = currentPage
@@ -437,11 +464,17 @@ export function DeviceSettingsModal({
     });
     // Up top or Not available is decided by the source (its days and dayparts), or for an item
     // without a source by its dayparts alone (a blank slate) — never by this week's label settings
+    // Items on the page are judged by the daypart they follow there; the rest by the daypart
+    // picked. Not available holds that daypart's items on days it isn't offered, not every product.
     const avail: MenuItem[] = [];
     const notAvail: MenuItem[] = [];
     for (const item of filtered) {
-      if (offeredHere(item)) avail.push(item);
-      else notAvail.push(item);
+      const copy = currentPage.assignedItems.find(i => i.id === item.id);
+      if (copy) {
+        if (isCustomItem(copy) || (dayNum !== null && isBaseOffered(copy, currentPage.daypart, dayNum))) avail.push(item);
+        else notAvail.push(item);
+      } else if (offeredHere(item)) avail.push(item);
+      else if (browseDp && inDaypart(item, browseDp)) notAvail.push(item);
     }
     avail.sort((a, b) => a.name.localeCompare(b.name));
     notAvail.sort((a, b) => a.name.localeCompare(b.name));
@@ -653,12 +686,12 @@ export function DeviceSettingsModal({
                                                   }`}><LabelName item={item} /></span>
                                                   {hasSub && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Has substitution on another day" />}
                                                   {someDays && <SomeDaysTag />}
-                                                  {baseItem.followsDaypart && (
+                                                  {followsLabel(baseItem, currentPage.daypart) && (
                                                     <span
-                                                      title={`Shows on the days its source offers it at ${baseItem.followsDaypart}`}
+                                                      title={`Shows on the days its source offers it at ${followsLabel(baseItem, currentPage.daypart)}`}
                                                       className="inline-flex items-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
                                                     >
-                                                      Follows {baseItem.followsDaypart}
+                                                      Follows {followsLabel(baseItem, currentPage.daypart)}
                                                     </span>
                                                   )}
                                                   {autoFillIds.has(originalId) && (
@@ -821,7 +854,6 @@ export function DeviceSettingsModal({
                       <DaypartFilter
                         options={daypartFilterOptions}
                         value={browseDp}
-                        pageValue={pageBrowseDp}
                         pageDaypart={currentPage.daypart}
                         onChange={v => setBrowseDaypart(v)}
                         triggerClassName={filterChipClass(true)}
@@ -848,11 +880,29 @@ export function DeviceSettingsModal({
                           snap.isDraggingOver ? 'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-400 ring-inset' : ''
                         }`}
                       >
-                        {availableItems.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center h-20 text-xs text-gray-400 gap-1">
-                            <span>No items available</span>
-                            {assignedIds.size > 0 && <span className="text-[10px]">Drag assigned items here to unassign</span>}
+                        {!browseDp && (
+                          // Nothing to list by default (no source daypart for this page): pick one
+                          <div className="px-3 py-4 flex flex-col items-center gap-2 text-center">
+                            <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Pick a daypart to add from</p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">Items you add follow that daypart's days.</p>
+                            <div className="flex flex-wrap justify-center gap-1.5">
+                              {daypartFilterOptions.map(o => (
+                                <Button key={o.value} variant="outline" size="sm" onClick={() => setBrowseDaypart(o.value)} className="h-8 gap-1.5">
+                                  <span className={`h-2 w-2 rounded-full ${daypartColor(o.value).solid}`} />
+                                  {o.label}
+                                  <span className="text-[10px] text-gray-400 tabular-nums">{o.count}</span>
+                                </Button>
+                              ))}
+                            </div>
                           </div>
+                        )}
+                        {availableItems.length === 0 ? (
+                          browseDp ? (
+                            <div className="flex flex-col items-center justify-center h-20 text-xs text-gray-400 gap-1">
+                              <span>No items available</span>
+                              {assignedIds.size > 0 && <span className="text-[10px]">Drag assigned items here to unassign</span>}
+                            </div>
+                          ) : null
                         ) : (
                           <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
                             {availableItems.map((item, idx) => (
@@ -870,6 +920,11 @@ export function DeviceSettingsModal({
                                       <p className="text-xs font-medium truncate text-gray-900 dark:text-white">{item.name}</p>
                                       <div className="flex items-center gap-1.5 text-[10px] text-gray-400 mb-0.5">
                                         <span className="flex-shrink-0">{item.mealStation}</span>
+                                        {browseDp && localDaypartSource(item, browseDp) && (
+                                          <span className="flex-shrink-0" title={`${browseDp} was added here; it uses the source's days`}>
+                                            · follows {localDaypartSource(item, browseDp)!.join(', ')}
+                                          </span>
+                                        )}
                                         {item.isGrouped && item.occurrenceCount && (
                                           <span className="text-sky-500 font-medium flex-shrink-0">{item.occurrenceCount}x</span>
                                         )}
@@ -880,7 +935,7 @@ export function DeviceSettingsModal({
                                           <DayPills item={currentPage.assignedItems.find(i => i.id === item.id) ?? item} daypart={currentPage.daypart} overrides={itemDisplayToggles[currentPage.id]?.[item.id]} selectedDay={selectedDay} />
                                         </>
                                       ) : (
-                                        <DayPills item={item} daypart={browseDp} selectedDay={selectedDay} />
+                                        <DayPills item={item} daypart={browseDp ?? ""} selectedDay={selectedDay} />
                                       )}
                                     </div>
                                     <span className="text-xs font-semibold flex-shrink-0 text-gray-700 dark:text-gray-300 ml-2">${item.price}</span>
@@ -901,6 +956,20 @@ export function DeviceSettingsModal({
                                   </div>
                                 )}
                               </Draggable>
+                            ))}
+                          </div>
+                        )}
+                        {moreInOtherDayparts.length > 0 && (
+                          <div className="px-3 py-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-gray-100 dark:border-gray-700/50">
+                            {moreInOtherDayparts.map(o => (
+                              <button
+                                key={o.daypart}
+                                type="button"
+                                onClick={() => setBrowseDaypart(o.daypart)}
+                                className="text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                              >
+                                {o.count} more in {o.daypart}
+                              </button>
                             ))}
                           </div>
                         )}
@@ -936,7 +1005,7 @@ export function DeviceSettingsModal({
                                 </div>
                                 {assignedIds.has(item.id)
                                   ? <DayPills item={currentPage.assignedItems.find(i => i.id === item.id) ?? item} daypart={currentPage.daypart} overrides={itemDisplayToggles[currentPage.id]?.[item.id]} selectedDay={selectedDay} />
-                                  : <DayPills item={item} daypart={browseDp} selectedDay={selectedDay} />}
+                                  : <DayPills item={item} daypart={browseDp ?? ""} selectedDay={selectedDay} />}
                               </div>
                               <button
                                 onClick={() => {

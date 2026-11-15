@@ -42,6 +42,20 @@ function servesDaypart(item: MenuItem, daypart: string): boolean {
 // The source daypart an item on a page follows: the one it was added from, else the page's
 export const followedDaypart = (item: MenuItem, pageDaypart: string) => item.followsDaypart || pageDaypart;
 
+// A daypart set here on a linked product (a local value, like Dinner on a Lunch product) has no
+// days of its own: it uses the source's. Returns those source dayparts, else null.
+export function localDaypartSource(item: MenuItem, daypart: string): string[] | null {
+  const per = item.daysByDaypart;
+  if (isCustomItem(item) || !per || Object.keys(per).length === 0 || per[daypart]) return null;
+  if (!item.activeMealPeriods?.includes(daypart)) return null;
+  return Object.keys(per).sort();
+}
+
+// What a page's item follows, for its "Follows …" tag: the daypart it was added from, or the
+// source dayparts behind a local daypart; null when it follows the page's own daypart
+export const followsLabel = (item: MenuItem, pageDaypart: string): string | null =>
+  item.followsDaypart || localDaypartSource(item, pageDaypart)?.join(', ') || null;
+
 // Has days to follow on this page (Auto): linked to a source and offered in the daypart it
 // follows. Custom products and products from another daypart added without a link are Off / On.
 export const followsSource = (item: MenuItem, pageDaypart: string) =>

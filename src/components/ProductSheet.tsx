@@ -43,6 +43,16 @@ interface ProductSheetProps {
   onSaveDisplayName: (item: MenuItem, displayName: string) => Promise<void>;
 }
 
+// Dayparts a product can be offered at: WAND's dayparts plus any the data uses (the source may
+// send ones labels don't, like Brunch). All Day isn't a choice: an All Day page takes any product.
+const WAND_DAYPARTS = ['Breakfast', 'Lunch', 'Dinner', 'Late Night'];
+function daypartChoices(menuItems: MenuItem[], item?: MenuItem | null): string[] {
+  const seen = new Set<string>([...WAND_DAYPARTS, ...(item ? productDayparts(item) : [])]);
+  menuItems.forEach(i => productDayparts(i).forEach(p => seen.add(p)));
+  seen.delete('All Day');
+  return sortDayparts(seen);
+}
+
 const NUTRIENTS = [
   { key: 'protein', label: 'Protein' },
   { key: 'carbohydrates', label: 'Carbs' },
@@ -332,8 +342,13 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
   const [ingredients, setIngredients] = useState<string[]>(parseIngredients(item?.ingredients));
   // Linked to a source: the source's values, to mark what's changed here (local)
   const source: ProductValues | null = item && !isCustomItem(item) ? item.source ?? valuesOf(item) : null;
-  // Empty = all dayparts
-  const [dayparts, setDayparts] = useState<Set<string>>(new Set(item ? (source ? valuesOf(item).dayparts : productDayparts(item)) : []));
+  // Custom products tick each daypart they're offered at ("All" ticks every one); older ones with
+  // none stored are offered at every daypart, so they open with every box ticked
+  const [dayparts, setDayparts] = useState<Set<string>>(() => {
+    if (item && source) return new Set(valuesOf(item).dayparts);
+    const own = item ? productDayparts(item) : [];
+    return new Set(own.length > 0 ? own : daypartChoices(menuItems, item));
+  });
   const [icons, setIcons] = useState<Set<string>>(new Set(item?.iconImages?.map(i => i.name) ?? []));
   const [allergens, setAllergens] = useState<Set<string>>(new Set(splitAllergens(item?.allergens)));
   const [nutrition, setNutrition] = useState<Record<NutrientKey, string>>(() => ({
@@ -354,13 +369,9 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
     menuItems.forEach(i => i.iconImages?.forEach(icon => { if (!byName.has(icon.name)) byName.set(icon.name, icon); }));
     return [...byName.values()].sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0));
   }, [menuItems]);
-  // Dayparts in the data. All Day isn't offered as a choice: an All Day page already shows everything
-  const daypartOptions = useMemo(() => {
-    const seen = new Set<string>(productDayparts(item ?? ({} as MenuItem)));
-    menuItems.forEach(i => productDayparts(i).forEach(p => seen.add(p)));
-    seen.delete('All Day');
-    return sortDayparts(seen);
-  }, [menuItems, item]);
+  const daypartOptions = useMemo(() => daypartChoices(menuItems, item), [menuItems, item]);
+  const allDayparts = daypartOptions.every(p => dayparts.has(p));
+  const noDaypart = !source && dayparts.size === 0;
   const ingredientOptions = useMemo(() => {
     const byKey = new Map<string, string>();
     menuItems.forEach(i => parseIngredients(i.ingredients).forEach(g => { if (!byKey.has(g.toLowerCase())) byKey.set(g.toLowerCase(), g); }));
@@ -453,7 +464,7 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
 
   const handleSave = async () => {
     setTriedSave(true);
-    if (nameMissing || (item && changeCount === 0)) return;
+    if (nameMissing || noDaypart || (item && changeCount === 0)) return;
     setSaving(true);
     setError(null);
     const cal = calories.trim() || '0';
@@ -550,17 +561,18 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
         {/* Dayparts it may be offered at; stations and days come from labels */}
         <Section icon={Clock} title="Dayparts" aside={localMark('dayparts')}>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Dayparts">
+            {/* Ticks every daypart (or clears them all); not a daypart of its own */}
             <button
               type="button"
-              aria-pressed={dayparts.size === 0}
-              onClick={() => setDayparts(new Set())}
+              aria-pressed={allDayparts}
+              onClick={() => setDayparts(new Set(allDayparts ? [] : daypartOptions))}
               className={`h-9 px-3 rounded-full border text-sm font-medium transition-colors ${
-                dayparts.size === 0
+                allDayparts
                   ? 'bg-sky-50 dark:bg-sky-900/30 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300'
                   : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
-              {ALL_DAYPARTS}
+              All
             </button>
             {daypartOptions.map(p => {
               const on = dayparts.has(p);
@@ -585,9 +597,14 @@ function ProductForm({ item, menuItems, onCancel, onSave }: {
                 ? 'Offered at every daypart on the days its source offers it.'
                 : `Offered at ${sortDayparts(dayparts).join(', ')} on the days its source offers it.`)
               : dayparts.size === 0
-              ? 'Can be added at any daypart. Stations and days come from the labels it\'s added to.'
-              : `Can be added at ${sortDayparts(dayparts).join(', ')}. Stations and days come from the labels it's added to.`}
+              ? null
+              : `Can be added at ${allDayparts ? 'every daypart' : sortDayparts(dayparts).join(', ')}. Stations and days come from the labels it's added to.`}
           </p>
+          {noDaypart && (
+            <p className={`text-xs ${triedSave ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+              Pick at least one daypart
+            </p>
+          )}
         </Section>
 
         {/* Ingredients */}

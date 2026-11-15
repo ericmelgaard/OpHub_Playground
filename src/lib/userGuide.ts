@@ -29,6 +29,20 @@ export interface GuideSection {
 
 export const GUIDE_UPDATES: GuideUpdate[] = [
   {
+    id: '2026-11-15-pick-daypart',
+    date: '2026-11-15',
+    title: 'Pick the daypart to add from',
+    text: 'Available Items always lists one daypart, and items you add follow its days. Searching shows "2 more in Breakfast" when other dayparts have matches. Tap it to switch.',
+    section: 'items',
+  },
+  {
+    id: '2026-11-15-custom-dayparts',
+    date: '2026-11-15',
+    title: 'Pick a custom product\'s dayparts',
+    text: 'Tick each daypart a custom product is offered at. "All" ticks every one.',
+    section: 'products',
+  },
+  {
     id: '2026-11-15-follows-daypart',
     date: '2026-11-15',
     title: 'Items from another daypart keep their days',
@@ -111,7 +125,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     icon: 'items',
     entries: [
       { term: 'Add items', text: 'Find the item in Available Items and tap +. Search by name, or narrow by Station and daypart.' },
-      { term: 'Other dayparts', text: 'Use the daypart dropdown to see items from another daypart, like Brunch, while you work on Lunch. Items you add from there follow that daypart\'s days and are marked "Follows Brunch".' },
+      { term: 'Pick a daypart', text: 'Available Items lists one daypart at a time. It starts on the page\'s daypart. Pick another, like Brunch, to add its items to this page. They follow that daypart\'s days and are marked "Follows Brunch".' },
+      { term: 'Can\'t find it?', text: 'If your search matches items in other dayparts, "2 more in Breakfast" shows under the list. Tap it to switch.' },
       { term: 'Order', text: 'Drag items to set their order. When the label is full, the items at the top show first.' },
       { term: 'Remove', text: 'Removing an item takes it off that page for the whole week.' },
     ],
@@ -188,7 +203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       { term: 'Usage filter', text: 'In Filters, Usage finds products that are on labels or not in use.' },
       { term: 'Custom products', text: 'Create and edit them from the product sheet.' },
       { term: 'Editing products from a source', text: 'Tap Edit in the product sheet. Your changes are kept here and the source isn\'t changed. Changed fields are marked "Local"; tap "Use source" to go back to the source\'s value.' },
-      { term: 'Dayparts', text: 'Set which dayparts a custom product is offered at. That decides where it appears in Available Items.' },
+      { term: 'Dayparts', text: 'Tick each daypart a custom product is offered at ("All" ticks every one). That decides where it appears in Available Items.' },
       { term: 'Display name', text: 'A product can have a display name for labels. Lists and search use its own name.' },
     ],
   },

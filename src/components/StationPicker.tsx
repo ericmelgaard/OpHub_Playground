@@ -256,18 +256,17 @@ export interface DaypartOption {
 
 // Which daypart's products Available Items lists. Starts on the page's daypart; another one
 // (the source's "Brunch" while working on Lunch) is a deliberate choice
-export function DaypartFilter({ options, value, pageValue, pageDaypart, onChange, triggerClassName }: {
+export function DaypartFilter({ options, value, pageDaypart, onChange, triggerClassName }: {
   options: DaypartOption[];
-  value: string;
-  // The option that is this page's own list ('' on an All Day page)
-  pageValue: string;
+  // The daypart listed; null = none picked yet
+  value: string | null;
   pageDaypart: string;
   onChange: (value: string) => void;
   triggerClassName: string;
 }) {
   const [open, setOpen] = useState(false);
   const current = options.find(o => o.value === value);
-  const label = value === pageValue ? pageDaypart : value === '' ? 'All dayparts' : `From ${current?.label ?? value}`;
+  const label = value === null ? 'Pick a daypart' : value === pageDaypart ? pageDaypart : `From ${current?.label ?? value}`;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -285,7 +284,7 @@ export function DaypartFilter({ options, value, pageValue, pageDaypart, onChange
           {options.map(o => (
             <StationRow
               key={o.value || 'all'}
-              label={o.value === pageValue ? `${o.label} (this page)` : o.label}
+              label={o.value === pageDaypart ? `${o.label} (this page)` : o.label}
               count={o.count}
               selected={o.value === value}
               multiple={false}
