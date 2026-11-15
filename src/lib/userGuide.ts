@@ -111,7 +111,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     icon: 'items',
     entries: [
       { term: 'Add items', text: 'Find the item in Available Items and tap +. Search by name, or narrow by Station and daypart.' },
-      { term: 'Other dayparts', text: 'Use the daypart dropdown to see items from another daypart, like Brunch, while you work on Lunch. Items you add from there follow that daypart's days and are marked "Follows Brunch".' },
+      { term: 'Other dayparts', text: 'Use the daypart dropdown to see items from another daypart, like Brunch, while you work on Lunch. Items you add from there follow that daypart\'s days and are marked "Follows Brunch".' },
       { term: 'Order', text: 'Drag items to set their order. When the label is full, the items at the top show first.' },
       { term: 'Remove', text: 'Removing an item takes it off that page for the whole week.' },
     ],
