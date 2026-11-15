@@ -39,6 +39,8 @@ jobs:
         run: supabase link --project-ref "$PROJECT_REF"
 
       - name: Check pending migrations
+        # bash (not the default sh -e) turns on pipefail, so a failing dry run isn't hidden by tee
+        shell: bash
         run: |
           supabase db push --dry-run | tee dry-run.txt
           pending=$(grep -oE '[0-9]{14}_[A-Za-z0-9_]+\.sql' dry-run.txt | sort -u || true)
