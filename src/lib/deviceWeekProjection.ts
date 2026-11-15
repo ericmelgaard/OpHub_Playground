@@ -18,10 +18,13 @@ export function projectScheduleOntoDevice(
 
   // Ordered, de-duplicated MRNs per daypart from the schedule.
   const mrnsByDaypart = new Map<string, string[]>();
+  // Daypart|MRN → the source daypart the item follows there (when not the page's own)
+  const follows = new Map<string, string>();
   const sorted = [...(schedule?.items ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
   for (const si of sorted) {
     const list = mrnsByDaypart.get(si.daypart) ?? [];
     if (!list.includes(si.menuItemMrn)) list.push(si.menuItemMrn);
+    if (si.followsDaypart) follows.set(`${si.daypart}|${si.menuItemMrn}`, si.followsDaypart);
     mrnsByDaypart.set(si.daypart, list);
   }
 
@@ -31,7 +34,12 @@ export function projectScheduleOntoDevice(
     const items = mrns
       .map(mrn => byMrn.get(mrn))
       .filter((i): i is MenuItem => Boolean(i));
-    page.assignedItems = items.map(i => JSON.parse(JSON.stringify(i)));
+    page.assignedItems = items.map(i => {
+      const copy: MenuItem = JSON.parse(JSON.stringify(i));
+      const f = follows.get(`${page.daypart}|${i.mrn}`);
+      if (f) copy.followsDaypart = f;
+      return copy;
+    });
     page.itemOrder = items.map(i => i.id);
     for (const i of items) usedItems.set(i.id, i);
   }

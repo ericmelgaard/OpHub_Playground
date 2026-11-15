@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
 import {
-  getShownItems, isBaseOffered, isCustomItem, isItemOfferedOn, isOfferedEveryDay, isOfferedOnDay, offeredDays, toggleFor, labelName,
+  getShownItems, isBaseOffered, isCustomItem, isItemOfferedOn, isOfferedEveryDay, isOfferedOnDay, offeredDays, toggleFor, labelName, followsSource,
   type LabelDayOverrides,
 } from '../lib/labelDisplay';
 import { servesDaypart } from '../lib/stations';
@@ -64,6 +64,9 @@ export function AllDaypartsEditor({
     p.id, new Set(getShownItems(p, dayNum, toggles[p.id], substitutionMap).map(r => r.originalItemId)),
   ])), [pages, dayNum, toggles, substitutionMap]);
 
+  // The item as it is on a page: each page's copy knows the daypart it follows there
+  const onPage = (p: DevicePage, item: MenuItem) => p.assignedItems.find(i => i.id === item.id) ?? item;
+
   // One row per item, in daypart order then each item's place in its first daypart
   const { rows, notAvailable } = useMemo(() => {
     const byId = new Map<number, Row>();
@@ -81,7 +84,7 @@ export function AllDaypartsEditor({
     // For one day: items offered that day in any of its dayparts (or just turned off here, so it can be undone)
     const offered = (r: Row) => r.pages.some(p => {
       const o = toggles[p.id]?.[r.item.id];
-      return isOfferedOnDay(r.item, p.daypart, dayNum, o) || (o?.[dayNum] === 'off' && justTurnedOff.has(r.item.id));
+      return isOfferedOnDay(onPage(p, r.item), p.daypart, dayNum, o) || (o?.[dayNum] === 'off' && justTurnedOff.has(r.item.id));
     });
     return { rows: all.filter(offered), notAvailable: all.filter(r => !offered(r)) };
   }, [pages, dayNum, toggles, justTurnedOff]);
@@ -95,7 +98,7 @@ export function AllDaypartsEditor({
   // On a single day: dayparts already holding the item where it isn't showing that day.
   // Adding it again turns the day on there.
   const againFor = (item: MenuItem) => dayNum === null ? [] : pages.filter(p =>
-    p.assignedItems.some(i => i.id === item.id) && !isOfferedOnDay(item, p.daypart, dayNum, toggles[p.id]?.[item.id]));
+    p.assignedItems.some(i => i.id === item.id) && !isOfferedOnDay(onPage(p, item), p.daypart, dayNum, toggles[p.id]?.[item.id]));
 
   const available = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -104,7 +107,7 @@ export function AllDaypartsEditor({
         if (q && !item.name.toLowerCase().includes(q) && !plainText(item.description).toLowerCase().includes(q)) return false;
         // Same source rule for items already on the label: up top only if the source offers it
         // that day in one of those dayparts (items without a source: always)
-        if (againFor(item).some(p => isCustomItem(item) || isBaseOffered(item, p.daypart, dayNum!))) return true;
+        if (againFor(item).some(p => isCustomItem(item) || isBaseOffered(onPage(p, item), p.daypart, dayNum!))) return true;
         const targets = targetsFor(item);
         if (targets.length === 0) return false;
         // Custom products have no days of their own; adding turns them on for the day in scope
@@ -120,21 +123,21 @@ export function AllDaypartsEditor({
   const addTo = (item: MenuItem, targets: DevicePage[], again: DevicePage[]) => {
     targets.forEach(p => onAdd?.(item, p.id));
     if (dayNum === null || !canToggle) return;
-    again.forEach(p => onToggle!(p.id, item.id, !isCustomItem(item) && isBaseOffered(item, p.daypart, dayNum) ? 'auto' : 'on'));
+    again.forEach(p => onToggle!(p.id, item.id, !isCustomItem(item) && isBaseOffered(onPage(p, item), p.daypart, dayNum) ? 'auto' : 'on'));
   };
 
   const rowState = (r: Row) => {
     // Days to follow on a page: linked to a source and offered in that daypart
-    const follows = (p: DevicePage) => !isCustomItem(r.item) && servesDaypart(r.item, p.daypart);
+    const follows = (p: DevicePage) => followsSource(onPage(p, r.item), p.daypart);
     const linked = r.pages.every(follows);
     const states = new Set(r.pages.map(p => toggleFor(toggles[p.id]?.[r.item.id], dayNum, follows(p))));
     const toggle: DisplayToggle | 'mixed' = states.size === 1 ? [...states][0] : 'mixed';
     const showingIn = r.pages.filter(p => shownByPage.get(p.id)?.has(r.item.id));
     const waitingIn = r.pages.filter(p =>
-      !shownByPage.get(p.id)?.has(r.item.id) && isItemOfferedOn(r.item, p.daypart, dayNum, toggles[p.id]?.[r.item.id]));
+      !shownByPage.get(p.id)?.has(r.item.id) && isItemOfferedOn(onPage(p, r.item), p.daypart, dayNum, toggles[p.id]?.[r.item.id]));
     // In Every day: on some days only in every daypart it's on, so not in any everyday preview
     const someDays = dayNum === null && toggle !== 'off'
-      && !r.pages.some(p => isOfferedEveryDay(r.item, p.daypart, toggles[p.id]?.[r.item.id]));
+      && !r.pages.some(p => isOfferedEveryDay(onPage(p, r.item), p.daypart, toggles[p.id]?.[r.item.id]));
     return { linked, toggle, showingIn, waitingIn, someDays };
   };
 

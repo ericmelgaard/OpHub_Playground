@@ -156,9 +156,40 @@ Edits on a label page are **pending changes** until applied; nothing is written 
 - **Available Items daypart** is a dropdown chip (`DaypartFilter` in `src/components/StationPicker.tsx`)
   next to Station: it starts on the page's daypart each time a page opens and lists every daypart
   in the product data (the source may use ones labels don't, like Brunch) plus All dayparts, with
-  counts. Another daypart shows as "From Brunch". A product from another daypart has no days to
-  follow on the page, so adding it turns it **On** for the day in scope and its toggle is Off / On
-  (same as unlinked items). In All dayparts, adding only goes to dayparts the product is offered at.
+  counts. Another daypart shows as "From Brunch". Adding from another source daypart links the
+  item to it: it **follows that daypart's days** (Auto) and the row shows a gray "Follows Brunch"
+  tag (`followsDaypart` on the page's item copy, `device_schedule_items.follows_daypart`;
+  `followedDaypart()` / `followsSource()` in `src/lib/labelDisplay.ts`). Added from All dayparts,
+  a product from another daypart has nothing to follow, so it's turned **On** and its toggle is
+  Off / On. In All dayparts, adding only goes to dayparts the product is offered at.
+  **Days are per meal period** (`daysByDaypart` on products): a product on Lunch Mon–Fri and
+  Breakfast Sat is on a Lunch page Mon–Fri only. All Day / Custom pages and dayparts set here
+  (local values) use every day the source offers it.
+  "All Day" in that list is a real source meal period (Webtrition sends it), not "every daypart":
+  browsing it lists only products the source tags All Day.
+- **Direction: the daypart picked is the link (approved 2026-11-15).** Built: per-meal-period
+  days, the stored link, Auto and toggles following it, the "Follows" tag. Not built yet: the
+  selector changes (no All dayparts, "Pick a daypart to add from", search hint, custom-only
+  dayparts), custom product daypart lists, and showing "follows Lunch" for local dayparts.
+  - Available Items always has **one source daypart** picked; there's no All dayparts choice.
+    Whatever is added follows **that daypart's days** (Auto): a Brunch item added to the Breakfast
+    page follows Brunch's days. Each item on a page stores the daypart it follows (existing items:
+    their page's daypart). Products' days are kept **per meal period** to make this work.
+  - The selector lists the source's dayparts only (no Dinner when the source has none). It opens
+    on the page's daypart when the source has it; otherwise nothing is picked and it says
+    "Pick a daypart to add from".
+  - The page's item row shows "Follows Brunch" when it follows another daypart; day pills show
+    that daypart's days.
+  - Search misses in the picked daypart show "2 more in Breakfast" under the results; tapping it
+    switches the selector. The choice stays deliberate but isn't a dead end.
+  - **Custom products** list under each daypart they're ticked for, Off / On (no source days).
+    When the source lacks that daypart (Dinner), the selector still lists it while custom
+    products are ticked for it.
+  - A linked product given a local daypart (Dinner on a Lunch product) shows under Dinner as
+    "follows Lunch" and uses its Lunch days.
+  - All dayparts editor: adding still goes to every daypart the product is offered at; each page
+    follows its matching source daypart.
+  - If the source stops sending a daypart, items following it go to Not available (Auto at work).
 - **The label preview shows one real screen** (`src/components/LabelAnchor.tsx`): one daypart, one
   day. **Every day** previews the **everyday menu** — items on all 7 days, in page order, cut to
   capacity (`isOfferedEveryDay()`; "showing" counts and statuses use the same rule). Items on some
@@ -239,6 +270,10 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   `src/lib/weekSchedule.ts`; a label's station is its placement). Any product with no daypart is
   offered at all of them and shows "All dayparts" (`productDayparts()` / `ALL_DAYPARTS` in
   `src/lib/stations.ts`) — not the "All Day" daypart.
+  **Direction (approved 2026-11-15, not built yet):** "All dayparts" on a custom product is
+  misleading: it's offered at *each* daypart, not a daypart of its own. Dayparts become an
+  explicit list of ticked dayparts ("All" just ticks every box); cards and the sheet list them,
+  or say "Every daypart". An empty list no longer means everywhere.
   Linked products are edited there too, as local values (see above).
 - **Description** is one field: `enticingDescription || description`, shown and edited as one;
   saving writes back to the field it came from. **Display name** and description are the two

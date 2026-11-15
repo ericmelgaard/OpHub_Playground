@@ -108,6 +108,11 @@ export interface MenuItem {
   activeDays?: number[];
   // Has any imported availability, even if all of it is too old to count
   hasAvailability?: boolean;
+  // The source's days per meal period (Breakfast → [1,2,3]); activeDays merges them
+  daysByDaypart?: Record<string, number[]>;
+  // On a label page only: the source daypart whose days this item follows (Auto), when it isn't
+  // the page's own (a Brunch item on the Breakfast page). Unset = the page's daypart.
+  followsDaypart?: string | null;
   dates?: string[];
   activeMealPeriods?: string[];
   availabilityData?: {
@@ -290,6 +295,8 @@ export interface DeviceScheduleItem {
   menuItemPrice: string;
   sortOrder: number;
   createdAt: string;
+  // Source daypart whose days the item follows on this page; null = the page's own
+  followsDaypart?: string | null;
 }
 
 export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement' | 'usage';

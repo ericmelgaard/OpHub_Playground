@@ -39,17 +39,41 @@ function servesDaypart(item: MenuItem, daypart: string): boolean {
   return mps.length === 0 || mps.includes(daypart);
 }
 
-// Base availability: the product is offered this weekday in this daypart. Products with
-// no availability data count as every day, except custom products and products whose
-// only history is stale, which have no days until a label turns one on.
+// The source daypart an item on a page follows: the one it was added from, else the page's
+export const followedDaypart = (item: MenuItem, pageDaypart: string) => item.followsDaypart || pageDaypart;
+
+// Has days to follow on this page (Auto): linked to a source and offered in the daypart it
+// follows. Custom products and products from another daypart added without a link are Off / On.
+export const followsSource = (item: MenuItem, pageDaypart: string) =>
+  !isCustomItem(item) && (!!item.followsDaypart || servesDaypart(item, pageDaypart));
+
+// Base availability: the product is offered this weekday in this daypart, by the source.
+// Days are per meal period: a product on Lunch Mon–Fri and Breakfast Sat is on a Lunch page
+// Mon–Fri only. An item following another daypart (followsDaypart) uses that daypart's days;
+// if the source stops sending that daypart it has none. Products with no availability data
+// count as every day, except custom products and products whose only history is stale, which
+// have no days until a label turns one on.
 export function isBaseOffered(item: MenuItem, daypart: string, day: number): boolean {
   const days = item.activeDays || [];
+  const perDaypart = item.daysByDaypart && Object.keys(item.daysByDaypart).length > 0 ? item.daysByDaypart : null;
+  // Following a daypart the source sends: its days. One it no longer sends: no days (Not
+  // available). One set here as a local daypart (not from the source): every day the source offers it.
+  if (item.followsDaypart && perDaypart) {
+    const followed = perDaypart[item.followsDaypart];
+    if (followed) return followed.includes(day);
+    if (!item.activeMealPeriods?.includes(item.followsDaypart)) return false;
+    return days.includes(day);
+  }
+  const dp = followedDaypart(item, daypart);
   if (days.length === 0) {
     if (isCustomItem(item) || item.hasAvailability) return false;
-  } else if (!days.includes(day)) {
-    return false;
+    return servesDaypart(item, dp);
   }
-  return servesDaypart(item, daypart);
+  if (!servesDaypart(item, dp)) return false;
+  // A daypart the source sends has its own days; All Day / Custom pages and dayparts set here
+  // (not by the source) use every day the source offers it
+  const own = dp === 'All Day' || dp === 'Custom' ? undefined : perDaypart?.[dp];
+  return (own ?? days).includes(day);
 }
 
 // Offered on this label that day, after its override

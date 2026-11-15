@@ -29,6 +29,13 @@ export interface GuideSection {
 
 export const GUIDE_UPDATES: GuideUpdate[] = [
   {
+    id: '2026-11-15-follows-daypart',
+    date: '2026-11-15',
+    title: 'Items from another daypart keep their days',
+    text: 'Add a Brunch item to the Breakfast page and it shows on the days Brunch is offered, marked "Follows Brunch". Each daypart also uses its own days now: an item served at Lunch on weekdays only shows on weekdays on the Lunch page.',
+    section: 'items',
+  },
+  {
     id: '2026-11-15-save',
     date: '2026-11-15',
     title: 'One Save button',
@@ -104,7 +111,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     icon: 'items',
     entries: [
       { term: 'Add items', text: 'Find the item in Available Items and tap +. Search by name, or narrow by Station and daypart.' },
-      { term: 'Other dayparts', text: 'Use the daypart dropdown to see items from another daypart, like Brunch, while you work on Lunch. Those items are turned On when you add them.' },
+      { term: 'Other dayparts', text: 'Use the daypart dropdown to see items from another daypart, like Brunch, while you work on Lunch. Items you add from there follow that daypart's days and are marked "Follows Brunch".' },
       { term: 'Order', text: 'Drag items to set their order. When the label is full, the items at the top show first.' },
       { term: 'Remove', text: 'Removing an item takes it off that page for the whole week.' },
     ],

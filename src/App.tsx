@@ -422,8 +422,11 @@ function App() {
       resolveWeekSchedules(weekStart, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds),
       stationOfDevice,
       (schedule, daypart, mrn, rowDays) => {
-        const item = byMrn.get(mrn);
-        if (!item) return rowDays;
+        const product = byMrn.get(mrn);
+        if (!product) return rowDays;
+        // The daypart it follows on that page, when not the page's own
+        const followsDaypart = schedule.items?.find(si => si.daypart === daypart && si.menuItemMrn === mrn && si.followsDaypart)?.followsDaypart;
+        const item = followsDaypart ? { ...product, followsDaypart } : product;
         const overrides: ItemDayOverrides = {};
         for (const s of schedule.daySettings ?? []) {
           if (s.daypart === daypart && s.menuItemMrn === mrn) overrides[s.dayOfWeek] = s.state;

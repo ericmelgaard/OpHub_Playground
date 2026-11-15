@@ -25,10 +25,11 @@ import type { DisplayToggle } from './InlineItemPicker';
 import { ThreeStageToggle, SomeDaysTag } from './DayToggle';
 import { AllDaypartsEditor } from './AllDaypartsEditor';
 import { LabelAnchor } from './LabelAnchor';
-import { getShownItems, isBaseOffered, isOfferedOnDay, isOfferedEveryDay, isCustomItem, offeredDays, toggleFor, labelName, LabelDayOverrides, ItemDayOverrides } from '../lib/labelDisplay';
+import { getShownItems, isBaseOffered, isOfferedOnDay, isOfferedEveryDay, isCustomItem, offeredDays, toggleFor, labelName, followsSource, LabelDayOverrides, ItemDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
 import { AutoFillPage, autoFillCandidates, inStations, servesDaypart, stationKey, stationOptions } from '../lib/stations';
 import { StationFilter, AutoFillPicker, DaypartFilter, type DaypartOption } from './StationPicker';
+import { itemDayparts } from '../lib/productValues';
 import { productDayparts } from '../lib/stations';
 import { sortDayparts } from '../lib/weekSchedule';
 import { plainText } from '../lib/richText';
@@ -258,27 +259,33 @@ export function DeviceSettingsModal({
   // - Added in Every day: every day, following the product's days (Auto).
   // - Added on one day: that day only; the other six are Off. To follow the source all week,
   //   add it in Every day (or turn the other days back to Auto).
-  // Some products have no days to follow on this page: custom products (no days of their own) and
-  // products from another daypart (the source's Brunch on a Lunch page). Those are On, not Auto,
-  // for the days they're added to, or Auto would leave them hidden.
+  // Added from another source daypart (the daypart picked in Available Items), the item follows
+  // that daypart's days: a Brunch item on the Breakfast page is Auto on Brunch's days.
+  // Custom products have no days to follow, so they're On, not Auto, for the days they're added
+  // to (or Auto would leave them hidden). So are products from another daypart added from
+  // All dayparts, which has no daypart to follow.
   // The Default Week can't hold day settings, so there it always follows the product.
   // Turn a day back on for an item already on the page: Auto when its source offers that day, else On
   const dayBackState = (item: MenuItem, daypart: string, day: number): DisplayToggle =>
     !isCustomItem(item) && isBaseOffered(item, daypart, day) ? 'auto' : 'on';
 
-  const addToPage = (target: Device, item: MenuItem, pageId: string) => {
+  const addToPage = (target: Device, product: MenuItem, pageId: string, fromDaypart?: string) => {
     if (!onInlineAddItems) return;
     const page = target.pages.find(p => p.id === pageId);
     // Already on the page (not showing this day): adding it here turns this day on
-    if (page?.assignedItems.some(i => i.id === item.id)) {
+    const onPage = page?.assignedItems.find(i => i.id === product.id);
+    if (page && onPage) {
       if (selectedDay === 'every-day' || dayOverridesLocked || !onToggleItemDisplay) return;
-      onToggleItemDisplay(target, pageId, item.id, selectedDay, dayBackState(item, page.daypart, selectedDay));
+      onToggleItemDisplay(target, pageId, product.id, selectedDay, dayBackState(onPage, page.daypart, selectedDay));
       return;
     }
+    const pageDaypart = page?.daypart ?? '';
+    const item: MenuItem = fromDaypart && !isCustomItem(product) && fromDaypart !== pageDaypart
+      ? { ...product, followsDaypart: fromDaypart }
+      : product;
     onInlineAddItems(target, [item], pageId);
     if (dayOverridesLocked) return;
-    const pageDaypart = target.pages.find(p => p.id === pageId)?.daypart ?? '';
-    const noDaysHere = (isCustomItem(item) && !(item.activeDays?.length)) || !servesDaypart(item, pageDaypart);
+    const noDaysHere = (isCustomItem(item) && !(item.activeDays?.length)) || !followsSource(item, pageDaypart);
     const days: ItemDayOverrides = {};
     for (const d of [0, 1, 2, 3, 4, 5, 6]) {
       const added = selectedDay === 'every-day' || d === selectedDay;
@@ -317,7 +324,7 @@ export function DeviceSettingsModal({
       const itemId = parseInt(result.draggableId.replace('avail-', ''), 10);
       const item = menuItems.find(i => i.id === itemId);
       if (item && onInlineAddItems) {
-        addToPage(selectedDeviceSettings, item, pageId);
+        addToPage(selectedDeviceSettings, item, pageId, browseFollow);
         setRecentlyAddedIds(new Set([itemId]));
         setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
       }
@@ -358,15 +365,24 @@ export function DeviceSettingsModal({
   const effectiveStationFilter = pageAutoFill ? null : stationFilter;
 
   // Daypart Available Items lists ('' = all); the page's own unless another one is picked
-  const browseDp = browseDaypart ?? (activeDaypart === 'All Day' || activeDaypart === 'Custom' ? '' : activeDaypart ?? '');
+  // An All Day / Custom page takes products from any daypart, so its own list is all dayparts
+  const pageBrowseDp = activeDaypart === 'All Day' || activeDaypart === 'Custom' ? '' : activeDaypart ?? '';
+  const browseDp = browseDaypart ?? pageBrowseDp;
+  // Adding while another source daypart is picked links the item to it (follows its days)
+  const browseFollow = browseDp && browseDp !== pageBrowseDp ? browseDp : undefined;
   // Product offered on the selected day (any day this week in Every day) in a daypart ('' = any).
   // Custom products have no days of their own: they're available wherever their dayparts allow,
   // and adding one turns it On for the day being edited
-  const offeredIn = (item: MenuItem, dp: string) => isCustomItem(item)
-    ? dp === '' || servesDaypart(item, dp)
-    : dayNum === null
-      ? offeredDays(item, dp).length > 0
-      : isBaseOffered(item, dp, dayNum);
+  // A source daypart is browsed by its own days, as if the item followed it (All Day here means
+  // products the source tags All Day, not "any daypart")
+  const offeredIn = (item: MenuItem, dp: string): boolean => {
+    if (isCustomItem(item)) {
+      return dp === '' || (dp === 'All Day' || dp === 'Custom' ? itemDayparts(item).includes(dp) : servesDaypart(item, dp));
+    }
+    if ((dp === 'All Day' || dp === 'Custom') && !itemDayparts(item).includes(dp)) return false;
+    const asFollowed = dp ? { ...item, followsDaypart: dp } : item;
+    return dayNum === null ? offeredDays(asFollowed, dp).length > 0 : isBaseOffered(asFollowed, dp, dayNum);
+  };
   const offeredHere = (item: MenuItem) => offeredIn(item, browseDp);
   const daypartFilterOptions: DaypartOption[] = currentPage
     ? [
@@ -406,8 +422,10 @@ export function DeviceSettingsModal({
     const stationKeys = new Set(effectiveStationFilter ? [effectiveStationFilter] : []);
     const pageOverrides = itemDisplayToggles[currentPage.id];
     // On the page but not showing on this day: add it again to turn the day on
-    const onPageOtherDays = (item: MenuItem) =>
-      dayNum !== null && !isOfferedOnDay(item, currentPage.daypart, dayNum, pageOverrides?.[item.id]);
+    const onPageOtherDays = (item: MenuItem) => {
+      const copy = currentPage.assignedItems.find(i => i.id === item.id) ?? item;
+      return dayNum !== null && !isOfferedOnDay(copy, currentPage.daypart, dayNum, pageOverrides?.[item.id]);
+    };
     const filtered = menuItems.filter(item => {
       if (assignedIds.has(item.id) && !onPageOtherDays(item)) return false;
       if (searchValue.trim()) {
@@ -563,8 +581,8 @@ export function DeviceSettingsModal({
                                 const itemOverrides = pageOverrides?.[originalId];
                                 const baseItem = currentPage.assignedItems.find(i => i.id === originalId) ?? item;
                                 // No days to follow on this page (not linked to a source, or from another
-                                // daypart): Off / On only
-                                const linked = !isCustomItem(baseItem) && servesDaypart(baseItem, currentPage.daypart);
+                                // daypart without a link): Off / On only
+                                const linked = followsSource(baseItem, currentPage.daypart);
                                 const toggleState = toggleFor(itemOverrides, dayNum, linked);
                                 // In Every day, items on some days only aren't in the everyday preview
                                 const someDays = dayNum === null && toggleState !== 'off'
@@ -635,6 +653,14 @@ export function DeviceSettingsModal({
                                                   }`}><LabelName item={item} /></span>
                                                   {hasSub && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Has substitution on another day" />}
                                                   {someDays && <SomeDaysTag />}
+                                                  {baseItem.followsDaypart && (
+                                                    <span
+                                                      title={`Shows on the days its source offers it at ${baseItem.followsDaypart}`}
+                                                      className="inline-flex items-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
+                                                    >
+                                                      Follows {baseItem.followsDaypart}
+                                                    </span>
+                                                  )}
                                                   {autoFillIds.has(originalId) && (
                                                     <span
                                                       title={`Added by Auto Fill from ${item.mealStation}`}
@@ -795,6 +821,7 @@ export function DeviceSettingsModal({
                       <DaypartFilter
                         options={daypartFilterOptions}
                         value={browseDp}
+                        pageValue={pageBrowseDp}
                         pageDaypart={currentPage.daypart}
                         onChange={v => setBrowseDaypart(v)}
                         triggerClassName={filterChipClass(true)}
@@ -850,10 +877,10 @@ export function DeviceSettingsModal({
                                       {assignedIds.has(item.id) ? (
                                         <>
                                           <p className="text-[10px] text-sky-600 dark:text-sky-400 mb-0.5">On this page · add to show it {dayNum !== null ? DAY_ABBR[dayNum] : ''}</p>
-                                          <DayPills item={item} daypart={currentPage.daypart} overrides={itemDisplayToggles[currentPage.id]?.[item.id]} selectedDay={selectedDay} />
+                                          <DayPills item={currentPage.assignedItems.find(i => i.id === item.id) ?? item} daypart={currentPage.daypart} overrides={itemDisplayToggles[currentPage.id]?.[item.id]} selectedDay={selectedDay} />
                                         </>
                                       ) : (
-                                        <DayPills item={item} daypart={activeDaypart ?? ''} selectedDay={selectedDay} />
+                                        <DayPills item={item} daypart={browseDp} selectedDay={selectedDay} />
                                       )}
                                     </div>
                                     <span className="text-xs font-semibold flex-shrink-0 text-gray-700 dark:text-gray-300 ml-2">${item.price}</span>
@@ -861,7 +888,7 @@ export function DeviceSettingsModal({
                                       // Tap to add, for touch; dragging still works
                                       <button
                                         onClick={() => {
-                                          addToPage(device, item, currentPage.id);
+                                          addToPage(device, item, currentPage.id, browseFollow);
                                           setRecentlyAddedIds(new Set([item.id]));
                                           setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
                                         }}
@@ -908,13 +935,13 @@ export function DeviceSettingsModal({
                                   {assignedIds.has(item.id) && <span className="flex-shrink-0 text-sky-600 dark:text-sky-400">On this page</span>}
                                 </div>
                                 {assignedIds.has(item.id)
-                                  ? <DayPills item={item} daypart={currentPage.daypart} overrides={itemDisplayToggles[currentPage.id]?.[item.id]} selectedDay={selectedDay} />
-                                  : <DayPills item={item} daypart={activeDaypart ?? ''} selectedDay={selectedDay} />}
+                                  ? <DayPills item={currentPage.assignedItems.find(i => i.id === item.id) ?? item} daypart={currentPage.daypart} overrides={itemDisplayToggles[currentPage.id]?.[item.id]} selectedDay={selectedDay} />
+                                  : <DayPills item={item} daypart={browseDp} selectedDay={selectedDay} />}
                               </div>
                               <button
                                 onClick={() => {
                                   if (currentPage && onInlineAddItems) {
-                                    addToPage(device, item, currentPage.id);
+                                    addToPage(device, item, currentPage.id, browseFollow);
                                     setRecentlyAddedIds(new Set([item.id]));
                                     setTimeout(() => setRecentlyAddedIds(new Set()), 2000);
                                   }

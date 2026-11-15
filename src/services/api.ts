@@ -50,6 +50,7 @@ const mapScheduleRow = (s: any): DeviceWeekSchedule => ({
     menuItemPrice: i.menu_item_price,
     sortOrder: i.sort_order,
     createdAt: i.created_at,
+    followsDaypart: i.follows_daypart ?? null,
   })),
 });
 
@@ -63,7 +64,23 @@ type ScheduleItemInput = {
   menuItemName: string;
   menuItemPrice: string;
   sortOrder: number;
+  followsDaypart?: string | null;
 };
+
+// Inserts schedule item rows. Before the "follows daypart" migration runs the column is
+// missing; then the rows go in without it (items follow their page's daypart).
+async function insertScheduleRows(rows: Record<string, unknown>[]): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('device_schedule_items').insert(rows);
+  if (!error) return;
+  if (/follows_daypart/.test(error.message)) {
+    const { error: retry } = await supabase.from('device_schedule_items')
+      .insert(rows.map(({ follows_daypart: _f, ...r }) => r));
+    if (!retry) return;
+    throw new Error(retry.message);
+  }
+  throw new Error(error.message);
+}
 
 // Returns the id of the device's default/override row, creating it if missing.
 async function ensureScheduleRow(deviceId: string, target: ScheduleTarget): Promise<string | null> {
@@ -120,17 +137,16 @@ async function replaceDaySettings(scheduleId: string, settings: DaySetting[]): P
 async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput[], settings: DaySetting[] = []): Promise<void> {
   await replaceDaySettings(scheduleId, settings);
   await supabase.from('device_schedule_items').delete().eq('schedule_id', scheduleId);
-  if (items.length > 0) {
-    await supabase.from('device_schedule_items').insert(items.map(i => ({
-      schedule_id: scheduleId,
-      daypart: i.daypart,
-      day_of_week: i.dayOfWeek,
-      menu_item_mrn: i.menuItemMrn,
-      menu_item_name: i.menuItemName,
-      menu_item_price: i.menuItemPrice,
-      sort_order: i.sortOrder,
-    })));
-  }
+  await insertScheduleRows(items.map(i => ({
+    schedule_id: scheduleId,
+    daypart: i.daypart,
+    day_of_week: i.dayOfWeek,
+    menu_item_mrn: i.menuItemMrn,
+    menu_item_name: i.menuItemName,
+    menu_item_price: i.menuItemPrice,
+    sort_order: i.sortOrder,
+    ...(i.followsDaypart ? { follows_daypart: i.followsDaypart } : {}),
+  })));
 }
 
 // How far back an imported weekday still counts as available
@@ -277,6 +293,15 @@ export const api = {
       const activeMealPeriods = custom
         ? mealPeriodNames
         : [...new Set(availability.map((av: any) => av.meal_period?.name).filter(Boolean))];
+      // Days per meal period, so an item can follow one daypart's days (see followsDaypart)
+      const daysByDaypart: Record<string, number[]> = {};
+      for (const av of availability) {
+        const mp = av.meal_period?.name;
+        if (!mp) continue;
+        const list = daysByDaypart[mp] ?? (daysByDaypart[mp] = []);
+        if (!list.includes(av.day_of_week)) list.push(av.day_of_week);
+      }
+      Object.values(daysByDaypart).forEach(l => l.sort());
       const availabilityDataFormatted = availability.map((av: any) => ({
         dayOfWeek: av.day_of_week,
         mealPeriod: av.meal_period?.name || '',
@@ -340,6 +365,7 @@ export const api = {
         isActive: true,
         activeDays,
         hasAvailability: !custom && hasAnyAvailability.has(item.mrn),
+        daysByDaypart,
         activeMealPeriods,
         availabilityData: availabilityDataFormatted,
         isGrouped,
@@ -884,6 +910,7 @@ export const api = {
         menuItemName: i.menuItemName,
         menuItemPrice: i.menuItemPrice,
         sortOrder: i.sortOrder,
+        followsDaypart: i.followsDaypart ?? null,
       })), schedule.daySettings ?? []);
     }
     return true;
@@ -906,6 +933,7 @@ export const api = {
         menuItemName: i.menuItemName,
         menuItemPrice: i.menuItemPrice,
         sortOrder: i.sortOrder,
+        followsDaypart: i.followsDaypart ?? null,
       })), schedule.daySettings ?? []);
     }
     return true;
@@ -931,7 +959,8 @@ export const api = {
 
     const toInsert: any[] = [];
     for (const item of items) {
-      const days = item.activeDays && item.activeDays.length > 0 ? item.activeDays : [0, 1, 2, 3, 4, 5, 6];
+      const followed = item.followsDaypart ? item.daysByDaypart?.[item.followsDaypart] : undefined;
+      const days = followed?.length ? followed : item.activeDays && item.activeDays.length > 0 ? item.activeDays : [0, 1, 2, 3, 4, 5, 6];
       maxSort += 1;
       const sort = maxSort;
       for (const d of days) {
@@ -945,12 +974,11 @@ export const api = {
           menu_item_name: item.name,
           menu_item_price: item.price,
           sort_order: sort,
+          ...(item.followsDaypart ? { follows_daypart: item.followsDaypart } : {}),
         });
       }
     }
-    if (toInsert.length > 0) {
-      await supabase.from('device_schedule_items').insert(toInsert);
-    }
+    await insertScheduleRows(toInsert);
     return true;
   },
 
