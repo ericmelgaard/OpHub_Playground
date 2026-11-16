@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FilterConfig, MenuItem } from '../types';
 import { QuickActionType } from './QuickActionBar';
-import { CycleWeekSelector } from './CycleWeekSelector';
 import { daypartColor } from '../lib/daypartColors';
 
 interface MenuFiltersProps {
@@ -22,8 +21,8 @@ interface MenuFiltersProps {
   nfcScanning?: boolean;
   onNfcStart?: () => void;
   onNfcStop?: () => void;
-  selectedCycleWeek?: number;
-  onCycleWeekChange?: (week: number) => void;
+  // Products' week picker, shown after Filters
+  weekControl?: React.ReactNode;
   scheduleOpen?: boolean;
   onToggleSchedule?: () => void;
   scheduleGapCount?: number;
@@ -48,8 +47,7 @@ export function MenuFilters({
   nfcScanning = false,
   onNfcStart,
   onNfcStop,
-  selectedCycleWeek,
-  onCycleWeekChange,
+  weekControl,
   scheduleOpen = false,
   onToggleSchedule,
   scheduleGapCount = 0,
@@ -60,7 +58,6 @@ export function MenuFilters({
     console.log('Barcode scanning will be implemented when API is available');
   };
 
-  const showProductFilters = selectedQuickAction === 'products';
   const showDeviceFilters = selectedQuickAction === 'smart-labels' || selectedQuickAction === 'groups';
   const showFilterToggle = selectedQuickAction === 'products' || selectedQuickAction === 'smart-labels';
 
@@ -97,12 +94,8 @@ export function MenuFilters({
               )}
             </Button>
           )}
-          {showProductFilters && selectedCycleWeek !== undefined && onCycleWeekChange && (
-            <CycleWeekSelector
-              selectedWeek={selectedCycleWeek}
-              onSelectWeek={onCycleWeekChange}
-            />
-          )}
+          {/* Products: this week, or a later week that already has a schedule */}
+          {selectedQuickAction === 'products' && weekControl}
         </div>
 
         {/* Search Bar */}

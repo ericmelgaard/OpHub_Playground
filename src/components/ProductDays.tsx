@@ -1,4 +1,5 @@
 import { DAY_ABBR } from '../lib/availability';
+import { WEEK_ORDER } from '../lib/weekSchedule';
 
 // A product's day has two independent parts:
 // - Outline: the product's source (the API feeding products in; Webtrition today) offers it that day.
@@ -6,7 +7,6 @@ import { DAY_ABBR } from '../lib/availability';
 //   Labels and signage get their own colors once signage exists; until then labels use the accent.
 // Lists and cards show one strip; the product sheet shows a row per source.
 
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 type Use = 'none' | 'labels' | 'signage';
 

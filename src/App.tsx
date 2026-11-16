@@ -1,13 +1,17 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
-import { ensureWeekData, ensureCurrentAndNextWeek, WeekLoadStatus } from './services/menuDataLoader';
+import { ensureCurrentAndNextWeek } from './services/menuDataLoader';
+import { ProductWeekPicker, ProductWeek } from './components/ProductWeekPicker';
 import { MenuItems } from './components/MenuItems';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
 import { SmartLabelList } from './components/SmartLabelList';
 import { WeekScheduleBar, DayPicker, DaypartPicker, getWeekStartString } from './components/WeekScheduleBar';
-import { resolveWeekSchedules, getScheduleSource, ScheduleSource, formatWeekRange, formatEditingDay, labelUseByMrn } from './lib/weekSchedule';
+import { resolveWeekSchedules, getScheduleSource, ScheduleSource, formatWeekRange, formatEditingDay, labelUseByMrn, getWeekState } from './lib/weekSchedule';
+
+// Products offers this week and next week (both loaded from the source at startup)
+const PRODUCT_WEEKS = 2;
 import { filterLabels } from './lib/labelFilter';
 import { projectScheduleOntoDevice, scheduleDayToggles } from './lib/deviceWeekProjection';
 import { getWeekCoverage, countLabelsDifferingFromDefault } from './lib/scheduleCoverage';
@@ -102,37 +106,9 @@ function App() {
   // Filter state
   const [activeFilters, setActiveFilters] = useState<FilterConfig[]>([]);
 
-  // Cycle Week state (0 = This Week, 1 = Next Week, etc.)
-  const [selectedCycleWeek, setSelectedCycleWeek] = useState<number>(0);
-  const [weekTransition, setWeekTransition] = useState<'in' | 'out'>('in');
-  const [weekLoadStatus, setWeekLoadStatus] = useState<WeekLoadStatus>('idle');
-  const loadedWeeks = useRef(new Set<number>());
-
-  const loadWeekAndRefresh = useCallback(async (week: number) => {
-    if (loadedWeeks.current.has(week)) return;
-    setWeekLoadStatus('loading');
-    try {
-      const result = await ensureWeekData(week);
-      loadedWeeks.current.add(week);
-      if (result.inserted > 0) {
-        const items = await api.getMenuItems();
-        setMenuItems(items);
-      }
-      setWeekLoadStatus(result.status);
-    } catch {
-      setWeekLoadStatus('error');
-    }
-  }, []);
-
-  const handleCycleWeekChange = useCallback((week: number) => {
-    if (week === selectedCycleWeek) return;
-    setWeekTransition('out');
-    setTimeout(() => {
-      setSelectedCycleWeek(week);
-      setWeekTransition('in');
-      loadWeekAndRefresh(week);
-    }, 150);
-  }, [selectedCycleWeek, loadWeekAndRefresh]);
+  // Products shows this week (0). It can also show a future week that already has a
+  // schedule (its own or recurring); new weeks are planned only in Smart Labels → Schedule.
+  const [selectedCycleWeek, setSelectedCycleWeek] = useState(0);
 
   // Filter sidebar state
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(() => {
@@ -333,8 +309,6 @@ function App() {
       try {
         // Ensure current & next week data exist, then load
         await ensureCurrentAndNextWeek();
-        loadedWeeks.current.add(0);
-        loadedWeeks.current.add(1);
         const items = await api.getMenuItems();
         setMenuItems(items);
       } catch (err) {
@@ -453,6 +427,16 @@ function App() {
   }, [isDefaultWeekSelected, defaultSchedules, labelWeekOffset, weekSchedules, recurringSchedules, deviceIds]);
 
   const overrideWeekStartSet = useMemo(() => new Set(overrideWeekStarts), [overrideWeekStarts]);
+
+  // Weeks Products can show ("schedule lite"): this week and next week. A week that follows
+  // the Default Week gets its own schedule on its first change, as on Smart Labels.
+  // Later weeks are planned in Smart Labels → Schedule.
+  const productWeeks = useMemo((): ProductWeek[] =>
+    Array.from({ length: PRODUCT_WEEKS }, (_, offset) => {
+      const weekStart = getWeekStartString(offset);
+      return { offset, weekStart, state: getWeekState(weekStart, overrideWeekStartSet, recurringSchedules) };
+    }),
+  [overrideWeekStartSet, recurringSchedules]);
 
   const refreshCurrentWeek = useCallback(async () => {
     await refreshScheduleMeta();
@@ -905,15 +889,26 @@ function App() {
     return false;
   }, [devices, selectedDaypart, handleDeviceSelect]);
 
+  // A tag scanned while choosing a label for a product picks that label (the picker
+  // matches it, so the label opens on the picker's daypart)
+  const [pickerScan, setPickerScan] = useState<string | null>(null);
+
   useEffect(() => {
-    if (nfc.lastReading) {
+    if (!nfc.lastReading) return;
+    if (showLabelPicker) {
+      setPickerScan(nfc.lastReading.text);
+      nfc.stopScan();
+      nfc.clearReading();
+      return;
+    }
+    {
       const found = handleScanLookup(nfc.lastReading.text);
       if (found) {
         nfc.stopScan();
       }
       nfc.clearReading();
     }
-  }, [nfc.lastReading, handleScanLookup, nfc]);
+  }, [nfc.lastReading, handleScanLookup, nfc, showLabelPicker]);
 
   useEffect(() => {
     if (nfc.scanning && devices.length > 0) {
@@ -973,16 +968,33 @@ function App() {
     setShowLabelPicker(true);
   }, [productRefresh.closeSheet]);
 
+  // Labels opened from Products edit the week Products shows: this week, or a later week
+  // that already has a schedule. Never the Default Week.
+  const productWeekContext = useMemo(() => ({
+    isDefault: false,
+    weekStart: getWeekStartString(selectedCycleWeek),
+    label: selectedCycleWeek === 0 ? 'This Week'
+      : selectedCycleWeek === 1 ? 'Next Week'
+      : `Week of ${new Date(getWeekStartString(selectedCycleWeek) + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+  }), [selectedCycleWeek]);
+
   const handleLabelPickedForItem = useCallback((device: Device, daypart: string) => {
     setShowLabelPicker(false);
     setDeviceItemSearch(selectedItem?.name ?? '');
     setSelectedDevice(device);
     setWorkflowDaypart(daypart);
-    // Same context as opening a label from Smart Labels
-    setDeviceWeekContext({ isDefault: false, weekStart: getWeekStartString(0), label: 'This Week' });
+    setDeviceWeekContext(productWeekContext);
     setLabelFromPicker(true);
     setShowDeviceWorkflow(true);
-  }, [selectedItem]);
+  }, [selectedItem, productWeekContext]);
+
+  // Weeks after next are planned in Schedule, opened on the week after next
+  const handlePlanAnotherWeek = useCallback(() => {
+    handleQuickActionSelect('smart-labels');
+    setScheduleOpen(true);
+    setLabelWeekOffset(2);
+    setIsDefaultWeekSelected(false);
+  }, [handleQuickActionSelect]);
 
   const handleAddFromProductSheet = useCallback((item: MenuItem) => {
     setProductSheetItem(null);
@@ -1040,10 +1052,10 @@ function App() {
     setDeviceItemSearch(item?.name.trim() ?? '');
     setSelectedDevice(device);
     setWorkflowDaypart(daypart);
-    setDeviceWeekContext({ isDefault: false, weekStart: getWeekStartString(0), label: 'This Week' });
+    setDeviceWeekContext(productWeekContext);
     setLabelFromPicker(false);
     setShowDeviceWorkflow(true);
-  }, [productSheetItem]);
+  }, [productSheetItem, productWeekContext]);
 
   const handleCustomize = useCallback(() => {
     setShowCustomizeModal(true);
@@ -1230,8 +1242,14 @@ function App() {
                 nfcScanning={nfc.scanning}
                 onNfcStart={nfc.startScan}
                 onNfcStop={nfc.stopScan}
-                selectedCycleWeek={selectedCycleWeek}
-                onCycleWeekChange={handleCycleWeekChange}
+                weekControl={
+                  <ProductWeekPicker
+                    weeks={productWeeks}
+                    value={selectedCycleWeek}
+                    onChange={setSelectedCycleWeek}
+                    onPlanAnother={handlePlanAnotherWeek}
+                  />
+                }
                 scheduleOpen={scheduleOpen}
                 onToggleSchedule={handleToggleSchedule}
                 scheduleGapCount={weekGapCount}
@@ -1252,6 +1270,7 @@ function App() {
                     totalCount={menuItems.length}
                     labelDaysByMrn={productLabelDays}
                     usageWeekLabel={formatWeekRange(getWeekStartString(selectedCycleWeek))}
+                    weekOffset={selectedCycleWeek}
                   />
                 )}
 
@@ -1352,13 +1371,7 @@ function App() {
                       )}
                     </div>
                   ) : selectedQuickAction === 'products' ? (
-                    <div key={selectedCycleWeek} className={weekTransition === 'out' ? 'week-transition-out' : 'week-transition-in'}>
-                      {weekLoadStatus === 'loading' && (
-                        <div className="flex items-center gap-2 px-4 py-2 mb-3 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 rounded-lg text-sm">
-                          <div className="h-4 w-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-                          Loading week data...
-                        </div>
-                      )}
+                    <div>
                       <MenuItems
                         loading={loading}
                         error={error}
@@ -1548,10 +1561,17 @@ function App() {
           loading={loadingDevices}
           error={deviceError}
           initialDaypart={selectedDaypart}
+          weekStart={productWeekContext.weekStart}
+          weekLabel={productWeekContext.label}
           day={labelDay}
           onDayChange={setLabelDay}
           onPick={handleLabelPickedForItem}
-          onClose={() => setShowLabelPicker(false)}
+          onClose={() => { nfc.stopScan(); setPickerScan(null); setShowLabelPicker(false); }}
+          nfcScanning={nfc.scanning}
+          onNfcStart={nfc.startScan}
+          onNfcStop={nfc.stopScan}
+          scannedTag={pickerScan}
+          onScanHandled={() => setPickerScan(null)}
         />
 
         <PendingChangesBar openDeviceId={showDeviceWorkflow ? selectedDevice?.id : undefined} />

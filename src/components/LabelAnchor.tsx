@@ -3,6 +3,7 @@ import { Device, DevicePage, LabelSize, ResolvedItem, Substitution, Substitution
 import { getShownItems, LabelDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
 import { plainText } from '../lib/richText';
+import { WEEK_ORDER, dayIndexInWeek, getWeekStartString } from '../lib/weekSchedule';
 import { LabelName } from './RichText';
 
 interface LabelAnchorProps {
@@ -14,7 +15,7 @@ interface LabelAnchorProps {
   // Per-day On / Off for the week being edited
   toggles: LabelDayOverrides;
   substitutionMap: Map<SubstitutionKey, Substitution>;
-  // Monday (YYYY-MM-DD) of the week being edited; dates are hidden without it
+  // First day (Sunday, YYYY-MM-DD) of the week being edited; dates are hidden without it
   weekStart?: string | null;
   highlightItemId?: number | null;
   onItemTap?: (resolved: ResolvedItem, e: React.MouseEvent) => void;
@@ -34,8 +35,8 @@ const ASPECT: Record<LabelSize, string> = {
   '11-inch': 'aspect-[5/3]',
 };
 
-// Mon–Sun in JS day numbers
-const WEEK = [1, 2, 3, 4, 5, 6, 0];
+// The week in display order (Sun–Sat), in JS day numbers
+const WEEK = WEEK_ORDER;
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -77,17 +78,13 @@ export function LabelAnchor({
   const shown = previewPage ? shownFor(previewPage, day) : [];
   const capacity = previewPage?.displayCapacity ?? 0;
   const color = previewPage ? daypartHex(previewPage.daypart) : '';
-  const thisWeek = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    return d.toISOString().slice(0, 10);
-  })();
+  const thisWeek = getWeekStartString(0);
   const isLive = !!previewPage && isPageLiveNow(previewPage) && day === today && (!weekStart || weekStart === thisWeek);
 
   const dateFor = (jsDay: number) => {
     if (!weekStart) return null;
     const d = new Date(weekStart + 'T00:00:00');
-    d.setDate(d.getDate() + ((jsDay + 6) % 7));
+    d.setDate(d.getDate() + dayIndexInWeek(jsDay));
     return d.getDate();
   };
 

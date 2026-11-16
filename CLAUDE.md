@@ -54,9 +54,9 @@ Reference: `src/components/FilterSidebar.tsx` (Products page), opened from the t
   dayparts/stations in the items) instead of a hard-coded list. Use checkboxes for multi-select.
   When a list is longer than ~8, add a search input and a "Select all", and cap the list
   height (`max-h-48 overflow-y-auto`).
-- **Free text** (name, ID) filters use an `Input` with a 300ms debounce. Dates offer quick picks
-  (Today, days of the week) plus a date input, with a single / range toggle.
-- Filters apply immediately; there is no "Apply" step (except a date range, which needs both ends).
+- **Free text** (name, ID) filters use an `Input` with a 300ms debounce. **Day** is this week only:
+  seven Mon–Sun chips with the date, multi-select, today outlined in sky (no date input, no ranges).
+- Filters apply immediately; there is no "Apply" step.
 - Remember open/closed state per user (`localStorage`, as `filterSidebarOpen` in `App.tsx`).
 
 ### Long detail pages → section bookmark nav
@@ -245,6 +245,17 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   Separate colors for labels vs signage (and both) are still open; decide them when signage exists. Week = the week selector. Lists and cards show one strip
   (`ProductDayStrip`); the product sheet shows a row per source plus a legend (`ProductDayRows`).
   Reference: `src/components/ProductDays.tsx`.
+- **Products is product control + "schedule lite" (decided 2026-11-16).** The list is all
+  products (some on this week's menu, some on a later one). The week picker after Filters
+  (`ProductWeekPicker`) offers **This week** and **Next week** only, each noting whether it follows
+  the Default Week or has its own schedule. The first change to a week that follows the Default
+  Week gives it its own schedule, the same as on Smart Labels (never edits the Default Week).
+  Its last row, **Plan a later week**, opens Smart Labels → Schedule. Day and daypart are chosen
+  in the label picker, for the picked week. Day strips, Usage, the Day filter, the label picker
+  and labels opened from Products all use the picked week. The Day filter matches a product when the source
+  serves it that day or a label uses it that day (what the day strip shows). The label picker
+  ("Choose a label") names the week in its header, has no week or schedule controls, and has
+  Scan (NFC) to pick a label by its tag.
 - **Finding products by use:** the Products Filters panel has a **Usage** section (On labels /
   Not in use, with counts) for the same week as the day strips. Signage options join it when
   signage exists. Usage is a filter, not a mark on the card.
@@ -364,6 +375,14 @@ Never use inline `style={{ color }}` or arbitrary values like `bg-[rgb(...)]` fo
 - Keep it short (150–450ms) and purposeful: feedback, state change, entering sheets.
 - Put keyframes in `src/index.css` and add every new animation to a
   `prefers-reduced-motion: reduce` block.
+
+## Weeks and days
+- **Weeks run Sunday to Saturday** (decided 2026-11-16). The week start is one setting,
+  `WEEK_STARTS_ON` in `src/lib/weekSchedule.ts`. Build every week and day list from there:
+  `WEEK_ORDER` (days in display order), `startOfWeek()`, `getWeekStartDate()` /
+  `getWeekStartString()`, `dayIndexInWeek()`. Never hard-code a day order or re-derive the week start.
+- Day numbers are JS `getDay()` values (0 = Sunday) everywhere, including stored `day_of_week`.
+- Stored `week_start` is the week's Sunday. Dates use local time (`localDate()`), never `toISOString()`.
 
 ## Writing
 - Short, plain labels in sentence case ("Add items", not "Add Items To Page").

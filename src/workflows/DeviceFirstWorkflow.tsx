@@ -25,7 +25,7 @@ interface DeviceFirstWorkflowProps {
   preSelectedDaypart?: string | null;
   // Prefills the Available Items search, e.g. with a product chosen on Products
   initialItemSearch?: string;
-  // Monday (YYYY-MM-DD) of the week being edited, if any
+  // First day (Sunday, YYYY-MM-DD) of the week being edited, if any
   weekStart?: string | null;
   weekContextLabel?: string;
   // Shown after the week banner, e.g. when edits there don't push to the label yet

@@ -1,4 +1,5 @@
 import { Device, DeviceWeekSchedule } from '../types';
+import { WEEK_ORDER } from './weekSchedule';
 
 export type DayCoverageStatus = 'complete' | 'partial' | 'empty';
 
@@ -25,8 +26,8 @@ export function countLabelsDifferingFromDefault(
   return effective.filter(s => itemSignature(s) !== itemSignature(defaultByDevice.get(s.deviceId))).length;
 }
 
-// Mon–Sun in JS day-of-week numbers.
-export const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 0];
+// The week in display order (Sun–Sat), in JS day-of-week numbers.
+export const WEEK_DAYS = WEEK_ORDER;
 
 export interface SlotGap {
   dayOfWeek: number;

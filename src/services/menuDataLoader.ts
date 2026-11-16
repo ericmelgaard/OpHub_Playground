@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getWeekStartDate, getWeekEndDate, localDate } from '../lib/weekSchedule';
 
 const EDGE_FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/populate-menu-data`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -6,25 +7,10 @@ const WAND_API_BASE = 'https://api.wanddigital.com/services/webtrition/client/wd
 const SAP_CODE = '72917';
 const VENUE = '73103';
 
-function getWeekMonday(weekOffset: number): Date {
-  const today = new Date();
-  const day = today.getDay();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
-  monday.setDate(monday.getDate() + weekOffset * 7);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
-function formatDate(d: Date): string {
-  return d.toISOString().split('T')[0];
-}
-
+// The 7 days of a week (Sunday–Saturday), as fetched from the source
 function getWeekDateRange(weekOffset: number): { start: string; end: string } {
-  const monday = getWeekMonday(weekOffset);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return { start: formatDate(monday), end: formatDate(sunday) };
+  const start = getWeekStartDate(weekOffset);
+  return { start: localDate(start), end: localDate(getWeekEndDate(start)) };
 }
 
 async function callEdgeFunction(body: Record<string, unknown>): Promise<any> {
@@ -109,8 +95,7 @@ export async function ensureWeekData(weekOffset: number): Promise<{ status: Week
 }
 
 export async function cleanupOldWeeks(): Promise<number> {
-  const thisMonday = getWeekMonday(0);
-  const before = formatDate(thisMonday);
+  const before = localDate(getWeekStartDate(0));
   try {
     const result = await callEdgeFunction({ mode: 'cleanup', before });
     return result.deleted || 0;

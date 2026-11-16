@@ -72,7 +72,7 @@ interface DeviceSettingsModalProps {
   onSetAutoFill?: (pageId: string, stations: string[]) => void;
   // Starting text for the Available Items search
   initialItemSearch?: string;
-  // Monday (YYYY-MM-DD) of the week being edited, for the day strip's dates
+  // First day (Sunday, YYYY-MM-DD) of the week being edited, for the day strip's dates
   weekStart?: string | null;
   // Day to start on (defaults to today); changes are reported back
   initialDay?: number | 'every-day';

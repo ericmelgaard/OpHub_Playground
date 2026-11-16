@@ -5,7 +5,7 @@ import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
 import { plainText } from '../lib/richText';
 import { isCustomItem, matchesItemId } from '../lib/labelDisplay';
 import { productDayparts } from '../lib/stations';
-import type { LabelUse } from '../lib/weekSchedule';
+import { menuDaysInWeek, type LabelUse } from '../lib/weekSchedule';
 
 interface MenuItemsProps {
   loading: boolean;
@@ -93,17 +93,13 @@ export function MenuItems({
           );
         case 'menu_item_mrn':
           return filter.selectedValues.some(value => matchesItemId(item, value));
-        case 'date':
-          if (filter.singleDate) {
-            return item.date === filter.singleDate;
-          }
-          if (filter.dateRange) {
-            const itemDate = new Date(item.date);
-            const startDate = new Date(filter.dateRange.start);
-            const endDate = new Date(filter.dateRange.end);
-            return itemDate >= startDate && itemDate <= endDate;
-          }
-          return true;
+        case 'date': {
+          // Days in the Products week (0–6): the source serves it that day or a label uses
+          // it that day — the same two things the day strip shows
+          const days = new Set(menuDaysInWeek(item, selectedCycleWeek ?? 0));
+          labelDaysByMrn?.get(item.mrn)?.forEach(d => days.add(d));
+          return filter.selectedValues.some(v => days.has(Number(v)));
+        }
         case 'week':
           return true;
         default:

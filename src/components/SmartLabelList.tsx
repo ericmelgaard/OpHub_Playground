@@ -9,6 +9,7 @@ import { DAY_ABBR } from '../lib/availability';
 import { SyncStatus, PendingPill } from './SyncStatus';
 import { daypartColor } from '../lib/daypartColors';
 import { filterLabels } from '../lib/labelFilter';
+import { WEEK_ORDER } from '../lib/weekSchedule';
 import { ReviewedTag } from './ReviewedTag';
 import { LabelName } from './RichText';
 
@@ -305,8 +306,8 @@ function DayStrip({
   hasSchedule: boolean;
   selectedDay?: number | 'every-day';
 }) {
-  const days = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
-  const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const days = WEEK_ORDER; // Sun–Sat
+  const labels = days.map(d => 'SMTWTFS'[d]);
   const today = new Date().getDay();
   // The day being edited when one is picked; otherwise today, in the current week only
   const highlighted = selectedDay === 'every-day' ? null

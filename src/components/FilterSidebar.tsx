@@ -14,6 +14,8 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { levelIconColor } from '@/lib/levelColors';
+import { DAY_ABBR } from '../lib/availability';
+import { getWeekStartDate, WEEK_ORDER } from '../lib/weekSchedule';
 import { FilterConfig, FilterType, MenuItem, Placement } from '../types';
 
 interface FilterSidebarProps {
@@ -28,8 +30,10 @@ interface FilterSidebarProps {
   totalCount?: number;
   // Products: days each product (by MRN) is on labels in the selected week; turns on the Usage section
   labelDaysByMrn?: Map<string, Set<number>>;
-  // e.g. "Nov 16 – 22", shown in the Usage section
+  // e.g. "Nov 16 – 22", shown in the Usage and Day sections
   usageWeekLabel?: string;
+  // The Products week (0 = this week); the Day chips show its dates
+  weekOffset?: number;
 }
 
 // Signage options (On signage, In use) join when signage exists
@@ -57,6 +61,7 @@ export function FilterSidebar({
   totalCount,
   labelDaysByMrn,
   usageWeekLabel,
+  weekOffset = 0,
 }: FilterSidebarProps) {
   const [expandedSections, setExpandedSections] = useState<SectionState>({
     usage: true,
@@ -70,10 +75,6 @@ export function FilterSidebar({
   const [nameSearch, setNameSearch] = useState('');
   const [mrnSearch, setMrnSearch] = useState('');
   const [stationSearch, setStationSearch] = useState('');
-  const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [rangeStart, setRangeStart] = useState('');
-  const [rangeEnd, setRangeEnd] = useState('');
   const nameDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const mrnDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -85,17 +86,6 @@ export function FilterSidebar({
     const existingMrnFilter = activeFilters.find(f => f.type === 'menu_item_mrn');
     if (existingMrnFilter && existingMrnFilter.selectedValues[0] !== mrnSearch) {
       setMrnSearch(existingMrnFilter.selectedValues[0] || '');
-    }
-    const existingDateFilter = activeFilters.find(f => f.type === 'date');
-    if (existingDateFilter) {
-      if (existingDateFilter.singleDate) {
-        setDateMode('single');
-        setSelectedDate(existingDateFilter.singleDate);
-      } else if (existingDateFilter.dateRange) {
-        setDateMode('range');
-        setRangeStart(existingDateFilter.dateRange.start);
-        setRangeEnd(existingDateFilter.dateRange.end);
-      }
     }
   }, []);
 
@@ -197,81 +187,34 @@ export function FilterSidebar({
     }, 300);
   };
 
-  const handleDateSelect = (date: string) => {
-    setSelectedDate(date);
-    const existing = activeFilters.find(f => f.type === 'date');
-    const updatedFilter: FilterConfig = {
-      id: existing?.id || `filter-date-${Date.now()}`,
-      type: 'date',
-      selectedValues: [],
-      singleDate: date,
-    };
-    if (existing) {
-      onFiltersChange(activeFilters.map(f => f.type === 'date' ? updatedFilter : f));
-    } else {
-      onFiltersChange([...activeFilters, updatedFilter]);
-    }
-  };
-
-  const handleRangeApply = () => {
-    if (rangeStart && rangeEnd) {
-      const existing = activeFilters.find(f => f.type === 'date');
-      const updatedFilter: FilterConfig = {
-        id: existing?.id || `filter-date-${Date.now()}`,
-        type: 'date',
-        selectedValues: [],
-        dateRange: { start: rangeStart, end: rangeEnd },
-      };
-      if (existing) {
-        onFiltersChange(activeFilters.map(f => f.type === 'date' ? updatedFilter : f));
-      } else {
-        onFiltersChange([...activeFilters, updatedFilter]);
-      }
-    }
-  };
-
   const clearSection = (type: FilterType) => {
     onFiltersChange(activeFilters.filter(f => f.type !== type));
     if (type === 'menu_item_name') setNameSearch('');
     if (type === 'menu_item_mrn') setMrnSearch('');
-    if (type === 'date') {
-      setSelectedDate('');
-      setRangeStart('');
-      setRangeEnd('');
-    }
   };
 
   const clearAll = () => {
     onFiltersChange([]);
     setNameSearch('');
     setMrnSearch('');
-    setSelectedDate('');
-    setRangeStart('');
-    setRangeEnd('');
   };
 
   const activeFilterCount = activeFilters.length;
 
-  const getCurrentWeekDays = () => {
-    const today = new Date();
-    const currentDay = today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - currentDay + (currentDay === 0 ? -6 : 1));
-
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      days.push({
-        label: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
-        date: date.toISOString().split('T')[0],
-      });
-    }
-    return days;
+  // The Products week, Sun–Sat. Day filter values are JS day numbers (0 = Sun).
+  const weekDays = (() => {
+    const start = getWeekStartDate(weekOffset);
+    const today = new Date().getDay();
+    return WEEK_ORDER.map((day, i) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      return { day, label: DAY_ABBR[day], dateNum: date.getDate(), isToday: weekOffset === 0 && day === today };
+    });
+  })();
+  const dayLabel = (v: string) => {
+    const d = weekDays.find(w => String(w.day) === v);
+    return d ? `${d.label} ${d.dateNum}` : v;
   };
-
-  const weekDays = getCurrentWeekDays();
-  const today = new Date().toISOString().split('T')[0];
 
   const hasActiveFilter = (type: FilterType): boolean => {
     return activeFilters.some(f => f.type === type && (f.selectedValues.length > 0 || f.singleDate || f.dateRange));
@@ -404,11 +347,9 @@ export function FilterSidebar({
                   } else if (filter.type === 'menu_item_mrn') {
                     label = `ID: ${filter.selectedValues[0]}`;
                   } else if (filter.type === 'date') {
-                    if (filter.singleDate) {
-                      label = new Date(filter.singleDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                    } else if (filter.dateRange) {
-                      label = 'Date range';
-                    }
+                    label = filter.selectedValues.length === 1
+                      ? dayLabel(filter.selectedValues[0])
+                      : `${filter.selectedValues.length} days`;
                   }
                   return (
                     <span
@@ -658,103 +599,40 @@ export function FilterSidebar({
             {/* Date Section */}
             <div className="border-b border-gray-100 dark:border-gray-800">
               <SectionHeader
-                title="Date"
+                title="Day"
                 icon={Calendar}
                 sectionKey="date"
                 hasActive={hasActiveFilter('date')}
               />
               {expandedSections.date && (
-                <div className="pb-3 px-1 space-y-3">
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setDateMode('single')}
-                      className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                        dateMode === 'single'
-                          ? 'bg-sky-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      Single date
-                    </button>
-                    <button
-                      onClick={() => setDateMode('range')}
-                      className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                        dateMode === 'range'
-                          ? 'bg-sky-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      Date range
-                    </button>
-                  </div>
-
-                  {dateMode === 'single' && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Quick select</p>
-                      <div className="flex flex-wrap gap-1.5">
+                <div className="pb-3 px-1 space-y-2">
+                  <p className="px-1 text-xs text-gray-500 dark:text-gray-400">
+                    {weekOffset === 0 ? 'This week' : 'Week'}{usageWeekLabel ? ` · ${usageWeekLabel}` : ''} · served or on labels that day
+                  </p>
+                  <div className="grid grid-cols-7 gap-1" role="group" aria-label="Days this week">
+                    {weekDays.map(d => {
+                      const selected = getFilterValues('date').includes(String(d.day));
+                      return (
                         <button
-                          onClick={() => handleDateSelect(today)}
-                          className={`px-2 py-1 text-xs rounded transition-colors ${
-                            selectedDate === today
-                              ? 'bg-sky-500 text-white'
-                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          key={d.day}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => updateCheckboxFilter('date', String(d.day), !selected)}
+                          title={`${d.label} ${d.dateNum}${d.isToday ? ' (today)' : ''}`}
+                          className={`flex flex-col items-center py-1.5 rounded-lg border text-xs transition-colors ${
+                            selected
+                              ? 'bg-sky-500 border-sky-500 text-white'
+                              : d.isToday
+                                ? 'border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+                                : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                           }`}
                         >
-                          Today
+                          <span className="font-medium">{d.label}</span>
+                          <span className="text-[10px] tabular-nums opacity-80">{d.dateNum}</span>
                         </button>
-                        {weekDays.map(day => (
-                          <button
-                            key={day.date}
-                            onClick={() => handleDateSelect(day.date)}
-                            className={`px-2 py-1 text-xs rounded transition-colors ${
-                              selectedDate === day.date
-                                ? 'bg-sky-500 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            {day.label}
-                          </button>
-                        ))}
-                      </div>
-                      <Input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => handleDateSelect(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  )}
-
-                  {dateMode === 'range' && (
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Start</label>
-                        <Input
-                          type="date"
-                          value={rangeStart}
-                          onChange={(e) => setRangeStart(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">End</label>
-                        <Input
-                          type="date"
-                          value={rangeEnd}
-                          onChange={(e) => setRangeEnd(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <Button
-                        onClick={handleRangeApply}
-                        disabled={!rangeStart || !rangeEnd}
-                        size="sm"
-                        className="w-full h-7 text-xs"
-                      >
-                        Apply range
-                      </Button>
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
 
                   {hasActiveFilter('date') && (
                     <button

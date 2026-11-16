@@ -8,7 +8,7 @@ import { daypartColor } from '../lib/daypartColors';
 import { DeviceWeekSchedule } from '../types';
 import {
   getWeekStartDate, getWeekEndDate, getWeekStartString as libGetWeekStartString,
-  getWeekState, WeekState, formatEditingDay,
+  getWeekState, WeekState, formatEditingDay, WEEK_ORDER,
 } from '../lib/weekSchedule';
 
 // Re-exported for existing importers.
@@ -394,8 +394,6 @@ export function WeekScheduleBar({
     </section>
   );
 }
-
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 const pickerTrigger = 'h-8 w-auto gap-2 rounded-lg px-2.5 text-sm font-medium focus:ring-sky-500 focus:ring-offset-0 dark:focus:ring-sky-400';
 

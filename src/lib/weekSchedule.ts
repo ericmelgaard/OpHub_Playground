@@ -1,14 +1,28 @@
 import { DeviceScheduleItem, DeviceWeekSchedule, MenuItem } from '../types';
 
-// Monday of the week at the given offset from the current week.
+// Weeks run Sunday to Saturday. Every week calculation and every list of days uses these,
+// so the week start lives in one place.
+export const WEEK_STARTS_ON = 0; // JS day number: 0 = Sunday
+
+// The days of a week in display order, as JS day numbers (Sun, Mon … Sat)
+export const WEEK_ORDER = Array.from({ length: 7 }, (_, i) => (WEEK_STARTS_ON + i) % 7);
+
+// Position of a JS day number within the week (0 = first day)
+export const dayIndexInWeek = (day: number) => (day - WEEK_STARTS_ON + 7) % 7;
+
+// First day of the week containing `date`, at midnight local time
+export function startOfWeek(date: Date): Date {
+  const start = new Date(date);
+  start.setDate(start.getDate() - dayIndexInWeek(start.getDay()));
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+// First day of the week at the given offset from the current week
 export function getWeekStartDate(weekOffset: number): Date {
-  const today = new Date();
-  const day = today.getDay();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
-  monday.setDate(monday.getDate() + weekOffset * 7);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
+  const start = startOfWeek(new Date());
+  start.setDate(start.getDate() + weekOffset * 7);
+  return start;
 }
 
 export function getWeekEndDate(start: Date): Date {
@@ -17,11 +31,15 @@ export function getWeekEndDate(start: Date): Date {
   return end;
 }
 
+// YYYY-MM-DD in local time (toISOString would shift to UTC and can land on the day before)
+export const localDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export function getWeekStartString(weekOffset: number): string {
-  return getWeekStartDate(weekOffset).toISOString().split('T')[0];
+  return localDate(getWeekStartDate(weekOffset));
 }
 
-// Whole-week difference between two Monday ISO date strings (targetWeek - sourceWeek).
+// Whole-week difference between two week-start ISO date strings (targetWeek - sourceWeek).
 export function weeksBetween(sourceWeekStart: string, targetWeekStart: string): number {
   const src = new Date(sourceWeekStart + 'T00:00:00');
   const tgt = new Date(targetWeekStart + 'T00:00:00');
@@ -123,12 +141,9 @@ export function formatEditingDay(day: number | 'every-day', weekStart: string | 
   if (day === 'every-day') return 'Every day';
   if (!weekStart) return DAY_SHORT[day];
   const date = new Date(weekStart + 'T00:00:00');
-  date.setDate(date.getDate() + ((day + 6) % 7));
+  date.setDate(date.getDate() + dayIndexInWeek(day));
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
-
-const localDate = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // Days Webtrition's menu serves the product in a week (offset from this week). Custom products
 // have none: their days come only from the labels they're scheduled on.
