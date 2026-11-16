@@ -35,6 +35,8 @@ interface MenuItemProps {
   onEdit?: (item: MenuItemType) => void;
   // Opens the product sheet (card / row click, and View product in the menu)
   onOpen?: (item: MenuItemType) => void;
+  // Opened last: sky ring, same as labels
+  lastOpened?: boolean;
   // Days this product is on labels in the selected week
   labelDays?: Set<number>;
   // Where it's on labels; a custom product's dayparts and stations come only from here
@@ -57,6 +59,7 @@ export function MenuItem({
   viewMode,
   onEdit,
   onOpen,
+  lastOpened,
   labelDays,
   labelUse,
   selectedCycleWeek,
@@ -437,7 +440,7 @@ export function MenuItem({
           data-product-id={item.id}
           className={`group grid grid-cols-[minmax(0,1fr)_auto_auto] ${PRODUCT_ROW_COLS} gap-3 items-center px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 rounded-lg transition-all ${
             opensProduct ? 'hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm cursor-pointer' : ''
-          } ${!isActive ? 'opacity-50' : ''}`}
+          } ${!isActive ? 'opacity-50' : ''} ${lastOpened ? 'ring-2 ring-sky-400 dark:ring-sky-500' : ''}`}
         >
           {/* Product name + MRN (dayparts and stations fold in under lg) */}
           <div className="flex items-center gap-3 min-w-0">
@@ -521,7 +524,8 @@ export function MenuItem({
       />
       <Card
         onClick={onOpen ? () => onOpen(item) : undefined}
-        className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${onOpen ? 'cursor-pointer' : ''} ${!isActive ? 'opacity-50' : ''} relative overflow-hidden`}
+        data-product-id={item.id}
+        className={`bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow p-6 group flex flex-col min-h-[280px] ${onOpen ? 'cursor-pointer' : ''} ${!isActive ? 'opacity-50' : ''} ${lastOpened ? 'ring-2 ring-sky-400 dark:ring-sky-500' : ''} relative overflow-hidden`}
       >
       {/* Top row with MRN and the quick add */}
       <CardHeader className="p-0 mb-4">

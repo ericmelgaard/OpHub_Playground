@@ -215,6 +215,11 @@ function App() {
   const [labelFromPicker, setLabelFromPicker] = useState(false);
   // Product details sheet, opened by clicking a product card or row
   const [productSheetItem, setProductSheetItem] = useState<MenuItem | null>(null);
+  // The product you opened last keeps a sky ring in the list (like labels) until you leave Products
+  const [lastOpenedProductMrn, setLastOpenedProductMrn] = useState<string | null>(null);
+  useEffect(() => {
+    if (productSheetItem) setLastOpenedProductMrn(productSheetItem.mrn);
+  }, [productSheetItem]);
 
   // Quick Action Configuration
   const getDefaultQuickActionConfigs = (): QuickActionConfig[] => [
@@ -933,6 +938,7 @@ function App() {
     setSearchValue('');
     setActiveFilters([]);
     resetLabelSession();
+    setLastOpenedProductMrn(null);
   }, [resetLabelSession]);
 
   // Pending changes stay while you move around Smart Labels; leaving asks first
@@ -1381,6 +1387,7 @@ function App() {
                         onFilteredCountChange={setFilteredItemCount}
                         refreshTags={refreshTags}
                         onOpen={setProductSheetItem}
+                        lastOpenedMrn={lastOpenedProductMrn}
                         labelDaysByMrn={productLabelDays}
                         labelUseByMrn={productLabelUse}
                         selectedCycleWeek={selectedCycleWeek}

@@ -24,6 +24,8 @@ interface MenuItemsProps {
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
   onOpen?: (item: MenuItemType) => void;
+  // The product opened last (sky ring)
+  lastOpenedMrn?: string | null;
   // Days each product (by MRN) is on labels in the selected week
   labelDaysByMrn?: Map<string, Set<number>>;
   // Dayparts and stations each product is on labels (custom products take theirs from here)
@@ -53,6 +55,7 @@ export function MenuItems({
   devices,
   onEdit,
   onOpen,
+  lastOpenedMrn,
   labelDaysByMrn,
   labelUseByMrn,
   searchValue = '',
@@ -182,6 +185,7 @@ export function MenuItems({
             devices={devices}
             onEdit={onEdit}
             onOpen={onOpen}
+            lastOpened={!!lastOpenedMrn && item.mrn === lastOpenedMrn}
             labelDays={labelDaysByMrn?.get(item.mrn)}
             labelUse={labelUseByMrn?.get(item.mrn)}
             selectedCycleWeek={selectedCycleWeek}
@@ -225,6 +229,7 @@ export function MenuItems({
           devices={devices}
           onEdit={onEdit}
           onOpen={onOpen}
+          lastOpened={!!lastOpenedMrn && item.mrn === lastOpenedMrn}
           labelDays={labelDaysByMrn?.get(item.mrn)}
           labelUse={labelUseByMrn?.get(item.mrn)}
           selectedCycleWeek={selectedCycleWeek}

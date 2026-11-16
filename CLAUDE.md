@@ -117,6 +117,16 @@ Reference: `src/components/ProductSheet.tsx` (clicking a product card or row).
 - Cards and rows that open a sheet keep their quick action (`+`) and `⋯` menu; those stop the click
   from also opening the sheet.
 
+### Last opened → sky ring (approved 2026-11-15)
+Reference: `lastOpened` in `src/components/SmartLabelGrid.tsx` / `SmartLabelList.tsx` (labels) and
+`src/components/MenuItem.tsx` (products). Any card or row that opens a page or sheet marks the one
+opened last, so people can find their place when they come back.
+- `ring-2 ring-sky-400 dark:ring-sky-500` on the card or row; it wins over any other ring.
+- Kept while you move around the page (open another item and it moves); cleared when you leave it.
+- Track it by a stable key (label id, product MRN). When coming back from a full page, scroll it
+  into view (`data-label-id` / `data-product-id`, `block: 'center'`).
+- It's a place marker, not selection or status: no tag, no fill.
+
 ### Saving changes → one apply button
 Component: `SaveButton` (`src/components/SaveButton.tsx`). Every place that saves edits uses it,
 not a hand-built button: the label header, the pending changes bar, and the product form
