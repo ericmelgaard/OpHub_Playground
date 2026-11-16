@@ -1,8 +1,8 @@
 import { DAY_ABBR } from '../lib/availability';
 
-// A product's day has two independent parts, shown without any fill:
+// A product's day has two independent parts:
 // - Outline: the product's source (the API feeding products in; Webtrition today) offers it that day.
-// - Color of the letter (and outline): how it's used here that week — gray unused, sky on labels.
+// - Fill (and letter color): how it's used here that week — none when unused, soft sky on labels.
 //   Labels and signage get their own colors once signage exists; until then labels use the accent.
 // Lists and cards show one strip; the product sheet shows a row per source.
 
@@ -12,11 +12,12 @@ type Use = 'none' | 'labels' | 'signage';
 
 // Letter color, and the outline's color when the source offers the day.
 // Contrast on the card (white / gray-800) is at least 4.5:1 for every letter.
-const COLOR: Record<Use, { text: string; outline: string }> = {
-  none: { text: 'text-gray-700 dark:text-gray-200', outline: 'border-gray-500 dark:border-gray-400' },
-  labels: { text: 'text-sky-700 dark:text-sky-400', outline: 'border-sky-700 dark:border-sky-400' },
+// Use is a soft fill (it changes the pill's brightness, so it reads apart from gray at a glance).
+const COLOR: Record<Use, { text: string; outline: string; fill: string }> = {
+  none: { text: 'text-gray-700 dark:text-gray-200', outline: 'border-gray-500 dark:border-gray-400', fill: '' },
+  labels: { text: 'text-sky-800 dark:text-sky-200', outline: 'border-brand dark:border-sky-400', fill: 'bg-sky-100 dark:bg-sky-900/60' },
   // Placeholder until signage exists and its color is decided
-  signage: { text: 'text-sky-900 dark:text-sky-200', outline: 'border-sky-900 dark:border-sky-200' },
+  signage: { text: 'text-sky-900 dark:text-sky-100', outline: 'border-sky-900 dark:border-sky-200', fill: 'bg-sky-200 dark:bg-sky-800' },
 };
 // Unused and not offered: quieter, but still readable
 const FAINT = 'text-gray-500 dark:text-gray-400';
@@ -44,7 +45,7 @@ function describe(d: number, onMenu: boolean, onLabels: boolean, onSignage: bool
 function dayClass(onMenu: boolean, use: Use) {
   const outline = onMenu ? `border-2 ${COLOR[use].outline}` : 'border-2 border-transparent';
   const text = !onMenu && use === 'none' ? FAINT : COLOR[use].text;
-  return `${outline} ${text}`;
+  return `${outline} ${COLOR[use].fill} ${text}`;
 }
 
 // One strip (lists and cards)
@@ -88,7 +89,7 @@ export function ProductDayRows({ menuDays, labelDays, signageDays, showMenu }: D
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
         {showMenu && <LegendSwatch className={dayClass(true, 'none')} label="Outline · offered by the source" />}
-        <LegendSwatch className={dayClass(false, 'labels')} label="Blue · on labels" />
+        <LegendSwatch className={dayClass(false, 'labels')} label="Blue fill · on labels" />
         {signageDays && <LegendSwatch className={dayClass(false, 'signage')} label="Dark blue · on signage" />}
       </div>
     </div>

@@ -29,6 +29,13 @@ export interface GuideSection {
 
 export const GUIDE_UPDATES: GuideUpdate[] = [
   {
+    id: '2026-11-15-day-fill',
+    date: '2026-11-15',
+    title: 'Easier to see which days are on labels',
+    text: 'The day letters on each product now have a blue fill on the days it\'s on a label. The outline still means the source offers it that day.',
+    section: 'products',
+  },
+  {
     id: '2026-11-15-pick-daypart',
     date: '2026-11-15',
     title: 'Pick the daypart to add from',
@@ -199,7 +206,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     figure: 'products',
     entries: [
       { term: 'IDs', text: 'Every product has its own ID. Products that come from a source also show the source ID next to a link icon.' },
-      { term: 'Day letters', text: 'An outline means the source offers it that day. Blue letters mean it\'s on a label that day in the week you picked.' },
+      { term: 'Day letters', text: 'An outline means the source offers it that day. A blue fill means it\'s on a label that day in the week you picked.' },
       { term: 'Usage filter', text: 'In Filters, Usage finds products that are on labels or not in use.' },
       { term: 'Custom products', text: 'Create and edit them from the product sheet.' },
       { term: 'Editing products from a source', text: 'Tap Edit in the product sheet. Your changes are kept here and the source isn\'t changed. Changed fields are marked "Local"; tap "Use source" to go back to the source\'s value.' },

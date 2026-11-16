@@ -224,11 +224,14 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   so their toggle is **Off / On** only (no Auto; an unset day is Off). Auto appears once an item
   is linked. Custom products have no days of their own: adding
   one to a label turns it On for the day being edited (all 7 in Every day).
-- **Product days are view-only**, drawn with no fill. Each day has two independent parts: an
+- **Product days are view-only.** Each day has two independent parts: an
   **outline** when the product's **source** offers it that day (the API feeding products in —
-  Webtrition today; the UI says "Source", not a vendor name), and the **color of the letter and
-  outline** for how it's used here that week — gray unused (lighter gray when the source doesn't
-  offer it either), `sky` on labels. Every letter keeps 4.5:1 contrast on the card in both modes.
+  Webtrition today; the UI says "Source", not a vendor name), and a **soft fill** for how it's
+  used here that week (approved 2026-11-15) — no fill when unused (gray letter; lighter gray when
+  the source doesn't offer it either), `bg-sky-100 dark:bg-sky-900/60` with `text-sky-800
+  dark:text-sky-200` on labels. An on-labels day the source offers has a `brand` outline
+  (`dark:border-sky-400`). The fill, not the letter color, is what tells used from unused.
+  Every letter keeps 4.5:1 contrast in both modes.
   Separate colors for labels vs signage (and both) are still open; decide them when signage exists. Week = the week selector. Lists and cards show one strip
   (`ProductDayStrip`); the product sheet shows a row per source plus a legend (`ProductDayRows`).
   Reference: `src/components/ProductDays.tsx`.
