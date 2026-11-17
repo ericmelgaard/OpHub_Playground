@@ -117,6 +117,24 @@ Reference: `src/components/ProductSheet.tsx` (clicking a product card or row).
 - Cards and rows that open a sheet keep their quick action (`+`) and `⋯` menu; those stop the click
   from also opening the sheet.
 
+### Editing a product → full-screen page (approved 2026-11-16)
+Reference: `src/components/ProductEditPage.tsx` (Edit in the product sheet, and New product).
+- Viewing stays in the right-side sheet; **Edit and New product open a full-screen page** like an
+  open label: `fixed inset-x-0 top-16 bottom-0` under the top nav, a header bar (close `X`, name,
+  "ID · {source} {ID label} · local values", `SaveButton` / Create product), the **Sections** bookmark
+  nav on the left (`w-56`, its own scroll, scroll-spy) and the content scrolling beside it.
+- One card per section (`rounded-xl`, icon + sentence-case title), in this order: Basics, Dayparts,
+  Images, Variations, Ingredients, Dietary and nutrition, Schedule, Customizations, Menu source.
+  Sections not built yet show an amber **Not built yet** tag and one line on what goes there.
+- **Schedule** is view only and uses the Smart Labels → Schedule week tiles (Default Week, then a
+  scrollable strip with the Default / Override / Recurring bars). Rows are daypart + station, days
+  drawn like the product day strip; weeks the source hasn't sent yet are dashed.
+- **Menu source** names the product's API and its item ID ("Webtrition · MRN 13404.3"), with a
+  Field / {source} / Here table and **Use source** on local values.
+- **Variations** (direction): the same product (same ID) by daypart, station and group, each with
+  its own name, price or description there. A different portion is a different product.
+  **Customizations** (direction): only the changes made by levels below the one you're at.
+
 ### Last opened → sky ring (approved 2026-11-15)
 Reference: `lastOpened` in `src/components/SmartLabelGrid.tsx` / `SmartLabelList.tsx` (labels) and
 `src/components/MenuItem.tsx` (products). Any card or row that opens a page or sheet marks the one
@@ -236,7 +254,8 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   one to a label turns it On for the day being edited (all 7 in Every day).
 - **Product days are view-only.** Each day has two independent parts: an
   **outline** when the product's **source** offers it that day (the API feeding products in —
-  Webtrition today; the UI says "Source", not a vendor name), and a **soft fill** for how it's
+  Webtrition today; generic text says "source", and where the product's own source is known it
+  names it from `productSource()`), and a **soft fill** for how it's
   used here that week (approved 2026-11-15) — no fill when unused (gray letter; lighter gray when
   the source doesn't offer it either), `bg-sky-100 dark:bg-sky-900/60` with `text-sky-800
   dark:text-sky-200` on labels. An on-labels day the source offers has a `brand` outline
@@ -266,7 +285,7 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   ID, and the WAND ID is always shown first ("ID 1362996575"). Items brought in from a source are
   *linked* to the source item for their values — editing one will make a local value on the WAND
   item, never change the source. Linked items show the source ID after the WAND ID with a gray
-  `Link2` icon; the product sheet says "Linked to source 13404.3" or "Not linked". Never show the
+  `Link2` icon; the product sheet says "Linked to Webtrition MRN 13404.3" or "Not linked". Never show the
   `CUSTOM-` prefix — it's internal. Use `wandId()` / `linkedSourceId()` / `matchesItemId()` in
   `src/lib/labelDisplay.ts`. A mapping of source attributes to WAND fields is still to come.
 - **Editing linked products (approved 2026-11-15):** every product has Edit, in the same form as
@@ -385,5 +404,9 @@ Never use inline `style={{ color }}` or arbitrary values like `bg-[rgb(...)]` fo
 - Stored `week_start` is the week's Sunday. Dates use local time (`localDate()`), never `toISOString()`.
 
 ## Writing
+- **API names are data, not copy (decided 2026-11-17).** The guide stays generic; the app shows
+  the API a product comes from (name and what it calls its ID, e.g. "Webtrition", "MRN") wherever
+  it's known, from `productSource()` / `sourceSystem()` in `src/lib/sources.ts`. Never type a
+  vendor name or ID label into a component; add the source system there instead.
 - Short, plain labels in sentence case ("Add items", not "Add Items To Page").
 - Status text says what's happening and what's next ("Waiting · label is full").

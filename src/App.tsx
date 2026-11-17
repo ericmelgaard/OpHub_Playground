@@ -29,6 +29,8 @@ import { valuesOf, localDiff } from './lib/productValues';
 import { PendingChangesBar, PendingChangesSheet } from './components/PendingChanges';
 import { LabelPickerSheet } from './components/LabelPickerSheet';
 import { ProductSheet } from './components/ProductSheet';
+import type { ProductScheduleRow } from './components/ProductEditPage';
+import { sourceSystem } from './lib/sources';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
 import { SettingsPage } from './components/SettingsPage';
@@ -394,26 +396,59 @@ function App() {
 
   // Days, dayparts and stations each product is on labels, for the Products week selector's week.
   // A day counts only when the label shows the item that day (its stored day settings applied).
+  // The days a product shows on one label page (its stored day settings applied)
+  const shownDaysOnPage = useMemo(() => {
+    const byMrn = new Map(menuItems.map(i => [i.mrn, i]));
+    return (schedule: DeviceWeekSchedule, daypart: string, mrn: string, rowDays: number[]) => {
+      const product = byMrn.get(mrn);
+      if (!product) return rowDays;
+      // The daypart it follows on that page, when not the page's own
+      const followsDaypart = schedule.items?.find(si => si.daypart === daypart && si.menuItemMrn === mrn && si.followsDaypart)?.followsDaypart;
+      const item = followsDaypart ? { ...product, followsDaypart } : product;
+      const overrides: ItemDayOverrides = {};
+      for (const s of schedule.daySettings ?? []) {
+        if (s.daypart === daypart && s.menuItemMrn === mrn) overrides[s.dayOfWeek] = s.state;
+      }
+      return WEEK_DAYS.filter(d => isOfferedOnDay(item, daypart, d, overrides));
+    };
+  }, [menuItems]);
+
   const productLabelUse = useMemo(() => {
     const weekStart = getWeekStartString(selectedCycleWeek);
-    const byMrn = new Map(menuItems.map(i => [i.mrn, i]));
     return labelUseByMrn(
       resolveWeekSchedules(weekStart, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds),
       stationOfDevice,
-      (schedule, daypart, mrn, rowDays) => {
-        const product = byMrn.get(mrn);
-        if (!product) return rowDays;
-        // The daypart it follows on that page, when not the page's own
-        const followsDaypart = schedule.items?.find(si => si.daypart === daypart && si.menuItemMrn === mrn && si.followsDaypart)?.followsDaypart;
-        const item = followsDaypart ? { ...product, followsDaypart } : product;
-        const overrides: ItemDayOverrides = {};
-        for (const s of schedule.daySettings ?? []) {
-          if (s.daypart === daypart && s.menuItemMrn === mrn) overrides[s.dayOfWeek] = s.state;
-        }
-        return WEEK_DAYS.filter(d => isOfferedOnDay(item, daypart, d, overrides));
-      },
+      shownDaysOnPage,
     );
-  }, [selectedCycleWeek, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds, stationOfDevice, menuItems]);
+  }, [selectedCycleWeek, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds, stationOfDevice, shownDaysOnPage]);
+
+  // Product edit page → Schedule: where one product is on labels in a week (null = the Default Week)
+  const loadProductSchedule = useCallback(async (mrn: string, weekOffset: number | null): Promise<ProductScheduleRow[]> => {
+    let schedules = defaultSchedules;
+    if (weekOffset !== null) {
+      const weekStart = getWeekStartString(weekOffset);
+      const overrides = await api.getWeekSchedules(weekStart);
+      schedules = resolveWeekSchedules(weekStart, overrides, defaultSchedules, recurringSchedules, deviceIds);
+    }
+    const names = new Map(devices.map(d => [d.id, d.name]));
+    const rows: ProductScheduleRow[] = [];
+    for (const s of schedules) {
+      const byDaypart = new Map<string, number[]>();
+      for (const i of s.items ?? []) {
+        if (i.menuItemMrn === mrn) byDaypart.set(i.daypart, [...(byDaypart.get(i.daypart) ?? []), i.dayOfWeek]);
+      }
+      for (const [daypart, rowDays] of byDaypart) {
+        rows.push({
+          daypart,
+          deviceId: s.deviceId,
+          label: names.get(s.deviceId) ?? s.deviceId,
+          station: stationOfDevice(s.deviceId),
+          days: shownDaysOnPage(s, daypart, mrn, rowDays),
+        });
+      }
+    }
+    return rows;
+  }, [defaultSchedules, recurringSchedules, deviceIds, devices, stationOfDevice, shownDaysOnPage]);
   const productLabelDays = useMemo(
     () => new Map([...productLabelUse].map(([mrn, use]) => [mrn, use.days])),
     [productLabelUse],
@@ -427,6 +462,10 @@ function App() {
   }, [isDefaultWeekSelected, defaultSchedules, labelWeekOffset, weekSchedules, recurringSchedules, deviceIds]);
 
   const overrideWeekStartSet = useMemo(() => new Set(overrideWeekStarts), [overrideWeekStarts]);
+  const productWeekStateOf = useCallback(
+    (offset: number) => getWeekState(getWeekStartString(offset), overrideWeekStartSet, recurringSchedules),
+    [overrideWeekStartSet, recurringSchedules],
+  );
 
   // Weeks Products can show ("schedule lite"): this week and next week. A week that follows
   // the Default Week gets its own schedule on its first change, as on Smart Labels.
@@ -649,15 +688,25 @@ function App() {
   }, [deviceWeekContext, menuItems, projectedWorkflowDevice, queueChange, prepareWeek]);
 
   const queueReorder = useCallback((deviceId: string, pageId: string, itemOrder: number[]) => {
+    const target = deviceWeekContext && { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart };
+    const daypart = projectedWorkflowDevice?.pages.find(p => p.id === pageId)?.daypart;
+    // The schedule stores order by MRN (sort_order on the page's daypart)
+    const mrnById = new Map(menuItems.map(i => [i.id, i.mrn]));
+    const mrns = itemOrder.map(id => mrnById.get(id)).filter((m): m is string => !!m);
     queueChange(deviceId, {
       summary: 'Changed item order',
-      daypart: projectedWorkflowDevice?.pages.find(p => p.id === pageId)?.daypart,
+      daypart,
       mergeKey: `order|${pageId}`,
       mode: 'replace',
-      // Week schedules don't store order yet
-      commit: deviceWeekContext ? async () => {} : () => api.reorderPageItems(deviceId, pageId, itemOrder),
+      commit: target
+        ? async () => {
+            if (!daypart) return;
+            await prepareWeek(target, deviceId);
+            await api.reorderScheduleItems(target, deviceId, daypart, mrns);
+          }
+        : () => api.reorderPageItems(deviceId, pageId, itemOrder),
     });
-  }, [deviceWeekContext, projectedWorkflowDevice, queueChange]);
+  }, [deviceWeekContext, projectedWorkflowDevice, menuItems, queueChange, prepareWeek]);
 
   // An item's day settings on a page: written as its whole week when applied, from the
   // label's working copy at that moment
@@ -1204,7 +1253,7 @@ function App() {
                   {selectedQuickAction === 'products' && (
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border rounded-lg shadow-sm border-brand">
                       <Database className="h-4 w-4 text-brand" />
-                      <span className="text-sm font-medium text-brand">Webtrition</span>
+                      <span className="text-sm font-medium text-brand">{sourceSystem().name}</span>
                       <RefreshAge refresh={productRefresh} />
                     </div>
                   )}
@@ -1552,6 +1601,8 @@ function App() {
           onSaveDisplayName={handleSaveDisplayName}
           onAddToLabel={handleAddFromProductSheet}
           onOpenLabel={handleOpenLabelFromProductSheet}
+          weekStateOf={productWeekStateOf}
+          loadSchedule={loadProductSchedule}
         />
 
         <LabelPickerSheet

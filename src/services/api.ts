@@ -982,6 +982,26 @@ export const api = {
     return true;
   },
 
+  // Saves the item order of one daypart on a device's schedule (default or a specific week):
+  // sort_order follows the given MRNs, across every day the item is on.
+  reorderScheduleItems: async (
+    target: ScheduleTarget,
+    deviceId: string,
+    daypart: string,
+    mrns: string[],
+  ): Promise<void> => {
+    const rowId = await ensureScheduleRow(deviceId, target);
+    if (!rowId) throw new Error("Couldn't find this label's schedule");
+    const results = await Promise.all(mrns.map((mrn, i) => supabase
+      .from('device_schedule_items')
+      .update({ sort_order: i + 1 })
+      .eq('schedule_id', rowId)
+      .eq('daypart', daypart)
+      .eq('menu_item_mrn', mrn)));
+    const failed = results.find(r => r.error);
+    if (failed?.error) throw new Error(failed.error.message);
+  },
+
   // Removes a menu item (by MRN) from a device's schedule for a daypart.
   removeScheduleItem: async (
     target: ScheduleTarget,

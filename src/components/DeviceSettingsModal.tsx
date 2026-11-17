@@ -1,4 +1,4 @@
-import React, { useState, useCallback, ReactNode, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, ReactNode, useEffect, useMemo, useRef } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -194,6 +194,9 @@ export function DeviceSettingsModal({
   // Items turned Off while looking at this day stay in the list (struck through) so it can be
   // undone; anything else that's Off for the day goes under Not available
   const [justTurnedOff, setJustTurnedOff] = useState<Set<string>>(new Set());
+  // The item ids in each page list as drawn (items not available that day aren't in it), so a
+  // drop position in the list can be placed in the page's full item order
+  const shownOrderRef = useRef<Record<string, number[]>>({});
   const [confirmClearPage, setConfirmClearPage] = useState(false);
   const [actionSheetState, setActionSheetState] = useState<{
     isOpen: boolean;
@@ -346,7 +349,21 @@ export function DeviceSettingsModal({
 
     if (source.droppableId === destination.droppableId && source.droppableId.startsWith('page|')) {
       const pageId = source.droppableId.split('|')[1];
-      reorderItems(selectedDeviceSettings.id, pageId, source.index, destination.index);
+      const page = selectedDeviceSettings.pages.find(p => p.id === pageId);
+      const shown = shownOrderRef.current[pageId];
+      const movedId = parseInt(result.draggableId, 10);
+      const from = page ? page.itemOrder.indexOf(movedId) : -1;
+      if (!page || !shown || from < 0) return;
+      // The list can skip items (not available that day), so its indexes aren't the page order's:
+      // place the item just before the shown item it was dropped above, or after the last shown one
+      const rest = page.itemOrder.filter(id => id !== movedId);
+      const shownRest = shown.filter(id => id !== movedId);
+      const before = shownRest[destination.index];
+      const to = before !== undefined
+        ? rest.indexOf(before)
+        : shownRest.length > 0 ? rest.indexOf(shownRest[shownRest.length - 1]) + 1 : rest.length;
+      if (to < 0 || to === from) return;
+      reorderItems(selectedDeviceSettings.id, pageId, from, to);
       return;
     }
 
@@ -592,6 +609,8 @@ export function DeviceSettingsModal({
                     selectedDay === 'every-day' ? null : selectedDay,
                     substitutionMap,
                   );
+
+                  shownOrderRef.current[currentPage.id] = resolvedItems.map(r => r.originalItemId);
 
                   return (
                     <div className="flex flex-col min-h-0 flex-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-b-lg overflow-hidden">

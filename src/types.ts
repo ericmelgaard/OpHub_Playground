@@ -79,6 +79,8 @@ export interface MenuItem {
   ingredients: string;
   price: string;
   mrn: string;
+  // WAND API source system the product came from (see lib/sources.ts); unset = the default one
+  sourceSystem?: number;
   nutrition: {
     calories: { value: string; dailyValue: string | null; displayValue: string };
     protein: { value: string; dailyValue: string | null; displayValue: string };

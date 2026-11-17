@@ -4,6 +4,7 @@ import {
   PackageMinus, CheckCircle2, Search, Tag, AlertTriangle, ArrowRight,
 } from 'lucide-react';
 import { Device, MenuItem } from '../types';
+import { sourceSystem } from '../lib/sources';
 import {
   REFRESH_STEPS, RefreshReport, randomRefreshDuration, simulateRefresh,
 } from '../lib/productRefresh';
@@ -204,14 +205,14 @@ function RunningView({ refresh }: { refresh: ProductRefreshState }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Refreshing products</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Getting the latest catalog from Webtrition</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Getting the latest catalog from {sourceSystem().name}</p>
         </div>
         <CloseButton onClick={refresh.closeSheet} label="Hide" />
       </div>
 
-      {/* Webtrition → your products, with data flowing between */}
+      {/* The source → your products, with data flowing between */}
       <div className="my-8 flex items-center justify-center gap-3 sm:gap-6">
-        <Endpoint icon={Cloud} label="Webtrition" active />
+        <Endpoint icon={Cloud} label={sourceSystem().name} active />
         <div className="relative h-10 w-32 sm:w-48 overflow-hidden" aria-hidden>
           <div className="absolute top-1/2 left-0 right-0 h-0.5 -translate-y-1/2 bg-sky-100 dark:bg-sky-900/60 rounded-full" />
           {[0, 1, 2, 3].map(i => (
@@ -333,7 +334,7 @@ function ReportView({ refresh, devices, onShowProduct, onPlaceOnLabel }: Omit<Sh
                 {total === 0 ? 'Everything is up to date' : 'Products refreshed'}
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {total === 0 ? 'No changes in Webtrition since the last refresh' : `${total} ${total === 1 ? 'change' : 'changes'} from Webtrition`}
+                {total === 0 ? `No changes in ${sourceSystem().name} since the last refresh` : `${total} ${total === 1 ? 'change' : 'changes'} from ${sourceSystem().name}`}
               </p>
             </div>
           </div>
@@ -369,7 +370,7 @@ function ReportView({ refresh, devices, onShowProduct, onPlaceOnLabel }: Omit<Sh
       <div className="flex-1 overflow-y-auto px-6 sm:px-8 overscroll-contain">
         {total === 0 ? (
           <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            If you just added a product in Webtrition, it can take a few minutes to publish. Try again shortly.
+            If you just added a product in {sourceSystem().name}, it can take a few minutes to publish. Try again shortly.
           </p>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-800">

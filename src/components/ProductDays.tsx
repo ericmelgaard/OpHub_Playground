@@ -42,7 +42,7 @@ function describe(d: number, onMenu: boolean, onLabels: boolean, onSignage: bool
   return `${DAY_ABBR[d]} · ${onMenu ? 'offered by the source' : 'not offered by the source'} · ${use}`;
 }
 
-function dayClass(onMenu: boolean, use: Use) {
+export function dayClass(onMenu: boolean, use: Use) {
   const outline = onMenu ? `border-2 ${COLOR[use].outline}` : 'border-2 border-transparent';
   const text = !onMenu && use === 'none' ? FAINT : COLOR[use].text;
   return `${outline} ${COLOR[use].fill} ${text}`;

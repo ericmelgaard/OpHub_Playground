@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { getWeekStartDate, getWeekEndDate, localDate } from '../lib/weekSchedule';
+import { DEFAULT_SOURCE_SYSTEM } from '../lib/sources';
 
 const EDGE_FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/populate-menu-data`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -46,7 +47,7 @@ async function weekHasData(weekOffset: number): Promise<boolean> {
 }
 
 async function fetchFromWandApi(startDate: string): Promise<any[] | null> {
-  const url = `${WAND_API_BASE}?SapCode=${SAP_CODE}&Venue=${VENUE}&mealPeriod=&MenuDate=${startDate}T00:00:00&SourceSystem=1&Days=7&IncludeNutrition=true&IncludeIcons=true&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
+  const url = `${WAND_API_BASE}?SapCode=${SAP_CODE}&Venue=${VENUE}&mealPeriod=&MenuDate=${startDate}T00:00:00&SourceSystem=${DEFAULT_SOURCE_SYSTEM}&Days=7&IncludeNutrition=true&IncludeIcons=true&IncludeAllergens=true&IncludeIngredients=true&IncludeRecipe=false`;
   try {
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json' },
