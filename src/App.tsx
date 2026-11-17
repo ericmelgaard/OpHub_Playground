@@ -137,7 +137,21 @@ function App() {
   const [workflowDaypart, setWorkflowDaypart] = useState<string | null>(null);
 
   // Smart label view & week scheduling
-  const [labelViewMode, setLabelViewMode] = useState<'grid' | 'list'>('grid');
+  // Labels open as a list the first time; after that, whatever you last picked
+  const [labelViewMode, setLabelViewMode] = useState<'grid' | 'list'>(() => {
+    try {
+      return localStorage.getItem('labelViewMode') === 'grid' ? 'grid' : 'list';
+    } catch {
+      return 'list';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('labelViewMode', labelViewMode);
+    } catch {
+      // Storage blocked: it opens as a list next time
+    }
+  }, [labelViewMode]);
   const [labelWeekOffset, setLabelWeekOffset] = useState(0);
   const [isDefaultWeekSelected, setIsDefaultWeekSelected] = useState(false);
   const [weekSchedules, setWeekSchedules] = useState<DeviceWeekSchedule[]>([]);
