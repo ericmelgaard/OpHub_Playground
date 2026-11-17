@@ -136,8 +136,8 @@ Reference: `src/components/ProductEditPage.tsx` (Edit in the product sheet, and 
   **Customizations** (direction): only the changes made by levels below the one you're at.
 
 ### Last opened → sky ring (approved 2026-11-15)
-Reference: `lastOpened` in `src/components/SmartLabelGrid.tsx` / `SmartLabelList.tsx` (labels) and
-`src/components/MenuItem.tsx` (products). Any card or row that opens a page or sheet marks the one
+Reference: `lastOpened` in `src/components/SmartLabelGrid.tsx` / `SmartLabelList.tsx` (labels, and
+the label picker from Products) and `src/components/MenuItem.tsx` (products). Any card or row that opens a page or sheet marks the one
 opened last, so people can find their place when they come back.
 - `ring-2 ring-sky-400 dark:ring-sky-500` on the card or row; it wins over any other ring.
 - Kept while you move around the page (open another item and it moves); cleared when you leave it.

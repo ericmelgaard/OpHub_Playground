@@ -36,13 +36,15 @@ interface LabelPickerSheetProps {
   // Grid or list, shared with Smart Labels
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
+  // The label last opened from here (sky ring, like Smart Labels)
+  lastOpenedId?: string | null;
 }
 
 // Product-first entry into the Smart Labels flow: pick a label from the same
 // preview grid, then continue on that label's device page.
 export function LabelPickerSheet({
   item, devices, placements, loading, error, initialDaypart, weekStart, weekLabel, day, onDayChange, onPick, onClose,
-  nfcScanning = false, onNfcStart, onNfcStop, scannedTag, onScanHandled, weekSchedules, viewMode, onViewModeChange,
+  nfcScanning = false, onNfcStart, onNfcStop, scannedTag, onScanHandled, weekSchedules, viewMode, onViewModeChange, lastOpenedId,
 }: LabelPickerSheetProps) {
   const dayparts = orderedDayparts(devices);
   // Start on the product's first daypart that labels have; products for all dayparts keep the current one
@@ -160,6 +162,7 @@ export function LabelPickerSheet({
                 selectedWeekStart={weekStart}
                 weekSchedules={weekSchedules}
                 selectedDay={day}
+                lastOpenedId={lastOpenedId}
               />
             ) : (
               <SmartLabelGrid
@@ -171,6 +174,7 @@ export function LabelPickerSheet({
                 placements={placements}
                 selectedDaypart={daypart}
                 selectedPlacements={placementIds}
+                lastOpenedId={lastOpenedId}
               />
             )}
           </div>

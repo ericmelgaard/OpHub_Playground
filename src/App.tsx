@@ -180,6 +180,8 @@ function App() {
   // Labels opened this session, keyed by what was being edited, plus the last one opened
   const [reviewedLabels, setReviewedLabels] = useState<Set<string>>(new Set());
   const [lastOpenedLabelId, setLastOpenedLabelId] = useState<string | null>(null);
+  // The label last opened from Products' label picker (sky ring there, until you leave Products)
+  const [lastPickedLabelId, setLastPickedLabelId] = useState<string | null>(null);
   // True while stepping label to label, so the page doesn't slide in each time
   const [steppingLabels, setSteppingLabels] = useState(false);
 
@@ -1001,6 +1003,7 @@ function App() {
     setActiveFilters([]);
     resetLabelSession();
     setLastOpenedProductMrn(null);
+    setLastPickedLabelId(null);
   }, [resetLabelSession]);
 
   // Pending changes stay while you move around Smart Labels; leaving asks first
@@ -1052,6 +1055,7 @@ function App() {
     setWorkflowDaypart(daypart);
     setDeviceWeekContext(productWeekContext);
     setLabelFromPicker(true);
+    setLastPickedLabelId(device.id);
     setShowDeviceWorkflow(true);
   }, [selectedItem, productWeekContext]);
 
@@ -1574,13 +1578,12 @@ function App() {
               setDeviceItemSearch('');
               setSelectedDevice(null);
               setSteppingLabels(false);
+              // Back to the picker or the grid, with the label you were on brought into view
+              const lastId = labelFromPicker ? lastPickedLabelId : lastOpenedLabelId;
               if (labelFromPicker) {
                 setLabelFromPicker(false);
                 setShowLabelPicker(true);
-                return;
               }
-              // Bring the last label you were on back into view
-              const lastId = lastOpenedLabelId;
               if (lastId) {
                 requestAnimationFrame(() => {
                   document.querySelector(`[data-label-id="${CSS.escape(lastId)}"]`)
@@ -1643,6 +1646,7 @@ function App() {
           onScanHandled={() => setPickerScan(null)}
           weekSchedules={productWeekSchedules}
           viewMode={labelViewMode}
+          lastOpenedId={lastPickedLabelId}
           onViewModeChange={setLabelViewMode}
         />
 
