@@ -1,4 +1,5 @@
 import React from 'react';
+import { CalendarRange, Layers } from 'lucide-react';
 import { Device, DevicePage, LabelSize, ResolvedItem, Substitution, SubstitutionKey } from '../types';
 import { getShownItems, LabelDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
@@ -216,15 +217,22 @@ export function LabelAnchor({
       {/* Pages */}
       <div className="flex flex-col gap-1.5 min-w-0">
         <span className="text-[11px] font-semibold tracking-wider uppercase text-gray-500 dark:text-slate-400">Pages on this label</span>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(58px,1fr))] gap-1.5">
-          {showAllTile && <button onClick={() => onSelectDaypart(null)} className={tileClass(isAll)} aria-pressed={isAll}>
-            <span className="grid grid-cols-2 gap-[3px] h-10">
-              {device.pages.slice(0, 4).map(p => (
-                <span key={p.id} className="rounded-sm bg-[#F3F3EE] border-t-[3px]" style={{ borderTopColor: daypartHex(p.daypart) }} />
-              ))}
-            </span>
-            <span className="mt-1 text-xs font-semibold text-gray-800 dark:text-slate-200">All</span>
-          </button>}
+        {/* All dayparts spans every page, so it sits above them as one long button (like Every day) */}
+        {showAllTile && (
+          <button
+            onClick={() => onSelectDaypart(null)}
+            aria-pressed={isAll}
+            className={`h-10 flex items-center justify-center gap-2 rounded-xl border-2 transition-colors ${tileState(isAll)}`}
+          >
+            <Layers className={`h-4 w-4 ${isAll ? 'text-sky-600 dark:text-sky-300' : 'text-gray-500 dark:text-slate-400'}`} />
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">All dayparts</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400">{device.pages.length} pages</span>
+          </button>
+        )}
+        <div
+          className="grid gap-1.5"
+          style={{ gridTemplateColumns: `repeat(${Math.min(device.pages.length, 5)}, minmax(0, 1fr))` }}
+        >
           {device.pages.map(p => {
             const s = shownFor(p, day);
             const full = s.length >= p.displayCapacity;
@@ -262,15 +270,17 @@ export function LabelAnchor({
       {/* Days */}
       <div className="flex flex-col gap-1.5 min-w-0">
         <span className="text-[11px] font-semibold tracking-wider uppercase text-gray-500 dark:text-slate-400">Day</span>
-        <div className="grid grid-cols-[1.4fr_repeat(7,minmax(0,1fr))] gap-1">
-          <button
-            onClick={() => onSelectDay('every-day')}
-            aria-pressed={selectedDay === 'every-day'}
-            className={`${dayTileClass(selectedDay === 'every-day')}`}
-          >
-            <span className="text-[10px] text-gray-500 dark:text-slate-400">Every</span>
-            <span className="text-xs font-semibold text-gray-900 dark:text-white">day</span>
-          </button>
+        {/* Every day spans the week, so it sits above the days as one long button */}
+        <button
+          onClick={() => onSelectDay('every-day')}
+          aria-pressed={selectedDay === 'every-day'}
+          className={`h-10 flex items-center justify-center gap-2 rounded-xl border-2 transition-colors ${tileState(selectedDay === 'every-day')}`}
+        >
+          <CalendarRange className={`h-4 w-4 ${selectedDay === 'every-day' ? 'text-sky-600 dark:text-sky-300' : 'text-gray-500 dark:text-slate-400'}`} />
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">Every day</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400">{DAY_ABBR[WEEK[0]]}–{DAY_ABBR[WEEK[WEEK.length - 1]]}</span>
+        </button>
+        <div className="grid grid-cols-7 gap-1">
           {WEEK.map(d => {
             const date = dateFor(d);
             const gaps = dayHasGaps(d);
@@ -282,8 +292,8 @@ export function LabelAnchor({
                 aria-label={`${DAY_LONG[d]}${gaps ? ', open rows on the label' : ', label full'}`}
                 className={dayTileClass(selectedDay === d)}
               >
-                <span className={`text-[10px] ${d === today ? 'font-bold text-sky-600 dark:text-sky-300' : 'text-gray-500 dark:text-slate-400'}`}>{DAY_ABBR[d]}</span>
-                {date !== null && <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{date}</span>}
+                <span className={`text-[11px] ${d === today ? 'font-bold text-sky-600 dark:text-sky-300' : 'text-gray-500 dark:text-slate-400'}`}>{DAY_ABBR[d]}</span>
+                {date !== null && <span className={`text-base font-semibold tabular-nums ${d === today ? 'text-sky-600 dark:text-sky-300' : 'text-gray-900 dark:text-white'}`}>{date}</span>}
                 <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${gaps ? 'bg-amber-400' : 'bg-emerald-400'}`} />
               </button>
             );
@@ -294,12 +304,13 @@ export function LabelAnchor({
   );
 }
 
+const tileState = (selected: boolean) =>
+  selected
+    ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500'
+    : 'bg-white dark:bg-slate-800/60 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600';
+
 const dayTileClass = (selected: boolean) =>
-  `h-14 flex flex-col items-center justify-center rounded-xl border-2 transition-colors ${
-    selected
-      ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500'
-      : 'bg-white dark:bg-slate-800/60 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
-  }`;
+  `h-16 flex flex-col items-center justify-center rounded-xl border-2 transition-colors ${tileState(selected)}`;
 
 function EmptyRow({ compact }: { compact?: boolean }) {
   return (
