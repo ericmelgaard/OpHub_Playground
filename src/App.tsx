@@ -413,14 +413,18 @@ function App() {
     };
   }, [menuItems]);
 
+  // Every label's schedule for the week Products shows (also the label picker's list view)
+  const productWeekSchedules = useMemo(
+    () => resolveWeekSchedules(getWeekStartString(selectedCycleWeek), productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds),
+    [selectedCycleWeek, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds],
+  );
   const productLabelUse = useMemo(() => {
-    const weekStart = getWeekStartString(selectedCycleWeek);
     return labelUseByMrn(
-      resolveWeekSchedules(weekStart, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds),
+      productWeekSchedules,
       stationOfDevice,
       shownDaysOnPage,
     );
-  }, [selectedCycleWeek, productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds, stationOfDevice, shownDaysOnPage]);
+  }, [productWeekSchedules, stationOfDevice, shownDaysOnPage]);
 
   // Product edit page → Schedule: where one product is on labels in a week (null = the Default Week)
   const loadProductSchedule = useCallback(async (mrn: string, weekOffset: number | null): Promise<ProductScheduleRow[]> => {
@@ -1623,6 +1627,9 @@ function App() {
           onNfcStop={nfc.stopScan}
           scannedTag={pickerScan}
           onScanHandled={() => setPickerScan(null)}
+          weekSchedules={productWeekSchedules}
+          viewMode={labelViewMode}
+          onViewModeChange={setLabelViewMode}
         />
 
         <PendingChangesBar openDeviceId={showDeviceWorkflow ? selectedDevice?.id : undefined} />

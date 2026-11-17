@@ -274,7 +274,9 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   and labels opened from Products all use the picked week. The Day filter matches a product when the source
   serves it that day or a label uses it that day (what the day strip shows). The label picker
   ("Choose a label") names the week in its header, has no week or schedule controls, and has
-  Scan (NFC) to pick a label by its tag.
+  Scan (NFC) to pick a label by its tag. Otherwise it matches Smart Labels as closely as possible:
+  the same toolbar (`MenuFilters`), Filters panel (`SmartLabelFilters`, its own placement choices),
+  and grid / list view (shared with Smart Labels).
 - **Finding products by use:** the Products Filters panel has a **Usage** section (On labels /
   Not in use, with counts) for the same week as the day strips. Signage options join it when
   signage exists. Usage is a filter, not a mark on the card.

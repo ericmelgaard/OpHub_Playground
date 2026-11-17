@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Search, X, Tag, Nfc, AlertTriangle } from 'lucide-react';
-import { Device, MenuItem, Placement } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import { X, Tag, AlertTriangle } from 'lucide-react';
+import { Device, DeviceWeekSchedule, FilterConfig, MenuItem, Placement } from '../types';
 import { orderedDayparts } from './DaypartSelector';
 import { DayPicker, DaypartPicker } from './WeekScheduleBar';
 import { formatWeekRange } from '../lib/weekSchedule';
 import { SmartLabelGrid } from './SmartLabelGrid';
+import { SmartLabelList } from './SmartLabelList';
+import { SmartLabelFilters } from './SmartLabelFilters';
+import { MenuFilters } from './MenuFilters';
 import { productDayparts } from '../lib/stations';
 
 interface LabelPickerSheetProps {
@@ -28,13 +31,18 @@ interface LabelPickerSheetProps {
   onNfcStop?: () => void;
   scannedTag?: string | null;
   onScanHandled?: () => void;
+  // Every label's schedule for the week (list view)
+  weekSchedules: DeviceWeekSchedule[];
+  // Grid or list, shared with Smart Labels
+  viewMode: 'grid' | 'list';
+  onViewModeChange: (mode: 'grid' | 'list') => void;
 }
 
 // Product-first entry into the Smart Labels flow: pick a label from the same
 // preview grid, then continue on that label's device page.
 export function LabelPickerSheet({
   item, devices, placements, loading, error, initialDaypart, weekStart, weekLabel, day, onDayChange, onPick, onClose,
-  nfcScanning = false, onNfcStart, onNfcStop, scannedTag, onScanHandled,
+  nfcScanning = false, onNfcStart, onNfcStop, scannedTag, onScanHandled, weekSchedules, viewMode, onViewModeChange,
 }: LabelPickerSheetProps) {
   const dayparts = orderedDayparts(devices);
   // Start on the product's first daypart that labels have; products for all dayparts keep the current one
@@ -42,20 +50,28 @@ export function LabelPickerSheet({
     || (dayparts.includes(initialDaypart) ? initialDaypart : dayparts[0] ?? initialDaypart);
   const [daypart, setDaypart] = useState(startDaypart);
   const [search, setSearch] = useState('');
+  // Same Filters panel as Smart Labels, kept for this picker only (Products has its own filters)
+  const [filters, setFilters] = useState<FilterConfig[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const placementIds = useMemo(() => filters.find(f => f.type === 'placement')?.selectedValues ?? [], [filters]);
   // A scanned tag that matched no label
   const [unknownTag, setUnknownTag] = useState<string | null>(null);
 
-  // A scanned tag picks its label, on the daypart chosen here
-  useEffect(() => {
-    if (!scannedTag) return;
-    const tag = scannedTag.trim().toLowerCase();
+  // A tag (scanned, or typed + Enter) picks its label, on the daypart chosen here
+  const pickByTag = (raw: string): boolean => {
+    const tag = raw.trim().toLowerCase();
     const device = devices.find(d => d.id.toLowerCase() === tag || d.name.toLowerCase() === tag);
     if (device) {
       setUnknownTag(null);
       onPick(device, daypart);
-    } else {
-      setUnknownTag(scannedTag.trim());
+      return true;
     }
+    return false;
+  };
+
+  useEffect(() => {
+    if (!scannedTag) return;
+    if (!pickByTag(scannedTag)) setUnknownTag(scannedTag.trim());
     onScanHandled?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scannedTag]);
@@ -93,55 +109,72 @@ export function LabelPickerSheet({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
-        <div className={`relative transition-all ${nfcScanning ? 'nfc-listening-ring' : ''}`}>
-          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${nfcScanning ? 'text-sky-400 dark:text-sky-500' : 'text-gray-400'}`} />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={nfcScanning ? 'Hold the tablet to a label…' : 'Search labels by name or location...'}
-            className={`w-full h-11 pl-9 ${onNfcStart ? 'pr-28' : 'pr-3'} text-sm rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none ${
-              nfcScanning
-                ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-400/40 dark:ring-sky-500/40'
-                : 'border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-sky-400'
-            }`}
-          />
-          {onNfcStart && (
-            <button
-              onClick={() => { setUnknownTag(null); if (nfcScanning) onNfcStop?.(); else onNfcStart(); }}
-              title={nfcScanning ? 'Stop NFC scan' : 'Scan a label’s NFC tag to pick it'}
-              className={`absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                nfcScanning
-                  ? 'bg-sky-500 text-white nfc-pulse-glow'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20'
-              }`}
-            >
-              <Nfc className="h-4 w-4" />
-              <span>{nfcScanning ? 'Scanning' : 'Scan'}</span>
-            </button>
-          )}
-        </div>
-        {unknownTag && (
-          <div role="status" className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            <span className="flex-1 min-w-0">No label here has tag <span className="font-mono">{unknownTag}</span>. Scan again or pick one below.</span>
-          </div>
-        )}
-        {/* Same day + daypart pickers as Smart Labels */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <DayPicker value={day} onChange={onDayChange} weekStart={weekStart} />
-          <DaypartPicker value={daypart} onChange={setDaypart} dayparts={dayparts} />
-        </div>
-        <SmartLabelGrid
-          loading={loading}
-          error={error}
-          devices={devices}
-          onDeviceSelect={onPick}
+      {/* Same toolbar, Filters panel and grid / list as Smart Labels (no Schedule: the week is Products') */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+        <MenuFilters
+          viewMode={viewMode}
+          setViewMode={onViewModeChange}
           searchValue={search}
-          placements={placements}
-          selectedDaypart={daypart}
-          selectedPlacements={[]}
+          setSearchValue={setSearch}
+          selectedQuickAction="smart-labels"
+          activeFilters={filters}
+          onToggleFilterSidebar={() => setFiltersOpen(o => !o)}
+          isFilterSidebarOpen={filtersOpen}
+          menuItems={[]}
+          onScanLookup={pickByTag}
+          nfcSupported={!!onNfcStart}
+          nfcScanning={nfcScanning}
+          onNfcStart={() => { setUnknownTag(null); onNfcStart?.(); }}
+          onNfcStop={onNfcStop}
         />
+        <div className="flex gap-6 min-h-[calc(100vh-280px)]">
+          <SmartLabelFilters
+            isOpen={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            activeFilters={filters}
+            onFiltersChange={setFilters}
+            placements={placements}
+          />
+          <div className="flex-1 min-w-0 space-y-4">
+            {unknownTag && (
+              <div role="status" className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span className="flex-1 min-w-0">No label here has tag <span className="font-mono">{unknownTag}</span>. Scan again or pick one below.</span>
+              </div>
+            )}
+            {/* Same day + daypart pickers as Smart Labels */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <DayPicker value={day} onChange={onDayChange} weekStart={weekStart} />
+              <DaypartPicker value={daypart} onChange={setDaypart} dayparts={dayparts} />
+            </div>
+            {viewMode === 'list' ? (
+              <SmartLabelList
+                loading={loading}
+                error={error}
+                devices={devices}
+                onDeviceSelect={onPick}
+                searchValue={search}
+                placements={placements}
+                selectedDaypart={daypart}
+                selectedPlacements={placementIds}
+                selectedWeekStart={weekStart}
+                weekSchedules={weekSchedules}
+                selectedDay={day}
+              />
+            ) : (
+              <SmartLabelGrid
+                loading={loading}
+                error={error}
+                devices={devices}
+                onDeviceSelect={onPick}
+                searchValue={search}
+                placements={placements}
+                selectedDaypart={daypart}
+                selectedPlacements={placementIds}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
