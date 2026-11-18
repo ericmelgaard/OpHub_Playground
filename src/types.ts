@@ -60,7 +60,9 @@ export interface Device {
   labelSize: LabelSize;
   status: {
     wifiStrength: number;
+    // Demo data only; the devices report a state (battery), never a percent
     batteryLevel: number;
+    battery?: 'good' | 'weak' | 'dead';
     currentPage: string;
     forcedPage: string | null;
     lastUpdated: string;

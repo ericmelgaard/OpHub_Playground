@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Device, DeviceWeekSchedule, LabelSize, Placement } from '../types';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, BatteryLow } from 'lucide-react';
+import { AlertTriangle, Wifi, WifiOff } from 'lucide-react';
 import { ReviewedTag } from './ReviewedTag';
 import { filterLabels } from '../lib/labelFilter';
 import { SyncStatus, PendingPill } from './SyncStatus';
@@ -11,6 +11,7 @@ import { daypartColor } from '../lib/daypartColors';
 import { LabelName } from './RichText';
 import { deviceName, hasOwnName } from '../lib/deviceName';
 import { useOpenDays } from '../lib/siteSettings';
+import { batteryOf } from '../lib/battery';
 
 interface SmartLabelGridProps {
   loading: boolean;
@@ -39,18 +40,7 @@ const labelSizeConfig: Record<LabelSize, { label: string; aspectClass: string; f
   '11-inch': { label: '11"', aspectClass: 'aspect-[5/3]', fontSize: 'text-sm', capacity: 8 },
 };
 
-const getBatteryIcon = (level: number) => {
-  if (level >= 75) return BatteryFull;
-  if (level >= 50) return Battery;
-  if (level >= 25) return BatteryMedium;
-  return BatteryLow;
-};
 
-const getBatteryColor = (level: number) => {
-  if (level >= 50) return 'text-emerald-500 dark:text-emerald-400';
-  if (level >= 25) return 'text-amber-500 dark:text-amber-400';
-  return 'text-red-500 dark:text-red-400';
-};
 
 const getWifiColor = (strength: number) => {
   if (strength >= 3) return 'text-emerald-500 dark:text-emerald-400';
@@ -159,7 +149,8 @@ interface LabelCardProps {
 
 function LabelCard({ device, daypart, onClick, highlight, gaps, openDayCount = WEEK_DAYS.length, reviewed, lastOpened }: LabelCardProps) {
   const config = labelSizeConfig[device.labelSize];
-  const BatteryIcon = getBatteryIcon(device.status.batteryLevel);
+  const battery = batteryOf(device);
+  const BatteryIcon = battery.icon;
   const dpStyle = getDaypartStyle(daypart);
 
   const page = device.pages.find(p => p.daypart === daypart);
@@ -190,17 +181,18 @@ function LabelCard({ device, daypart, onClick, highlight, gaps, openDayCount = W
           ) : (
             <WifiOff className="h-3.5 w-3.5 text-red-500" />
           )}
-          <BatteryIcon className={`h-3.5 w-3.5 ${getBatteryColor(device.status.batteryLevel)}`} />
+          <span title={`Battery ${battery.label.toLowerCase()}`}><BatteryIcon className={`h-3.5 w-3.5 ${battery.color}`} /></span>
         </div>
       </div>
 
       {/* ESL visual */}
       <div className="p-3 bg-gray-50 dark:bg-gray-900/50">
         <div
-          className={`relative w-full ${config.aspectClass} rounded-lg border-2 ${isEmpty ? 'border-amber-400 dark:border-amber-600' : dpStyle.border} bg-white dark:bg-gray-100 overflow-hidden flex flex-col`}
+          className={`relative w-full ${config.aspectClass} rounded-lg border-2 ${dpStyle.border} bg-white dark:bg-gray-100 overflow-hidden flex flex-col`}
         >
           {/* Daypart accent bar */}
-          <div className={`h-1.5 ${isEmpty ? 'bg-amber-400' : dpStyle.accent} flex-shrink-0`} />
+          {/* Always the daypart color (Breakfast is amber too); the empty message inside says it's empty */}
+          <div className={`h-1.5 ${dpStyle.accent} flex-shrink-0`} />
 
           {isEmpty ? (
             <EmptyLabelState daypart={daypart} />

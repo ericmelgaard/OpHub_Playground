@@ -1,21 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  X,
-  Wifi,
-  WifiOff,
-  Battery,
-  BatteryLow,
-  BatteryMedium,
-  BatteryFull,
-  Clock,
-  MapPin,
-  Monitor,
-  Sparkles,
-  Tv,
-  Users,
-  Tag,
-  ImageOff,
-} from 'lucide-react';
+import { X, Wifi, WifiOff, Clock, MapPin, Monitor, Sparkles, Tv, Users, Tag, ImageOff } from 'lucide-react';
 import { Device, DeviceGroup, Brand } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,6 +13,7 @@ import core22Image from '@/assets/images/devices/core2.2_2.png';
 import { levelIconColor } from '@/lib/levelColors';
 import { daypartColor } from '@/lib/daypartColors';
 import { CopyButton } from './CopyButton';
+import { batteryOf } from '../lib/battery';
 
 interface DeviceConfigPageProps {
   device: Device;
@@ -42,18 +27,7 @@ interface DeviceConfigPageProps {
   onRename?: (name: string) => Promise<void>;
 }
 
-const getBatteryIcon = (level: number) => {
-  if (level >= 75) return BatteryFull;
-  if (level >= 50) return Battery;
-  if (level >= 25) return BatteryMedium;
-  return BatteryLow;
-};
 
-const getBatteryColor = (level: number) => {
-  if (level > 50) return 'text-emerald-500';
-  if (level > 20) return 'text-amber-500';
-  return 'text-red-500';
-};
 
 const getWifiLabel = (strength: number) => {
   if (strength === 0) return 'Disconnected';
@@ -120,7 +94,7 @@ export function DeviceConfigPage({
     (p) => p.id === (device.status.forcedPage || device.status.currentPage)
   );
 
-  const batteryLevel = device.status.batteryLevel;
+  const battery = batteryOf(device);
   const wifiStrength = device.status.wifiStrength;
 
   return (
@@ -285,15 +259,13 @@ export function DeviceConfigPage({
 
                 {/* Battery */}
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <div className={`mt-0.5 ${getBatteryColor(batteryLevel)}`}>
-                    {React.createElement(getBatteryIcon(batteryLevel), {
-                      className: 'h-5 w-5',
-                    })}
+                  <div className={`mt-0.5 ${battery.color}`}>
+                    {React.createElement(battery.icon, { className: 'h-5 w-5' })}
                   </div>
                   <div>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Battery</p>
-                    <p className={`text-sm font-semibold ${getBatteryColor(batteryLevel)}`}>
-                      {batteryLevel}%
+                    <p className={`text-sm font-semibold ${battery.color}`}>
+                      {battery.label}
                     </p>
                   </div>
                 </div>

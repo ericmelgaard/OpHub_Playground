@@ -405,6 +405,8 @@ export function DayPicker({ value, onChange, weekStart, gapsByDay }: {
   gapsByDay?: Map<number, number>;
 }) {
   const openDays = useOpenDays();
+  // Today, only when the week shown is this week (the Default Week and other weeks have no today)
+  const today = weekStart !== null && weekStart === getWeekStartString(0) ? new Date().getDay() : null;
   return (
     <Select
       value={String(value)}
@@ -416,6 +418,7 @@ export function DayPicker({ value, onChange, weekStart, gapsByDay }: {
       >
         <CalendarDays className="h-4 w-4 text-sky-500 flex-shrink-0" />
         <span className="whitespace-nowrap">{formatEditingDay(value, weekStart)}</span>
+        {value === today && <TodayPill />}
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="every-day">Every day</SelectItem>
@@ -426,7 +429,8 @@ export function DayPicker({ value, onChange, weekStart, gapsByDay }: {
           return (
             <SelectItem key={d} value={String(d)}>
               <span className="flex items-center gap-2">
-                {formatEditingDay(d, weekStart)}
+                <span className={d === today ? 'font-semibold text-sky-700 dark:text-sky-300' : undefined}>{formatEditingDay(d, weekStart)}</span>
+                {d === today && <TodayPill />}
                 {closed && <span className="text-[10px] text-gray-400 dark:text-gray-500">Closed</span>}
                 {gaps > 0 && (
                   <span
@@ -443,6 +447,15 @@ export function DayPicker({ value, onChange, weekStart, gapsByDay }: {
         })}
       </SelectContent>
     </Select>
+  );
+}
+
+// Marks today in day dropdowns (same sky as today on the label page and in Filters)
+function TodayPill() {
+  return (
+    <span className="inline-flex items-center h-4 px-1.5 text-[10px] font-semibold rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300">
+      Today
+    </span>
   );
 }
 

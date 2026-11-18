@@ -375,6 +375,9 @@ The ones in use live in `tailwind.config.js` under `brand`; don't retype hex val
 **Dayparts** (category colors — only on daypart chips, bars, and labels):
 Breakfast `amber` · Lunch `emerald` · Dinner `blue` · Late Night `violet` · All Day / Custom `gray`.
 Always get them from `daypartColor()` in `src/lib/daypartColors.ts` — never redefine them.
+A daypart stripe, bar or border always shows its daypart color and never turns into a warning
+(Breakfast is amber, so an amber warning there reads as Breakfast). Say what's wrong in text
+instead ("No items assigned"). One warning per problem on a row or card is enough.
 
 **Location levels** — one icon and one icon color per level, used everywhere it appears.
 Color the icon only, never the name or row. Always get colors from `levelIconColor()` in
@@ -430,6 +433,11 @@ Never use inline `style={{ color }}` or arbitrary values like `bg-[rgb(...)]` fo
   `WEEK_STARTS_ON` in `src/lib/weekSchedule.ts`. Build every week and day list from there:
   `WEEK_ORDER` (days in display order), `startOfWeek()`, `getWeekStartDate()` /
   `getWeekStartString()`, `dayIndexInWeek()`. Never hard-code a day order or re-derive the week start.
+- **Today is called out in sky** wherever days are listed, and only when the week shown holds
+  today (never in the Default Week): day dropdowns (`DayPicker`) show a soft sky **Today** pill
+  (`bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300`) after the date, on today's row
+  and on the trigger when today is picked, with the row's text `font-semibold` sky; day tiles color
+  the day name and date sky. No row backgrounds (they read as hover / selection) and no cyan.
 - Day numbers are JS `getDay()` values (0 = Sunday) everywhere, including stored `day_of_week`.
 - Stored `week_start` is the week's Sunday. Dates use local time (`localDate()`), never `toISOString()`.
 

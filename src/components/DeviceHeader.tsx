@@ -1,21 +1,12 @@
 import React from 'react';
-import {
-  Wifi,
-  WifiOff,
-  Battery,
-  BatteryLow,
-  BatteryMedium,
-  BatteryFull,
-  Clock,
-  X,
-  Settings,
-} from 'lucide-react';
+import { Wifi, WifiOff, Clock, X, Settings } from 'lucide-react';
 import { Device } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SyncStatus } from './SyncStatus';
 import { PendingChangesButton } from './PendingChanges';
 import { deviceName } from '../lib/deviceName';
+import { batteryOf } from '../lib/battery';
 
 interface DeviceHeaderProps {
   device: Device;
@@ -23,12 +14,6 @@ interface DeviceHeaderProps {
   onOpenConfig: () => void;
 }
 
-const getBatteryIcon = (level: number) => {
-  if (level >= 75) return BatteryFull;
-  if (level >= 50) return Battery;
-  if (level >= 25) return BatteryMedium;
-  return BatteryLow;
-};
 
 const formatLastUpdated = (iso: string) => {
   const date = new Date(iso);
@@ -70,10 +55,8 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
             ) : (
               <WifiOff className="h-3 w-3 text-red-500" />
             )}
-            {React.createElement(getBatteryIcon(device.status.batteryLevel), {
-              className: `h-3 w-3 ${device.status.batteryLevel > 20 ? 'text-emerald-500' : 'text-red-500'}`,
-            })}
-            <span className="text-[10px] text-gray-500 dark:text-gray-400">{device.status.batteryLevel}%</span>
+            {React.createElement(batteryOf(device).icon, { className: `h-3 w-3 ${batteryOf(device).color}` })}
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">{batteryOf(device).label}</span>
             {currentPage && (
               <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-gray-400">
                 <Clock className="h-3 w-3" />
@@ -92,10 +75,8 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
             )}
           </Badge>
           <Badge variant="secondary" className="flex items-center gap-1.5 py-0.5">
-            {React.createElement(getBatteryIcon(device.status.batteryLevel), {
-              className: `h-3 w-3 ${device.status.batteryLevel > 20 ? 'text-emerald-500' : 'text-red-500'}`,
-            })}
-            <span className="text-[10px]">{device.status.batteryLevel}%</span>
+            {React.createElement(batteryOf(device).icon, { className: `h-3 w-3 ${batteryOf(device).color}` })}
+            <span className="text-[10px]">{batteryOf(device).label}</span>
           </Badge>
           {currentPage && (
             <Badge variant="secondary" className="flex items-center gap-1.5 py-0.5">

@@ -1,10 +1,7 @@
 import React, { useMemo } from 'react';
 import { Device, LabelSize, Placement, DeviceWeekSchedule } from '../types';
 import { Badge } from '@/components/ui/badge';
-import {
-  AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium,
-  BatteryLow, ChevronRight, Calendar, Tag,
-} from 'lucide-react';
+import { AlertTriangle, Wifi, WifiOff, ChevronRight, Calendar, Tag } from 'lucide-react';
 import { DAY_ABBR } from '../lib/availability';
 import { SyncStatus, PendingPill } from './SyncStatus';
 import { daypartColor } from '../lib/daypartColors';
@@ -15,6 +12,7 @@ import { LabelName } from './RichText';
 import { deviceName } from '../lib/deviceName';
 import { useOpenDays } from '../lib/siteSettings';
 import { ShownOnDay } from '../lib/scheduleCoverage';
+import { batteryOf } from '../lib/battery';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -43,18 +41,7 @@ const labelSizeLabels: Record<LabelSize, string> = {
   '2-inch': '2"', '3-inch': '3"', '4-inch': '4"', '7-inch': '7"', '11-inch': '11"',
 };
 
-const getBatteryIcon = (level: number) => {
-  if (level >= 75) return BatteryFull;
-  if (level >= 50) return Battery;
-  if (level >= 25) return BatteryMedium;
-  return BatteryLow;
-};
 
-const getBatteryColor = (level: number) => {
-  if (level >= 50) return 'text-emerald-500';
-  if (level >= 25) return 'text-amber-500';
-  return 'text-red-500';
-};
 
 const getWifiColor = (strength: number) => {
   if (strength >= 3) return 'text-emerald-500';
@@ -185,7 +172,8 @@ function mrnsFor(schedule: DeviceWeekSchedule | undefined, daypart: string, dow:
 }
 
 function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart, selectedDay, reviewed, lastOpened, shownOnDay }: LabelRowProps) {
-  const BattIcon = getBatteryIcon(device.status.batteryLevel);
+  const battery = batteryOf(device);
+  const BattIcon = battery.icon;
   const page = device.pages.find(p => p.daypart === daypart);
   const items = page?.assignedItems ?? [];
   const isEmpty = items.length === 0;
@@ -215,7 +203,8 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
     >
       {/* Label name + size */}
       <div className="flex items-center gap-3 min-w-0">
-        <div className={`w-1 h-8 rounded-full flex-shrink-0 ${isEmpty ? 'bg-amber-400' : dpColor}`} />
+        {/* Always the daypart color (Breakfast is amber too); "No items assigned" says it's empty */}
+        <div className={`w-1 h-8 rounded-full flex-shrink-0 ${dpColor}`} />
         <Tag className="h-4 w-4 text-gray-400 flex-shrink-0" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -242,8 +231,8 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
             <span className="text-xs text-gray-500">{device.status.wifiStrength > 0 ? 'Online' : 'Offline'}</span>
           </div>
           <div className="flex items-center gap-1">
-            <BattIcon className={`h-3.5 w-3.5 ${getBatteryColor(device.status.batteryLevel)}`} />
-            <span className="text-xs text-gray-500">{device.status.batteryLevel}%</span>
+            <BattIcon className={`h-3.5 w-3.5 ${battery.color}`} />
+            <span className="text-xs text-gray-500">{battery.label}</span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1">
