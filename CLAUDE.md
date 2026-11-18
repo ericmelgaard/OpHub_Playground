@@ -255,13 +255,14 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   the other six Off (one pending change, "Pancakes on Tue only"). To follow the source all week,
   add it in Every day. On a single day, items that are Off or not offered that day go under the
   collapsed **Not available {day}** section (with an "On {day}" button), not in the page list.
-  They also stay in **Available Items** for that day, marked "On this page": adding one again
+  They also stay in **Available Items** for that day, always under its **Not available {day}**
+  (decided 2026-11-18), marked "On this page", with an "On {day}" button: adding one again
   turns that day on — Auto when the source offers it that day, else On. Items showing that day
   aren't listed there.
-  **Available Items: up top vs Not available** is decided by the source alone (the product's
-  days and dayparts), or for an item without a source by its dayparts alone (a blank slate) —
-  never by this week's label settings. So Wednesday's bacon on Tuesday is under
-  **Not available Tue** ("Add anyway" turns Tue On); a custom item is up top.
+  **Available Items: up top vs Not available** for products not on the page is decided by the
+  source alone (the product's days and dayparts), or for an item without a source by its
+  dayparts alone (a blank slate) — never by this week's label settings. So Wednesday's bacon on
+  Tuesday is under **Not available Tue** ("Add anyway" turns Tue On); a custom item is up top.
   The exception: an item turned Off while you're on that day stays in the page list, struck through, so it can
   be undone (until the day or daypart changes). Removing an item applies to the whole week.
   **Layers:** source days (read-only) → the item's **base week** on that label = its day settings

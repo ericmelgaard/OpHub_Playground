@@ -482,18 +482,16 @@ export function DeviceSettingsModal({
       if (effectiveStationFilter && !inStations(item, stationKeys)) return false;
       return true;
     });
-    // Up top or Not available is decided by the source (its days and dayparts), or for an item
-    // without a source by its dayparts alone (a blank slate) — never by this week's label settings
-    // Items on the page are judged by the daypart they follow there; the rest by the daypart
-    // picked. Not available holds that daypart's items on days it isn't offered, not every product.
+    // Items on this page that aren't showing that day (turned Off here, or not offered) go under
+    // Not available, where adding one turns the day on. Other products: up top or Not available is
+    // decided by the source (its days and dayparts), or for an item without a source by its
+    // dayparts alone (a blank slate), judged by the daypart picked. Not available holds that
+    // daypart's items on days it isn't offered, not every product.
     const avail: MenuItem[] = [];
     const notAvail: MenuItem[] = [];
     for (const item of filtered) {
-      const copy = currentPage.assignedItems.find(i => i.id === item.id);
-      if (copy) {
-        if (isCustomItem(copy) || (dayNum !== null && isBaseOffered(copy, currentPage.daypart, dayNum))) avail.push(item);
-        else notAvail.push(item);
-      } else if (offeredHere(item)) avail.push(item);
+      if (assignedIds.has(item.id)) notAvail.push(item);
+      else if (offeredHere(item)) avail.push(item);
       else if (browseDp && inDaypart(item, browseDp)) notAvail.push(item);
     }
     avail.sort((a, b) => a.name.localeCompare(b.name));
@@ -1044,7 +1042,7 @@ export function DeviceSettingsModal({
                                   }
                                 }}
                                 className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 px-2 py-1 rounded transition-colors"
-                              >Add anyway</button>
+                              >{assignedIds.has(item.id) && dayNum !== null ? `On ${DAY_ABBR[dayNum]}` : 'Add anyway'}</button>
                             </div>
                           ))}
                         </div>
