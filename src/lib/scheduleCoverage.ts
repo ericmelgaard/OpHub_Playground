@@ -36,24 +36,25 @@ export interface SlotGap {
 
 // A slot is one label's daypart on one day. Only dayparts a label actually has a
 // page for count, so a label without Late Night never reports a Late Night gap.
-// Returned Mon–Sun, in the label's page order within each day.
-export function getDeviceGaps(device: Device, schedule: DeviceWeekSchedule | undefined): SlotGap[] {
+// Only the site's open days count (Site settings → Business days); closed days are never gaps.
+// Returned in week order, in the label's page order within each day.
+export function getDeviceGaps(device: Device, schedule: DeviceWeekSchedule | undefined, openDays: number[] = WEEK_DAYS): SlotGap[] {
   const dayparts = [...new Set(device.pages.map(p => p.daypart))];
   const filled = new Set((schedule?.items ?? []).map(i => `${i.dayOfWeek}|${i.daypart}`));
-  return WEEK_DAYS.flatMap(dayOfWeek =>
+  return WEEK_DAYS.filter(d => openDays.includes(d)).flatMap(dayOfWeek =>
     dayparts
       .filter(daypart => !filled.has(`${dayOfWeek}|${daypart}`))
       .map(daypart => ({ dayOfWeek, daypart })),
   );
 }
 
-export function getWeekCoverage(devices: Device[], schedules: DeviceWeekSchedule[]): DayCoverage[] {
+export function getWeekCoverage(devices: Device[], schedules: DeviceWeekSchedule[], openDays: number[] = WEEK_DAYS): DayCoverage[] {
   const scheduleByDevice = new Map(schedules.map(s => [s.deviceId, s]));
   const gapsByDay = new Map<number, number>();
   let slotsPerDay = 0;
   for (const device of devices) {
     slotsPerDay += new Set(device.pages.map(p => p.daypart)).size;
-    for (const gap of getDeviceGaps(device, scheduleByDevice.get(device.id))) {
+    for (const gap of getDeviceGaps(device, scheduleByDevice.get(device.id), openDays)) {
       gapsByDay.set(gap.dayOfWeek, (gapsByDay.get(gap.dayOfWeek) ?? 0) + 1);
     }
   }

@@ -2,6 +2,7 @@ import { MenuItem, Device, Concept, Company, Store, Rule, Brand, DeviceGroup, De
 import { applyLocalValues } from '../lib/productValues';
 import { mockDevices, mockPlacements } from './mockData';
 import { supabase } from '../lib/supabase';
+import { SiteSettings, withDefaults } from '../lib/siteSettings';
 
 export class NoContentError extends Error {
   constructor(message: string = 'No content available') {
@@ -208,6 +209,20 @@ async function setCustomDays(mrn: string, days: number[]) {
 
 export const api = {
   // Menu Items - from condensed Supabase view (pre-grouped by MRN + name)
+  // Site settings (missing table or row = defaults)
+  getSiteSettings: async (siteId: string): Promise<SiteSettings> => {
+    const { data, error } = await supabase.from('site_settings').select('settings').eq('site_id', siteId).maybeSingle();
+    if (error) console.warn('Site settings not loaded:', error.message);
+    return withDefaults(data?.settings);
+  },
+
+  saveSiteSettings: async (siteId: string, settings: SiteSettings): Promise<void> => {
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({ site_id: siteId, settings, updated_at: new Date().toISOString() });
+    if (error) throw new Error(`Settings didn't save: ${error.message}`);
+  },
+
   getMenuItems: async (): Promise<MenuItem[]> => {
     const pageSize = 1000;
     let allData: any[] = [];

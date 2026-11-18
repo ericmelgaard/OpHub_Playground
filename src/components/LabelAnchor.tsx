@@ -6,6 +6,7 @@ import { daypartColor } from '../lib/daypartColors';
 import { plainText } from '../lib/richText';
 import { WEEK_ORDER, dayIndexInWeek, getWeekStartString } from '../lib/weekSchedule';
 import { LabelName } from './RichText';
+import { useOpenDays } from '../lib/siteSettings';
 
 interface LabelAnchorProps {
   device: Device;
@@ -64,7 +65,10 @@ export function LabelAnchor({
   device, activeDaypart, onSelectDaypart, selectedDay, onSelectDay,
   toggles, substitutionMap, weekStart, highlightItemId, onItemTap,
 }: LabelAnchorProps) {
+  const openDays = useOpenDays();
   const day = selectedDay === 'every-day' ? null : selectedDay;
+  // The picked day is one the site is closed (Site settings → Business days)
+  const dayClosed = day !== null && !openDays.includes(day);
   const today = new Date().getDay();
   const isAll = activeDaypart === null;
   const shownFor = (page: DevicePage, d: number | null) => getShownItems(page, d, toggles[page.id], substitutionMap);
@@ -89,8 +93,9 @@ export function LabelAnchor({
     return d.getDate();
   };
 
-  // A day has open rows when the page (or any page, in All) shows fewer than it can
-  const dayHasGaps = (jsDay: number) => (isAll || !previewPage ? device.pages : [previewPage])
+  // A day has open rows when the page (or any page, in All) shows fewer than it can.
+  // Closed days (Site settings → Business days) are never flagged.
+  const dayHasGaps = (jsDay: number) => openDays.includes(jsDay) && (isAll || !previewPage ? device.pages : [previewPage])
     .some(p => shownFor(p, jsDay).length < p.displayCapacity);
 
   const tileClass = (selected: boolean) =>
@@ -258,7 +263,7 @@ export function LabelAnchor({
                   </span>
                 </span>
                 <span className="mt-1 text-[11px] font-semibold leading-tight text-gray-800 dark:text-slate-200 truncate">{shortName(p.daypart)}</span>
-                <span className={`text-[10px] leading-tight tabular-nums ${full ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                <span className={`text-[10px] leading-tight tabular-nums ${dayClosed ? 'text-gray-500 dark:text-slate-400' : full ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
                   {s.length}/{p.displayCapacity} showing
                 </span>
               </button>
@@ -284,17 +289,21 @@ export function LabelAnchor({
           {WEEK.map(d => {
             const date = dateFor(d);
             const gaps = dayHasGaps(d);
+            const closed = !openDays.includes(d);
             return (
               <button
                 key={d}
                 onClick={() => onSelectDay(d)}
                 aria-pressed={selectedDay === d}
-                aria-label={`${DAY_LONG[d]}${gaps ? ', open rows on the label' : ', label full'}`}
-                className={dayTileClass(selectedDay === d)}
+                aria-label={`${DAY_LONG[d]}${closed ? ', closed' : gaps ? ', open rows on the label' : ', label full'}`}
+                title={closed ? 'Closed (Site settings)' : undefined}
+                className={closed ? closedDayTileClass(selectedDay === d) : dayTileClass(selectedDay === d)}
               >
-                <span className={`text-[11px] ${d === today ? 'font-bold text-sky-600 dark:text-sky-300' : 'text-gray-500 dark:text-slate-400'}`}>{DAY_ABBR[d]}</span>
-                {date !== null && <span className={`text-base font-semibold tabular-nums ${d === today ? 'text-sky-600 dark:text-sky-300' : 'text-gray-900 dark:text-white'}`}>{date}</span>}
-                <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${gaps ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                <span className={`text-[11px] ${d === today ? 'font-bold text-sky-600 dark:text-sky-300' : closed ? 'text-gray-400 dark:text-slate-500' : 'text-gray-500 dark:text-slate-400'}`}>{DAY_ABBR[d]}</span>
+                {date !== null && <span className={`text-base font-semibold tabular-nums ${d === today ? 'text-sky-600 dark:text-sky-300' : closed ? 'text-gray-400 dark:text-slate-500' : 'text-gray-900 dark:text-white'}`}>{date}</span>}
+                {closed
+                  ? <span className="text-[9px] leading-none mt-0.5 text-gray-400 dark:text-slate-500">Closed</span>
+                  : <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${gaps ? 'bg-amber-400' : 'bg-emerald-400'}`} />}
               </button>
             );
           })}
@@ -308,6 +317,14 @@ const tileState = (selected: boolean) =>
   selected
     ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500'
     : 'bg-white dark:bg-slate-800/60 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600';
+
+// A closed day: dashed and muted so it reads as off, but it can still be picked and edited
+const closedDayTileClass = (selected: boolean) =>
+  `h-16 flex flex-col items-center justify-center rounded-xl border-2 border-dashed transition-colors ${
+    selected
+      ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500'
+      : 'bg-gray-50 dark:bg-slate-900/40 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+  }`;
 
 const dayTileClass = (selected: boolean) =>
   `h-16 flex flex-col items-center justify-center rounded-xl border-2 transition-colors ${tileState(selected)}`;

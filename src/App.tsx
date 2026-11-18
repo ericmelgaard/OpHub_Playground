@@ -42,6 +42,8 @@ import { api, type ProductInput } from './services/api';
 import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
 import { deviceName, matchesDevice } from './lib/deviceName';
+import { DEFAULT_SITE_SETTINGS, SITE_ID, SiteSettings, SiteSettingsContext } from './lib/siteSettings';
+import { SiteSettingsPage } from './components/SiteSettingsPage';
 
 // Each label item replaced by the current product with the same id (or MRN), when there is one
 function withCurrentProducts(devices: Device[], menuItems: MenuItem[]): Device[] {
@@ -83,7 +85,14 @@ function App() {
   // Navigation state
   const [notifications, setNotifications] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Demo tools (rule builder, brands, demo devices), opened from Manage Demo
   const [showSettings, setShowSettings] = useState(false);
+  // Site settings (side panel → Site settings)
+  const [showSiteSettings, setShowSiteSettings] = useState(false);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  useEffect(() => {
+    api.getSiteSettings(SITE_ID).then(setSiteSettings);
+  }, []);
 
   const [selectedPage, setSelectedPage] = useState<'products' | 'devices' | 'channels'>('products');
 
@@ -516,8 +525,8 @@ function App() {
 
   // Per-day fill status for the selected week; drives the day selector and the Schedule badge
   const weekCoverage = useMemo(
-    () => getWeekCoverage(devices, effectiveSchedules),
-    [devices, effectiveSchedules],
+    () => getWeekCoverage(devices, effectiveSchedules, siteSettings.openDays),
+    [devices, effectiveSchedules, siteSettings.openDays],
   );
   const weekGapCount = useMemo(
     () => weekCoverage.reduce((sum, c) => sum + c.gaps, 0),
@@ -1140,6 +1149,7 @@ function App() {
   }, []);
 
   return (
+    <SiteSettingsContext.Provider value={siteSettings}>
     <div className={theme}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
         <Navigation
@@ -1164,6 +1174,7 @@ function App() {
           isMultiDomainUser={isMultiDomainUser}
           selectedSecondaryDomain={selectedSecondaryDomain}
           onToggleMultiDomain={setIsMultiDomainUser}
+          onOpenDemoTools={() => setShowSettings(true)}
           onSelectSecondaryDomain={setSelectedSecondaryDomainId}
           demoSecondaryDomains={demoSecondaryDomains}
           onResetLocation={() => {
@@ -1244,8 +1255,7 @@ function App() {
         <Sidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenGroups={() => handleQuickActionSelect('groups')}
+          onOpenSettings={() => setShowSiteSettings(true)}
           quickActionConfigs={quickActionConfigs}
           selectedQuickAction={selectedQuickAction}
           onActionSelect={handleQuickActionSelect}
@@ -1495,6 +1505,17 @@ function App() {
         </div>
 
 
+        {showSiteSettings && (
+          <SiteSettingsPage
+            settings={siteSettings}
+            onSave={async (next) => {
+              await api.saveSiteSettings(SITE_ID, next);
+              setSiteSettings(next);
+            }}
+            onClose={() => setShowSiteSettings(false)}
+          />
+        )}
+
         {showSettings && (
           <SettingsPage
             onClose={() => setShowSettings(false)}
@@ -1680,6 +1701,7 @@ function App() {
       />
       <ScrollToTopButton />
     </div>
+    </SiteSettingsContext.Provider>
   );
 }
 

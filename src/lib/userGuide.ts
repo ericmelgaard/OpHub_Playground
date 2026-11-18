@@ -29,6 +29,13 @@ export interface GuideSection {
 
 export const GUIDE_UPDATES: GuideUpdate[] = [
   {
+    id: '2026-11-17-business-days',
+    date: '2026-11-17',
+    title: 'Set the days you\'re open',
+    text: 'In Site settings (the menu at the top left), pick your business days. Empty spots on days you\'re closed aren\'t flagged anymore. You can still add items on those days.',
+    section: 'labels',
+  },
+  {
     id: '2026-11-17-label-names',
     date: '2026-11-17',
     title: 'Name your labels',
@@ -131,6 +138,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       { term: 'Open a label', text: 'Tap a label in Smart Labels. Pick the daypart and the day at the top.' },
       { term: 'Preview', text: 'Shows one daypart on one day, the way the label will look. "Live" marks the page on the label right now.' },
       { term: 'Full labels', text: 'Each page holds a set number of items. When it\'s full, the extra items wait and show "Waiting · label is full".' },
+      { term: 'Closed days', text: 'Days you\'re closed (Site settings → Business days) aren\'t flagged for empty spots. On the label page their day looks dimmed and says "Closed", but you can still pick it and add items.' },
       { term: 'Name a label', text: 'Open the label, tap the gear, and type a name like "Grill Station - 1". Leave it blank to use the device ID. Search and Scan find a label by either one.' },
     ],
   },

@@ -10,6 +10,7 @@ import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
 import { LabelName } from './RichText';
 import { deviceName, hasOwnName } from '../lib/deviceName';
+import { useOpenDays } from '../lib/siteSettings';
 
 interface SmartLabelGridProps {
   loading: boolean;
@@ -79,6 +80,7 @@ export function SmartLabelGrid({
   reviewedIds,
   lastOpenedId,
 }: SmartLabelGridProps) {
+  const openDays = useOpenDays();
   const filteredDevices = useMemo(
     () => filterLabels(devices, searchValue, selectedPlacements),
     [devices, searchValue, selectedPlacements],
@@ -129,7 +131,8 @@ export function SmartLabelGrid({
             daypart={selectedDaypart}
             onClick={() => onDeviceSelect(device, selectedDaypart)}
             highlight={searchValue.trim() !== ''}
-            gaps={scheduleByDevice ? getDeviceGaps(device, scheduleByDevice.get(device.id)) : undefined}
+            gaps={scheduleByDevice ? getDeviceGaps(device, scheduleByDevice.get(device.id), openDays) : undefined}
+            openDayCount={openDays.length}
             reviewed={reviewedIds?.has(device.id) ?? false}
             lastOpened={device.id === lastOpenedId}
           />
@@ -145,11 +148,13 @@ interface LabelCardProps {
   onClick: () => void;
   highlight: boolean;
   gaps?: SlotGap[];
+  // How many days the site is open, so a gap on all of them reads "every day"
+  openDayCount?: number;
   reviewed: boolean;
   lastOpened: boolean;
 }
 
-function LabelCard({ device, daypart, onClick, highlight, gaps, reviewed, lastOpened }: LabelCardProps) {
+function LabelCard({ device, daypart, onClick, highlight, gaps, openDayCount = WEEK_DAYS.length, reviewed, lastOpened }: LabelCardProps) {
   const config = labelSizeConfig[device.labelSize];
   const BatteryIcon = getBatteryIcon(device.status.batteryLevel);
   const dpStyle = getDaypartStyle(daypart);
@@ -214,23 +219,23 @@ function LabelCard({ device, daypart, onClick, highlight, gaps, reviewed, lastOp
         </div>
       </div>
 
-      {gaps && gaps.length > 0 && <GapNotice gaps={gaps} />}
+      {gaps && gaps.length > 0 && <GapNotice gaps={gaps} openDayCount={openDayCount} />}
     </div>
   );
 }
 
 // "Breakfast every day · Dinner Thu, Sun"
-function describeGaps(gaps: SlotGap[]): string {
+function describeGaps(gaps: SlotGap[], openDayCount: number): string {
   const daysByDaypart = new Map<string, number[]>();
   for (const g of gaps) daysByDaypart.set(g.daypart, [...(daysByDaypart.get(g.daypart) ?? []), g.dayOfWeek]);
   return [...daysByDaypart]
     .map(([daypart, days]) =>
-      `${daypart} ${days.length === WEEK_DAYS.length ? 'every day' : days.map(d => DAY_ABBR[d]).join(', ')}`)
+      `${daypart} ${days.length === openDayCount ? 'every day' : days.map(d => DAY_ABBR[d]).join(', ')}`)
     .join(' · ');
 }
 
-function GapNotice({ gaps }: { gaps: SlotGap[] }) {
-  const detail = describeGaps(gaps);
+function GapNotice({ gaps, openDayCount }: { gaps: SlotGap[]; openDayCount: number }) {
+  const detail = describeGaps(gaps, openDayCount);
   return (
     <div
       title={`Nothing scheduled: ${detail}`}

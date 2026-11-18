@@ -65,6 +65,8 @@ interface NavigationProps {
   isMultiDomainUser?: boolean;
   selectedSecondaryDomain?: DemoSecondaryDomain | null;
   onToggleMultiDomain?: (enabled: boolean) => void;
+  // Demo tools that used to be in Settings: rule builder, brands, group templates, demo devices
+  onOpenDemoTools?: () => void;
   onSelectSecondaryDomain?: (domainId: string) => void;
   demoSecondaryDomains?: DemoSecondaryDomain[];
 }
@@ -111,6 +113,7 @@ export function Navigation({
   isMultiDomainUser = false,
   selectedSecondaryDomain = null,
   onToggleMultiDomain,
+  onOpenDemoTools,
   onSelectSecondaryDomain,
   demoSecondaryDomains = [],
 }: NavigationProps) {
@@ -602,6 +605,15 @@ export function Navigation({
                       <p className="text-xs text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-gray-700">
                         Toggling multi-domain shows "Other" sections in the quick nav at every level.
                       </p>
+                      {onOpenDemoTools && (
+                        <button
+                          type="button"
+                          onClick={() => { setShowDemoMenu(false); onOpenDemoTools(); }}
+                          className="w-full px-3 py-2 text-sm text-left rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                          Rules, brands and demo devices
+                        </button>
+                      )}
                     </CardContent>
                   </Card>
                 )}

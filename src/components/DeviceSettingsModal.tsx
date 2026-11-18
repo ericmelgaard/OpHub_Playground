@@ -9,8 +9,7 @@ import {
   AlertTriangle,
   Search,
   ArrowLeftRight,
-  Sparkles,
-} from 'lucide-react';
+  Sparkles, CalendarOff } from 'lucide-react';
 import { Device, MenuItem, DevicePage as DevicePageType, Substitution, SubstitutionKey, SubstitutionContext, ResolvedItem } from '../types';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -34,6 +33,7 @@ import { productDayparts } from '../lib/stations';
 import { sortDayparts } from '../lib/weekSchedule';
 import { plainText } from '../lib/richText';
 import { LabelName } from './RichText';
+import { useOpenDays } from '../lib/siteSettings';
 
 interface DeviceSettingsModalProps {
   showDeviceSettingsModal: boolean;
@@ -145,6 +145,9 @@ export function DeviceSettingsModal({
 }: DeviceSettingsModalProps) {
   const [internalDaypart, setInternalDaypart] = useState<string | null>(selectedDaypart);
   const [selectedDay, setSelectedDayState] = useState<number | 'every-day'>(() => initialDay ?? new Date().getDay());
+  // A day the site is closed (Site settings → Business days): no empty-page warnings
+  const openDays = useOpenDays();
+  const dayClosed = selectedDay !== 'every-day' && !openDays.includes(selectedDay);
   const setSelectedDay = useCallback((day: number | 'every-day') => {
     setSelectedDayState(day);
     onSelectedDayChange?.(day);
@@ -567,7 +570,13 @@ export function DeviceSettingsModal({
                     </span>
                     <span className="text-gray-500 dark:text-gray-400">{currentPage.assignedItems.length} assigned</span>
                   </div>
-                  {showingCount === 0 && (
+                  {dayClosed && (
+                    <div className="mt-2 flex items-center gap-2 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md">
+                      <CalendarOff className="h-4 w-4 flex-shrink-0" />
+                      <span className="text-xs">Closed {DAY_ABBR[selectedDay as number]} (Site settings). Nothing needs to show, but you can still add items.</span>
+                    </div>
+                  )}
+                  {showingCount === 0 && !dayClosed && (
                     <div className="mt-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md">
                       <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                       <span className="text-xs">
@@ -756,7 +765,7 @@ export function DeviceSettingsModal({
                                 <p className="text-xs text-gray-400">Drag items from the right panel</p>
                               </div>
                             )}
-                            {activeOrderIds.length === 0 && currentPage.assignedItems.length > 0 && inactiveAssignedItems.length > 0 && (
+                            {activeOrderIds.length === 0 && currentPage.assignedItems.length > 0 && inactiveAssignedItems.length > 0 && !dayClosed && (
                               <div className="flex flex-col items-center justify-center h-[120px] border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg gap-1 bg-amber-50/50 dark:bg-amber-900/10">
                                 <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />
                                 <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">No items available for this day</p>

@@ -10,6 +10,7 @@ import {
   getWeekStartDate, getWeekEndDate, getWeekStartString as libGetWeekStartString,
   getWeekState, WeekState, formatEditingDay, WEEK_ORDER,
 } from '../lib/weekSchedule';
+import { useOpenDays } from '../lib/siteSettings';
 
 // Re-exported for existing importers.
 export const getWeekStartString = libGetWeekStartString;
@@ -403,6 +404,7 @@ export function DayPicker({ value, onChange, weekStart, gapsByDay }: {
   weekStart: string | null;
   gapsByDay?: Map<number, number>;
 }) {
+  const openDays = useOpenDays();
   return (
     <Select
       value={String(value)}
@@ -420,10 +422,12 @@ export function DayPicker({ value, onChange, weekStart, gapsByDay }: {
         <SelectSeparator />
         {WEEK_ORDER.map(d => {
           const gaps = gapsByDay?.get(d) ?? 0;
+          const closed = !openDays.includes(d);
           return (
             <SelectItem key={d} value={String(d)}>
               <span className="flex items-center gap-2">
                 {formatEditingDay(d, weekStart)}
+                {closed && <span className="text-[10px] text-gray-400 dark:text-gray-500">Closed</span>}
                 {gaps > 0 && (
                   <span
                     className="inline-flex items-center gap-0.5 h-4 px-1.5 text-[10px] font-semibold rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"

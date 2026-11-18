@@ -135,6 +135,22 @@ Reference: `src/components/ProductEditPage.tsx` (Edit in the product sheet, and 
   its own name, price or description there. A different portion is a different product.
   **Customizations** (direction): only the changes made by levels below the one you're at.
 
+### Site settings (approved 2026-11-17)
+Reference: `src/components/SiteSettingsPage.tsx`, settings in `src/lib/siteSettings.ts`.
+- Opened from the side panel's **Site settings** (the only settings entry). Full screen, back
+  arrow + "Site settings" title, `SaveButton` in the header; one card per setting.
+- Stored per site in `site_settings` (jsonb). Add a setting to `SiteSettings` with a default in
+  `DEFAULT_SITE_SETTINGS` — no migration. Read it anywhere with `useSiteSettings()`; the site is
+  `SITE_ID` ('default') until location selection is wired in.
+- **Business days** (`openDays`, day pills, all open by default): closed days never count as
+  empty slots (gap counts, amber day dots, "N gaps" on cards; `getDeviceGaps()` /
+  `getWeekCoverage()` take the open days). Closed days are never blocked: they can still be
+  edited and filled. Closed days look **disabled but pickable**: on the label page a dashed,
+  muted day tile with "Closed" in place of the dot, gray page counts, and a gray "Closed {day}"
+  note instead of the amber empty-page warnings; "Closed" beside the day in day dropdowns.
+- The old settings screen (integrations, rule builder, brands, demo devices) is demo
+  scaffolding, opened from Manage Demo → "Rules, brands and demo devices".
+
 ### Last opened → sky ring (approved 2026-11-15)
 Reference: `lastOpened` in `src/components/SmartLabelGrid.tsx` / `SmartLabelList.tsx` (labels, and
 the label picker from Products) and `src/components/MenuItem.tsx` (products). Any card or row that opens a page or sheet marks the one

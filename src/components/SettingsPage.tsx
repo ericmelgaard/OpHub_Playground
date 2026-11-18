@@ -47,7 +47,7 @@ export function SettingsPage({
                 <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
               </Button>
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Settings
+                Demo tools
               </h1>
             </div>
           </div>

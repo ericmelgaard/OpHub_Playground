@@ -13,6 +13,7 @@ import { WEEK_ORDER } from '../lib/weekSchedule';
 import { ReviewedTag } from './ReviewedTag';
 import { LabelName } from './RichText';
 import { deviceName } from '../lib/deviceName';
+import { useOpenDays } from '../lib/siteSettings';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -164,7 +165,8 @@ interface LabelRowProps {
   lastOpened: boolean;
 }
 
-type DayState = 'default' | 'override' | 'missing';
+// closed: no items on a day the site is closed (Site settings → Business days); not a warning
+type DayState = 'default' | 'override' | 'missing' | 'closed';
 
 function mrnsFor(schedule: DeviceWeekSchedule | undefined, daypart: string, dow: number): string {
   return (schedule?.items ?? [])
@@ -180,17 +182,18 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
   const items = page?.assignedItems ?? [];
   const isEmpty = items.length === 0;
   const dpColor = daypartColor(daypart).solid;
+  const openDays = useOpenDays();
 
   const dayStates = useMemo(() => {
     const states = new Map<number, DayState>();
     for (let dow = 0; dow < 7; dow++) {
       const mrns = mrnsFor(schedule, daypart, dow);
-      if (!mrns) states.set(dow, 'missing');
+      if (!mrns) states.set(dow, openDays.includes(dow) ? 'missing' : 'closed');
       else if (compareToDefault && mrns !== mrnsFor(defaultSchedule, daypart, dow)) states.set(dow, 'override');
       else states.set(dow, 'default');
     }
     return states;
-  }, [schedule, defaultSchedule, compareToDefault, daypart]);
+  }, [schedule, defaultSchedule, compareToDefault, daypart, openDays]);
 
   const isFutureWeek = selectedWeekStart !== null;
 
@@ -293,6 +296,10 @@ const dayStateStyles: Record<DayState, { className: string; title: string }> = {
   missing: {
     className: 'bg-transparent text-amber-600 dark:text-amber-400 border border-dashed border-amber-400 dark:border-amber-600',
     title: 'No items',
+  },
+  closed: {
+    className: 'bg-transparent text-gray-400 dark:text-gray-500 border border-dashed border-gray-300 dark:border-gray-600',
+    title: 'Closed',
   },
 };
 
