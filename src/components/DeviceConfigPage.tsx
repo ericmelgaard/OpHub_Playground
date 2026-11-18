@@ -28,6 +28,7 @@ import { deviceName } from '../lib/deviceName';
 import core22Image from '@/assets/images/devices/core2.2_2.png';
 import { levelIconColor } from '@/lib/levelColors';
 import { daypartColor } from '@/lib/daypartColors';
+import { CopyButton } from './CopyButton';
 
 interface DeviceConfigPageProps {
   device: Device;
@@ -159,7 +160,10 @@ export function DeviceConfigPage({
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
                     {deviceName(device)}
                   </h3>
-                  <p className="text-xs font-mono text-gray-500 dark:text-gray-400">Device ID {device.name}</p>
+                  <p className="flex items-center gap-1 text-xs font-mono text-gray-500 dark:text-gray-400">
+                    Device ID {device.name}
+                    <CopyButton value={device.name} label="device ID" />
+                  </p>
                   <div className="mt-2 space-y-1.5">
                     <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                       <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${levelIconColor('placement')}`} />

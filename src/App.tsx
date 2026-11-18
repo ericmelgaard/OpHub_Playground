@@ -439,6 +439,14 @@ function App() {
     };
   }, [menuItems]);
 
+  // Whether a scheduled item shows on that page and day: the label page's rule, used by gap
+  // counts and the list's week strip so they agree with the label page
+  const shownOnDay = useCallback(
+    (schedule: DeviceWeekSchedule, daypart: string, mrn: string, day: number) =>
+      shownDaysOnPage(schedule, daypart, mrn, [day]).includes(day),
+    [shownDaysOnPage],
+  );
+
   // Every label's schedule for the week Products shows (also the label picker's list view)
   const productWeekSchedules = useMemo(
     () => resolveWeekSchedules(getWeekStartString(selectedCycleWeek), productWeekOverrides, defaultSchedules, recurringSchedules, deviceIds),
@@ -525,8 +533,8 @@ function App() {
 
   // Per-day fill status for the selected week; drives the day selector and the Schedule badge
   const weekCoverage = useMemo(
-    () => getWeekCoverage(devices, effectiveSchedules, siteSettings.openDays),
-    [devices, effectiveSchedules, siteSettings.openDays],
+    () => getWeekCoverage(devices, effectiveSchedules, siteSettings.openDays, shownOnDay),
+    [devices, effectiveSchedules, siteSettings.openDays, shownOnDay],
   );
   const weekGapCount = useMemo(
     () => weekCoverage.reduce((sum, c) => sum + c.gaps, 0),
@@ -1435,6 +1443,7 @@ function App() {
                           selectedDay={labelDay}
                           reviewedIds={reviewedLabelIds}
                           lastOpenedId={lastOpenedLabelId}
+                          shownOnDay={shownOnDay}
                         />
                       ) : (
                         <SmartLabelGrid
@@ -1449,6 +1458,7 @@ function App() {
                           weekSchedules={scheduleOpen ? effectiveSchedules : undefined}
                           reviewedIds={reviewedLabelIds}
                           lastOpenedId={lastOpenedLabelId}
+                          shownOnDay={shownOnDay}
                         />
                       )}
                     </div>
@@ -1675,6 +1685,7 @@ function App() {
           weekSchedules={productWeekSchedules}
           viewMode={labelViewMode}
           lastOpenedId={lastPickedLabelId}
+          shownOnDay={shownOnDay}
           onViewModeChange={setLabelViewMode}
         />
 

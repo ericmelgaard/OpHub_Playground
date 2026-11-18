@@ -17,6 +17,7 @@ import { RichTextEditor } from './RichTextEditor';
 import { productSource } from '../lib/sources';
 import { ProductEditPage, DietaryIcon, splitAllergens, type ProductScheduleRow } from './ProductEditPage';
 import { deviceName } from '../lib/deviceName';
+import { CopyButton } from './CopyButton';
 
 interface ProductSheetProps {
   // The product being viewed, or null
@@ -163,10 +164,14 @@ function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClos
         title={item.name.trim()}
         onClose={onClose}
         subtitle={<>
-          <span className="font-medium text-gray-700 dark:text-gray-200">ID {wandId(item)}</span>
+          <span className="inline-flex items-center gap-0.5 font-medium text-gray-700 dark:text-gray-200">
+            ID {wandId(item)}
+            <CopyButton value={wandId(item)} />
+          </span>
           {linkedSourceId(item) ? (
             <span className="inline-flex items-center gap-1" title={`Its values come from the ${productSource(item)?.name} item`}>
               · <Link2 className="h-3.5 w-3.5 flex-shrink-0 text-brand" />Linked to {productSource(item)?.name} {productSource(item)?.idLabel} {linkedSourceId(item)}
+              <CopyButton value={linkedSourceId(item)!} label={productSource(item)?.idLabel ?? 'source ID'} />
             </span>
           ) : (
             <span className="inline-flex items-center gap-1">

@@ -18,6 +18,7 @@ import { menuDaysInWeek, sortDayparts, type LabelUse } from '../lib/weekSchedule
 import { productDayparts, ALL_DAYPARTS } from '../lib/stations';
 import { ProductDayStrip } from './ProductDays';
 import { labelName, isCustomItem, wandId, linkedSourceId } from '../lib/labelDisplay';
+import { CopyButton } from './CopyButton';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -590,11 +591,15 @@ function ItemIds({ item }: { item: MenuItemType }) {
   const source = linkedSourceId(item);
   return (
     <>
-      ID {wandId(item)}
+      <span className="inline-flex items-center gap-0.5">
+        ID {wandId(item)}
+        <CopyButton value={wandId(item)} size="xs" />
+      </span>
       {source && (
         <span className="inline-flex items-center gap-1 ml-2 font-normal text-gray-400 dark:text-gray-500" title={`Linked to source item ${source}`}>
           <Link2 className="h-3 w-3 flex-shrink-0" />
           {source}
+          <CopyButton value={source} label="source ID" size="xs" />
         </span>
       )}
     </>

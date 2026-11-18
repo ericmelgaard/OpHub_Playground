@@ -22,6 +22,7 @@ import { dayClass } from './ProductDays';
 import type { ProductInput } from '../services/api';
 import { RichTextEditor } from './RichTextEditor';
 import { productSource, sourceSystem, type ProductSource } from '../lib/sources';
+import { CopyButton } from './CopyButton';
 
 // One product on one label page in a week: the days it shows there
 export interface ProductScheduleRow {
@@ -304,10 +305,16 @@ export function ProductEditPage({ item, menuItems, weekStateOf, loadSchedule, on
               {item ? (name.trim() || item.name.trim()) : (name.trim() || 'New product')}
             </h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {item ? <span className="font-medium text-gray-700 dark:text-gray-200">ID {wandId(item)}</span> : <span>New product</span>}
+              {item ? (
+                <span className="inline-flex items-center gap-0.5 font-medium text-gray-700 dark:text-gray-200">
+                  ID {wandId(item)}
+                  <CopyButton value={wandId(item)} />
+                </span>
+              ) : <span>New product</span>}
               {sourceId ? (
                 <span className="inline-flex items-center gap-1">
                   · <Link2 className="h-3.5 w-3.5 flex-shrink-0 text-brand" />{linkedTo?.name} {linkedTo?.idLabel} {sourceId}
+                  <CopyButton value={sourceId} label={linkedTo?.idLabel ?? 'source ID'} />
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1">
@@ -917,7 +924,10 @@ function SourceValues({ linkedTo, sourceId, source, current, isLocal, onUseSourc
           <Plug className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-gray-900 dark:text-white">{sourceName} · {linkedTo.idLabel} {sourceId}</div>
+          <div className="flex items-center gap-1 text-sm font-semibold text-gray-900 dark:text-white">
+            {sourceName} · {linkedTo.idLabel} {sourceId}
+            <CopyButton value={sourceId} label={linkedTo.idLabel} />
+          </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
             {source.name} · {summarize('price', source)} · {summarize('calories', source)} cal · menus for this week and next
           </div>

@@ -5,7 +5,7 @@ import { AlertTriangle, Wifi, WifiOff, BatteryFull, Battery, BatteryMedium, Batt
 import { ReviewedTag } from './ReviewedTag';
 import { filterLabels } from '../lib/labelFilter';
 import { SyncStatus, PendingPill } from './SyncStatus';
-import { getDeviceGaps, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
+import { getDeviceGaps, ShownOnDay, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
 import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
 import { LabelName } from './RichText';
@@ -23,6 +23,8 @@ interface SmartLabelGridProps {
   selectedPlacements: string[];
   // When given, each card flags the day/daypart slots that have nothing scheduled that week.
   weekSchedules?: DeviceWeekSchedule[];
+  // Whether an item shows on a day (the label page's rule), so Off items don't fill a slot
+  shownOnDay?: ShownOnDay;
   // Labels opened this session (for the selected week, day and daypart)
   reviewedIds?: Set<string>;
   // The label you last opened, so you can find your place on return
@@ -79,6 +81,7 @@ export function SmartLabelGrid({
   weekSchedules,
   reviewedIds,
   lastOpenedId,
+  shownOnDay,
 }: SmartLabelGridProps) {
   const openDays = useOpenDays();
   const filteredDevices = useMemo(
@@ -131,7 +134,7 @@ export function SmartLabelGrid({
             daypart={selectedDaypart}
             onClick={() => onDeviceSelect(device, selectedDaypart)}
             highlight={searchValue.trim() !== ''}
-            gaps={scheduleByDevice ? getDeviceGaps(device, scheduleByDevice.get(device.id), openDays) : undefined}
+            gaps={scheduleByDevice ? getDeviceGaps(device, scheduleByDevice.get(device.id), openDays, shownOnDay) : undefined}
             openDayCount={openDays.length}
             reviewed={reviewedIds?.has(device.id) ?? false}
             lastOpened={device.id === lastOpenedId}

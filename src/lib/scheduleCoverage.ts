@@ -29,6 +29,11 @@ export function countLabelsDifferingFromDefault(
 // The week in display order (Sun–Sat), in JS day-of-week numbers.
 export const WEEK_DAYS = WEEK_ORDER;
 
+// Whether a scheduled item actually shows on that page and day (its day On / Off settings, the
+// source's days, the daypart it follows) — the label page's rule. Without it, any scheduled
+// item counts as showing.
+export type ShownOnDay = (schedule: DeviceWeekSchedule, daypart: string, mrn: string, dayOfWeek: number) => boolean;
+
 export interface SlotGap {
   dayOfWeek: number;
   daypart: string;
@@ -38,9 +43,16 @@ export interface SlotGap {
 // page for count, so a label without Late Night never reports a Late Night gap.
 // Only the site's open days count (Site settings → Business days); closed days are never gaps.
 // Returned in week order, in the label's page order within each day.
-export function getDeviceGaps(device: Device, schedule: DeviceWeekSchedule | undefined, openDays: number[] = WEEK_DAYS): SlotGap[] {
+export function getDeviceGaps(
+  device: Device,
+  schedule: DeviceWeekSchedule | undefined,
+  openDays: number[] = WEEK_DAYS,
+  shownOnDay?: ShownOnDay,
+): SlotGap[] {
   const dayparts = [...new Set(device.pages.map(p => p.daypart))];
-  const filled = new Set((schedule?.items ?? []).map(i => `${i.dayOfWeek}|${i.daypart}`));
+  const filled = new Set((schedule?.items ?? [])
+    .filter(i => !shownOnDay || shownOnDay(schedule!, i.daypart, i.menuItemMrn, i.dayOfWeek))
+    .map(i => `${i.dayOfWeek}|${i.daypart}`));
   return WEEK_DAYS.filter(d => openDays.includes(d)).flatMap(dayOfWeek =>
     dayparts
       .filter(daypart => !filled.has(`${dayOfWeek}|${daypart}`))
@@ -48,13 +60,18 @@ export function getDeviceGaps(device: Device, schedule: DeviceWeekSchedule | und
   );
 }
 
-export function getWeekCoverage(devices: Device[], schedules: DeviceWeekSchedule[], openDays: number[] = WEEK_DAYS): DayCoverage[] {
+export function getWeekCoverage(
+  devices: Device[],
+  schedules: DeviceWeekSchedule[],
+  openDays: number[] = WEEK_DAYS,
+  shownOnDay?: ShownOnDay,
+): DayCoverage[] {
   const scheduleByDevice = new Map(schedules.map(s => [s.deviceId, s]));
   const gapsByDay = new Map<number, number>();
   let slotsPerDay = 0;
   for (const device of devices) {
     slotsPerDay += new Set(device.pages.map(p => p.daypart)).size;
-    for (const gap of getDeviceGaps(device, scheduleByDevice.get(device.id), openDays)) {
+    for (const gap of getDeviceGaps(device, scheduleByDevice.get(device.id), openDays, shownOnDay)) {
       gapsByDay.set(gap.dayOfWeek, (gapsByDay.get(gap.dayOfWeek) ?? 0) + 1);
     }
   }

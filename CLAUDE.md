@@ -151,6 +151,12 @@ Reference: `src/components/SiteSettingsPage.tsx`, settings in `src/lib/siteSetti
 - The old settings screen (integrations, rule builder, brands, demo devices) is demo
   scaffolding, opened from Manage Demo → "Rules, brands and demo devices".
 
+### IDs → copy button (approved 2026-11-17)
+Component: `CopyButton` (`src/components/CopyButton.tsx`). **Every ID shown in the app has a copy
+icon right after it**: product IDs, source IDs (MRN), device IDs. `size="xs"` in cards and rows,
+the default in headers and detail views; `label` names what's copied ("device ID", "MRN"). It
+shows a green check for a moment and never opens the card or row it sits in.
+
 ### Last opened → sky ring (approved 2026-11-15)
 Reference: `lastOpened` in `src/components/SmartLabelGrid.tsx` / `SmartLabelList.tsx` (labels, and
 the label picker from Products) and `src/components/MenuItem.tsx` (products). Any card or row that opens a page or sheet marks the one
@@ -340,9 +346,9 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   display name (`product_display_names`, keyed by MRN).
 - **Label names (approved 2026-11-17):** a label (device) can have a name people give it
   ("Grill Station - 1"), set in device settings (the gear → **Name**, saved with `SaveButton`;
-  `device_names`, keyed by device id). The name is what lists, cards and pickers show; the
-  **device ID** ("ESL-SU-002", `device.name`) is shown only in detail views (the label page
-  header and device settings), after the name in gray `font-mono` (a tooltip on grid cards). With no name, the device ID is the name. Use `deviceName()` / `hasOwnName()` /
+  `device_names`, keyed by device id). The name is what lists, cards, pickers and the label
+  page show; the **device ID** ("ESL-SU-002", `device.name`) is shown only in that label's
+  settings (gray `font-mono`, with a copy button), plus a tooltip on grid cards. With no name, the device ID is the name. Use `deviceName()` / `hasOwnName()` /
   `matchesDevice()` in `src/lib/deviceName.ts`; search, Scan and NFC match both.
 - Label sync has three states only: `Synced 2m ago`, `Syncing…`, `Sync failed` (with Retry, icon-only
   on cards). There's no "saved but not sent" state — unapplied edits are the amber `3 pending` pill.

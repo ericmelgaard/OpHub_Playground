@@ -14,6 +14,7 @@ import { ReviewedTag } from './ReviewedTag';
 import { LabelName } from './RichText';
 import { deviceName } from '../lib/deviceName';
 import { useOpenDays } from '../lib/siteSettings';
+import { ShownOnDay } from '../lib/scheduleCoverage';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -26,6 +27,8 @@ interface SmartLabelListProps {
   selectedPlacements: string[];
   selectedWeekStart: string | null;
   weekSchedules: DeviceWeekSchedule[];
+  // Whether an item shows on a day (the label page's rule), so Off items don't fill a day
+  shownOnDay?: ShownOnDay;
   // When given, days whose items differ from the Default Week are marked as overrides.
   defaultSchedules?: DeviceWeekSchedule[];
   // Day the schedule is editing; ringed in each row's week strip
@@ -74,6 +77,7 @@ export function SmartLabelList({
   selectedDay,
   reviewedIds,
   lastOpenedId,
+  shownOnDay,
 }: SmartLabelListProps) {
   const filteredDevices = useMemo(
     () => filterLabels(devices, searchValue, selectedPlacements),
@@ -146,6 +150,7 @@ export function SmartLabelList({
           selectedDay={selectedDay}
           reviewed={reviewedIds?.has(device.id) ?? false}
           lastOpened={device.id === lastOpenedId}
+          shownOnDay={shownOnDay}
         />
       ))}
     </div>
@@ -163,20 +168,23 @@ interface LabelRowProps {
   selectedDay?: number | 'every-day';
   reviewed: boolean;
   lastOpened: boolean;
+  shownOnDay?: ShownOnDay;
 }
 
 // closed: no items on a day the site is closed (Site settings → Business days); not a warning
 type DayState = 'default' | 'override' | 'missing' | 'closed';
 
-function mrnsFor(schedule: DeviceWeekSchedule | undefined, daypart: string, dow: number): string {
+// The items that show on that page and day, as one comparable string
+function mrnsFor(schedule: DeviceWeekSchedule | undefined, daypart: string, dow: number, shownOnDay?: ShownOnDay): string {
   return (schedule?.items ?? [])
     .filter(i => i.daypart === daypart && i.dayOfWeek === dow)
+    .filter(i => !shownOnDay || shownOnDay(schedule!, daypart, i.menuItemMrn, dow))
     .map(i => i.menuItemMrn)
     .sort()
     .join(',');
 }
 
-function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart, selectedDay, reviewed, lastOpened }: LabelRowProps) {
+function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compareToDefault, selectedWeekStart, selectedDay, reviewed, lastOpened, shownOnDay }: LabelRowProps) {
   const BattIcon = getBatteryIcon(device.status.batteryLevel);
   const page = device.pages.find(p => p.daypart === daypart);
   const items = page?.assignedItems ?? [];
@@ -187,13 +195,13 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
   const dayStates = useMemo(() => {
     const states = new Map<number, DayState>();
     for (let dow = 0; dow < 7; dow++) {
-      const mrns = mrnsFor(schedule, daypart, dow);
+      const mrns = mrnsFor(schedule, daypart, dow, shownOnDay);
       if (!mrns) states.set(dow, openDays.includes(dow) ? 'missing' : 'closed');
-      else if (compareToDefault && mrns !== mrnsFor(defaultSchedule, daypart, dow)) states.set(dow, 'override');
+      else if (compareToDefault && mrns !== mrnsFor(defaultSchedule, daypart, dow, shownOnDay)) states.set(dow, 'override');
       else states.set(dow, 'default');
     }
     return states;
-  }, [schedule, defaultSchedule, compareToDefault, daypart, openDays]);
+  }, [schedule, defaultSchedule, compareToDefault, daypart, openDays, shownOnDay]);
 
   const isFutureWeek = selectedWeekStart !== null;
 

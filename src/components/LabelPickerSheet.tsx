@@ -10,6 +10,7 @@ import { SmartLabelFilters } from './SmartLabelFilters';
 import { MenuFilters } from './MenuFilters';
 import { productDayparts } from '../lib/stations';
 import { matchesDevice } from '../lib/deviceName';
+import { ShownOnDay } from '../lib/scheduleCoverage';
 
 interface LabelPickerSheetProps {
   item: MenuItem | null;
@@ -39,13 +40,15 @@ interface LabelPickerSheetProps {
   onViewModeChange: (mode: 'grid' | 'list') => void;
   // The label last opened from here (sky ring, like Smart Labels)
   lastOpenedId?: string | null;
+  // Whether an item shows on a day (list view's week strip)
+  shownOnDay?: ShownOnDay;
 }
 
 // Product-first entry into the Smart Labels flow: pick a label from the same
 // preview grid, then continue on that label's device page.
 export function LabelPickerSheet({
   item, devices, placements, loading, error, initialDaypart, weekStart, weekLabel, day, onDayChange, onPick, onClose,
-  nfcScanning = false, onNfcStart, onNfcStop, scannedTag, onScanHandled, weekSchedules, viewMode, onViewModeChange, lastOpenedId,
+  nfcScanning = false, onNfcStart, onNfcStop, scannedTag, onScanHandled, weekSchedules, viewMode, onViewModeChange, lastOpenedId, shownOnDay,
 }: LabelPickerSheetProps) {
   const dayparts = orderedDayparts(devices);
   // Start on the product's first daypart that labels have; products for all dayparts keep the current one
@@ -163,6 +166,7 @@ export function LabelPickerSheet({
                 weekSchedules={weekSchedules}
                 selectedDay={day}
                 lastOpenedId={lastOpenedId}
+                shownOnDay={shownOnDay}
               />
             ) : (
               <SmartLabelGrid
