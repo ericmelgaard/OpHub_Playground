@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SyncStatus } from './SyncStatus';
 import { PendingChangesButton } from './PendingChanges';
+import { deviceName, hasOwnName } from '../lib/deviceName';
 
 interface DeviceHeaderProps {
   device: Device;
@@ -60,8 +61,9 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
         </Button>
 
         <div className="min-w-0">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">
-            {device.name}
+          <h3 className="flex items-baseline gap-2 min-w-0 text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+            <span className="truncate">{deviceName(device)}</span>
+            {hasOwnName(device) && <span className="flex-shrink-0 text-xs font-mono font-normal text-gray-500 dark:text-gray-400">{device.name}</span>}
           </h3>
           <div className="flex sm:hidden items-center gap-2 mt-0.5">
             {device.status.wifiStrength > 0 ? (

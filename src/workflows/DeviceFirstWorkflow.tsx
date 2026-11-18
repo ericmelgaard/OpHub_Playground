@@ -45,6 +45,8 @@ interface DeviceFirstWorkflowProps {
   onReorderItems: (deviceId: string, pageId: string, itemOrder: number[]) => void;
   onClose: () => void;
   onForcePage?: (deviceId: string, pageId: string | null) => void;
+  // Saves the label's name (device settings)
+  onRenameDevice?: (deviceId: string, name: string) => Promise<void>;
   setNotifications: (count: number) => void;
   onCreateMenuItem?: (item: { name: string; price: string; mealPeriod: string; mealStation: string }) => Promise<MenuItem | null>;
   // Shared day and daypart: the label opens on them and changes here carry to the next label
@@ -96,6 +98,7 @@ export function DeviceFirstWorkflow({
   onReorderItems,
   onClose,
   onForcePage,
+  onRenameDevice,
   setNotifications,
   onCreateMenuItem,
   initialDay,
@@ -114,7 +117,11 @@ export function DeviceFirstWorkflow({
   const [duplicateCount, setDuplicateCount] = useState<number>(0);
   // Reopening a label with pending changes shows them again
   const [optimisticDevice, setOptimisticDevice] = useState<Device | null>(
-    () => clone(getDraft(draftKey)?.device ?? preSelectedDevice)
+    () => {
+      const d = clone(getDraft(draftKey)?.device ?? preSelectedDevice);
+      // A saved draft keeps its items, but the name is always the current one
+      return d && preSelectedDevice ? { ...d, displayName: preSelectedDevice.displayName } : d;
+    }
   );
   const [itemSearchValue, setItemSearchValue] = useState('');
   const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
@@ -672,6 +679,10 @@ export function DeviceFirstWorkflow({
             .map(p => ({ daypart: p.daypart, stations: autoFill[p.id].stations }))}
           deviceGroup={deviceGroup}
           groupBrands={groupBrands}
+          onRename={onRenameDevice && (async (name) => {
+            await onRenameDevice(optimisticDevice.id, name);
+            setOptimisticDevice(d => d && { ...d, displayName: name || null });
+          })}
         />
       )}
 

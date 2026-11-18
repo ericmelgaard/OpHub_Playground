@@ -29,6 +29,13 @@ export interface GuideSection {
 
 export const GUIDE_UPDATES: GuideUpdate[] = [
   {
+    id: '2026-11-17-label-names',
+    date: '2026-11-17',
+    title: 'Name your labels',
+    text: 'Give a label a name like "Grill Station - 1" in its settings (the gear on the label page). Lists and cards show the name; the device ID is on the label page and in its settings.',
+    section: 'labels',
+  },
+  {
     id: '2026-11-15-day-fill',
     date: '2026-11-15',
     title: 'Easier to see which days are on labels',
@@ -124,6 +131,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       { term: 'Open a label', text: 'Tap a label in Smart Labels. Pick the daypart and the day at the top.' },
       { term: 'Preview', text: 'Shows one daypart on one day, the way the label will look. "Live" marks the page on the label right now.' },
       { term: 'Full labels', text: 'Each page holds a set number of items. When it\'s full, the extra items wait and show "Waiting · label is full".' },
+      { term: 'Name a label', text: 'Open the label, tap the gear, and type a name like "Grill Station - 1". Leave it blank to use the device ID. Search and Scan find a label by either one.' },
     ],
   },
   {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Wifi,
@@ -20,6 +20,10 @@ import { Device, DeviceGroup, Brand } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { SaveButton } from './SaveButton';
+import { deviceName } from '../lib/deviceName';
 
 import core22Image from '@/assets/images/devices/core2.2_2.png';
 import { levelIconColor } from '@/lib/levelColors';
@@ -33,6 +37,8 @@ interface DeviceConfigPageProps {
   autoFillSummary: { daypart: string; stations: string[] }[];
   deviceGroup?: DeviceGroup | null;
   groupBrands?: Brand[];
+  // Saves the label's name (blank = show the device ID)
+  onRename?: (name: string) => Promise<void>;
 }
 
 const getBatteryIcon = (level: number) => {
@@ -85,7 +91,28 @@ export function DeviceConfigPage({
   autoFillSummary,
   deviceGroup,
   groupBrands,
+  onRename,
 }: DeviceConfigPageProps) {
+  const savedName = device.displayName?.trim() ?? '';
+  const [name, setName] = useState(savedName);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  useEffect(() => { setName(savedName); setSaveError(null); }, [savedName, device.id, isOpen]);
+  const nameChanged = name.trim() !== savedName;
+
+  const saveName = async () => {
+    if (!onRename || !nameChanged) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onRename(name.trim());
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "The name didn't save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const currentPage = device.pages.find(
@@ -130,8 +157,9 @@ export function DeviceConfigPage({
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                    {device.name}
+                    {deviceName(device)}
                   </h3>
+                  <p className="text-xs font-mono text-gray-500 dark:text-gray-400">Device ID {device.name}</p>
                   <div className="mt-2 space-y-1.5">
                     <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                       <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${levelIconColor('placement')}`} />
@@ -150,6 +178,45 @@ export function DeviceConfigPage({
               </div>
             </CardContent>
           </Card>
+
+          {/* Name */}
+          {onRename && (
+            <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+              <CardContent className="p-5">
+                <form
+                  id="label-name-form"
+                  onSubmit={e => { e.preventDefault(); saveName(); }}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-gray-400" />
+                    <Label htmlFor="label-name" className="text-sm font-semibold text-gray-900 dark:text-white">Name</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="label-name"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      placeholder={device.name}
+                      maxLength={60}
+                      className="flex-1 h-9"
+                    />
+                    <SaveButton
+                      form="label-name-form"
+                      count={nameChanged ? 1 : 0}
+                      saving={saving}
+                      onSave={saveName}
+                      onDiscard={() => { setName(savedName); setSaveError(null); }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    What people call this label, like "Grill Station - 1". Leave it blank to use the device ID.
+                  </p>
+                  {saveError && <p className="text-xs text-red-600 dark:text-red-400">{saveError}</p>}
+                </form>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Group & Brands */}
           {deviceGroup && (

@@ -9,6 +9,7 @@ import { getDeviceGaps, SlotGap, WEEK_DAYS } from '../lib/scheduleCoverage';
 import { DAY_ABBR } from '../lib/availability';
 import { daypartColor } from '../lib/daypartColors';
 import { LabelName } from './RichText';
+import { deviceName, hasOwnName } from '../lib/deviceName';
 
 interface SmartLabelGridProps {
   loading: boolean;
@@ -168,7 +169,11 @@ function LabelCard({ device, daypart, onClick, highlight, gaps, reviewed, lastOp
       {/* Header strip */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-mono font-medium text-gray-700 dark:text-gray-300 truncate">{device.name}</span>
+          {hasOwnName(device) ? (
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" title={device.name}>{deviceName(device)}</span>
+          ) : (
+            <span className="text-xs font-mono font-medium text-gray-700 dark:text-gray-300 truncate">{device.name}</span>
+          )}
           <Badge variant="outline" className="text-[10px] py-0 px-1.5 flex-shrink-0">{config.label}</Badge>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">

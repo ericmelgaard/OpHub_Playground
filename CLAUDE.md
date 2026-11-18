@@ -322,6 +322,12 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   and grid, page item lists, substitution notes) uses `labelName()` from `src/lib/labelDisplay.ts`.
   Product lists, Available Items, and search show the product's own name. Any product can have a
   display name (`product_display_names`, keyed by MRN).
+- **Label names (approved 2026-11-17):** a label (device) can have a name people give it
+  ("Grill Station - 1"), set in device settings (the gear → **Name**, saved with `SaveButton`;
+  `device_names`, keyed by device id). The name is what lists, cards and pickers show; the
+  **device ID** ("ESL-SU-002", `device.name`) is shown only in detail views (the label page
+  header and device settings), after the name in gray `font-mono` (a tooltip on grid cards). With no name, the device ID is the name. Use `deviceName()` / `hasOwnName()` /
+  `matchesDevice()` in `src/lib/deviceName.ts`; search, Scan and NFC match both.
 - Label sync has three states only: `Synced 2m ago`, `Syncing…`, `Sync failed` (with Retry, icon-only
   on cards). There's no "saved but not sent" state — unapplied edits are the amber `3 pending` pill.
   Details go in the tooltip.

@@ -41,6 +41,7 @@ import { Theme, Channel, MenuItem, Device, Rule, FilterConfig, DeviceWeekSchedul
 import { api, type ProductInput } from './services/api';
 import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
+import { deviceName, matchesDevice } from './lib/deviceName';
 
 // Each label item replaced by the current product with the same id (or MRN), when there is one
 function withCurrentProducts(devices: Device[], menuItems: MenuItem[]): Device[] {
@@ -450,7 +451,7 @@ function App() {
       const overrides = await api.getWeekSchedules(weekStart);
       schedules = resolveWeekSchedules(weekStart, overrides, defaultSchedules, recurringSchedules, deviceIds);
     }
-    const names = new Map(devices.map(d => [d.id, d.name]));
+    const names = new Map(devices.map(d => [d.id, deviceName(d)]));
     const rows: ProductScheduleRow[] = [];
     for (const s of schedules) {
       const byDaypart = new Map<string, number[]>();
@@ -943,7 +944,7 @@ function App() {
   const handleScanLookup = useCallback((query: string): boolean => {
     const q = query.trim().toLowerCase();
     if (!q) return false;
-    const device = devices.find(d => d.id.toLowerCase() === q || d.name.toLowerCase() === q);
+    const device = devices.find(d => matchesDevice(d, q));
     if (device) {
       handleDeviceSelect(device, selectedDaypart);
       setSearchValue('');
@@ -1590,6 +1591,12 @@ function App() {
                     ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 });
               }
+            }}
+            onRenameDevice={async (deviceId, name) => {
+              await api.setDeviceName(deviceId, name);
+              const updatedDevices = await api.getDevices();
+              setDevices(updatedDevices);
+              setSelectedDevice(prev => (prev && prev.id === deviceId ? updatedDevices.find(d => d.id === deviceId) ?? prev : prev));
             }}
             onForcePage={async (deviceId, pageId) => {
               await api.updateDeviceStatus(deviceId, { forcedPage: pageId });

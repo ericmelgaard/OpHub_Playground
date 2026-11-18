@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { levelIconColor } from '@/lib/levelColors';
 import { plainText } from '../lib/richText';
+import { deviceName } from '../lib/deviceName';
 
 interface ItemSelectionModalProps {
   show: boolean;
@@ -288,7 +289,7 @@ export function ItemSelectionModal({
                 Select Items to Add
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                {selectedDevice?.name}
+                {selectedDevice && deviceName(selectedDevice)}
                 {pageInfo && (
                   <>
                     <span className="mx-2">•</span>

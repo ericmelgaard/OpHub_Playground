@@ -52,7 +52,10 @@ export interface DeviceSync {
 
 export interface Device {
   id: string;
+  // The device ID ("ESL-SU-002"); always kept, shown after the label's own name
   name: string;
+  // The name people give the label ("Grill Station - 1"), from device_names; use deviceName()
+  displayName?: string | null;
   location: string;
   labelSize: LabelSize;
   status: {

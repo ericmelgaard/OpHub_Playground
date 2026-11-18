@@ -9,6 +9,7 @@ import { SmartLabelList } from './SmartLabelList';
 import { SmartLabelFilters } from './SmartLabelFilters';
 import { MenuFilters } from './MenuFilters';
 import { productDayparts } from '../lib/stations';
+import { matchesDevice } from '../lib/deviceName';
 
 interface LabelPickerSheetProps {
   item: MenuItem | null;
@@ -61,8 +62,7 @@ export function LabelPickerSheet({
 
   // A tag (scanned, or typed + Enter) picks its label, on the daypart chosen here
   const pickByTag = (raw: string): boolean => {
-    const tag = raw.trim().toLowerCase();
-    const device = devices.find(d => d.id.toLowerCase() === tag || d.name.toLowerCase() === tag);
+    const device = devices.find(d => matchesDevice(d, raw));
     if (device) {
       setUnknownTag(null);
       onPick(device, daypart);

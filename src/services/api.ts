@@ -470,7 +470,23 @@ export const api = {
   // Devices
   getDevices: async (): Promise<Device[]> => {
     await mockDelay();
+    // Names people gave their labels, laid over the devices (missing table = no names yet)
+    const { data, error } = await supabase.from('device_names').select('device_id, name');
+    if (error) console.warn('Label names not loaded:', error.message);
+    const names = new Map((data ?? []).map((r: { device_id: string; name: string }) => [r.device_id, r.name]));
+    mockDevices.forEach(d => { d.displayName = names.get(d.id) ?? null; });
     return clone(mockDevices);
+  },
+
+  // Blank clears the name, so the label goes back to showing its device ID
+  setDeviceName: async (deviceId: string, name: string): Promise<void> => {
+    const value = name.trim();
+    const { error } = value
+      ? await supabase.from('device_names').upsert({ device_id: deviceId, name: value, updated_at: new Date().toISOString() })
+      : await supabase.from('device_names').delete().eq('device_id', deviceId);
+    if (error) throw new Error(`The name didn't save: ${error.message}`);
+    const device = mockDevices.find(d => d.id === deviceId);
+    if (device) device.displayName = value || null;
   },
 
   // Location hierarchy — fetched from Supabase

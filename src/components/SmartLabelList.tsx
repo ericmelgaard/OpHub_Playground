@@ -12,6 +12,7 @@ import { filterLabels } from '../lib/labelFilter';
 import { WEEK_ORDER } from '../lib/weekSchedule';
 import { ReviewedTag } from './ReviewedTag';
 import { LabelName } from './RichText';
+import { deviceName } from '../lib/deviceName';
 
 interface SmartLabelListProps {
   loading: boolean;
@@ -207,7 +208,7 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
         <Tag className="h-4 w-4 text-gray-400 flex-shrink-0" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{device.name}</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{deviceName(device)}</span>
             <Badge variant="outline" className="text-[10px] py-0 px-1.5 flex-shrink-0">{labelSizeLabels[device.labelSize]}</Badge>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 truncate lg:hidden">{device.location}</p>

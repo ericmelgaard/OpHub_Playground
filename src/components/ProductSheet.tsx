@@ -16,6 +16,7 @@ import { RichText, LabelName } from './RichText';
 import { RichTextEditor } from './RichTextEditor';
 import { productSource } from '../lib/sources';
 import { ProductEditPage, DietaryIcon, splitAllergens, type ProductScheduleRow } from './ProductEditPage';
+import { deviceName } from '../lib/deviceName';
 
 interface ProductSheetProps {
   // The product being viewed, or null
@@ -283,7 +284,7 @@ function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClos
                   className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800 hover:border-sky-300 dark:hover:border-sky-700 text-left transition-colors"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{device.name}</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{deviceName(device)}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{device.location}</div>
                   </div>
                   <div className="flex flex-wrap justify-end gap-1">

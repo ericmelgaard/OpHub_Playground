@@ -1,4 +1,5 @@
 import { Device } from '../types';
+import { deviceName } from './deviceName';
 
 // The labels shown on Smart Labels, in display order. Shared by the grid, the list,
 // and the label editor's previous/next so they always walk the same list.
@@ -12,7 +13,7 @@ export function filterLabels(devices: Device[], searchValue: string, placementId
   if (searchValue.trim()) {
     const q = searchValue.toLowerCase();
     result = result.filter(d => {
-      if (d.name.toLowerCase().includes(q) || d.location.toLowerCase().includes(q)) return true;
+      if (d.name.toLowerCase().includes(q) || deviceName(d).toLowerCase().includes(q) || d.location.toLowerCase().includes(q)) return true;
       return d.pages.some(p => p.assignedItems.some(item => item.name.toLowerCase().includes(q)));
     });
   }
