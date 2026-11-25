@@ -1,20 +1,15 @@
 # Menu scheduling: where we left off
 
-Last session: 2026-11-25 (afternoon). Design: [MENU_SCHEDULING_DESIGN.md](MENU_SCHEDULING_DESIGN.md) (three systems: ETL
+Last session: 2026-11-25 (evening). Design: [MENU_SCHEDULING_DESIGN.md](MENU_SCHEDULING_DESIGN.md) (three systems: ETL
 server, product database, scheduling + validation; decisions in section 9). Focus is infrastructure,
 table schema and the workflow for populating schedules; the product database can be new.
 
-## Questions to answer next
+## Status: waiting for approval
 
-None blocking. The design's open questions are all answered (section 9, decisions 1–23). Start with the
-next steps below; new questions will come up while building.
-
-Answered 2026-11-25: harvest scope, product DB service API, link priority, out of stock as an
-attribute, Default Week edits process immediately, inactive after two menu cycles, retail projections
-seeded at the concept and then POS mapping, POS mapping at the concept (from a lab store; locations can
-make brand edits / brand items when allowed), staging catalog for unmapped items, POS item ids global
-across a concept, Webtrition is the system of record (WAND does site/company enrichment, validation,
-placement).
+The design (v1.0) is restructured as the build reference and is **awaiting approval**. No build work
+starts until it's approved. Review page: https://claude.ai/artifact/G4TdReMkf1fWtSDo52N9na (rebuild with
+`docs/review-page/`). After approval: change the status line at the top of the design, then start build
+phase 1 (design §10).
 
 ## Next steps
 

@@ -1,565 +1,651 @@
-# Menu scheduling: data design
+# Menu Scheduling Design
 
-Draft, updated 2026-11-25. Infrastructure, table schema and the workflow for populating menu schedules
-on smart labels (and later signage menu zones). Supports two kinds of menu: **Webtrition menus**
-(scheduled at the site on a menu cycle) and **retail menus** (relatively static, from a POS catalog or
-by hand).
+| | |
+|---|---|
+| **Status** | **Proposed — awaiting approval.** No build work starts until this is approved. |
+| **Version** | 1.0 · 2026-11-25 |
+| **Owner** | Eric Melgaard |
+| **Scope** | Infrastructure, table schema and the logic that populates menu schedules on smart labels and signage menu zones |
+| **Source of truth** | This file (`docs/MENU_SCHEDULING_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
 
-## 1. Three systems
+**How to use this document.** Each part of the build should point back to a section here: the
+tables in §5–7, the flows in §8 (`F1`–`F11`), the APIs in §9. Decisions have IDs (`D1`–`D23`, §11). If
+code and this document disagree, this document wins until it's changed on purpose.
 
-```
-     Webtrition (wds, menu templates)          POS / retail APIs (full catalog each request)
-                  │                                         │
-                  └──────────────────┬──────────────────────┘
-                                     ▼
-   ┌────────────────────────────────────────────────────────────┐
-   │ ETL server (always on, no slow DAGs)                       │
-   │  · source adapters + attribute maps                        │
-   │  · validation cache: dated Webtrition items, this + next wk│
-   │  · source catalogs (what each source offers)               │
-   │  · creates / updates projections for every new item        │
-   └──────────────┬───────────────────────────────┬─────────────┘
-   product DB      │ service API                   │ validate, autofill lists
-   service API     ▼                               ▼
-   ┌──────────────────────────────┐    ┌──────────────────────────────────┐
-   │ Product database             │◄───│ Scheduling + validation          │
-   │  · products = projections    │    │  · targets (labels, zones)       │
-   │  · links in priority order   │───►│  · Default Week, weeks, items    │
-   │  · overrides per level       │    │  · autofill rules, order locks   │
-   │  · location products (always │    │  · resolved menus (this + next)  │
-   │    available per store)      │    │                                  │
-   └──────────────────────────────┘    └───────────────┬──────────────────┘
-          product changed events ─────────────────────►│
-                                                       ▼
-                                     labels (AIMS), signage players, API
+## 1. Goals and non-goals
+
+**Goals**
+
+- Schedule what each smart label and signage menu zone shows, by daypart, day and week, from a
+  Default Week plus week overrides.
+- Support two kinds of menu with one model:
+  - **Webtrition menus**: scheduled at the site on a menu cycle (usually 4 weeks). Webtrition is the
+    system of record for those items. WAND adds site and company enrichment, validates items against
+    the day's menu, and places them in the right positions.
+  - **Retail menus**: relatively static. The WAND product database is the system of record. Items are
+    seeded at the concept and linked to any number of POS APIs.
+- Keep every store working when a source (Webtrition, a POS) is down.
+- Nothing slow in front of the UI.
+
+**Non-goals**
+
+- How attributes display on labels or signage (out of stock, badges, colors). Out of stock is just an
+  attribute here.
+- Rebuilding Webtrition's recipe, menu or cycle systems.
+- The existing playground product tables. The product database can be built new.
+
+## 2. Architecture
+
+Three systems with separate responsibilities.
+
+```mermaid
+flowchart TB
+  subgraph Sources
+    W[Webtrition wds<br/>+ menu templates]
+    P[POS / retail APIs<br/>full catalog each pull]
+  end
+  E[ETL server<br/>always on]
+  PD[(Product database<br/>projections, links,<br/>overrides, location products)]
+  S[(Scheduling + validation<br/>targets, weeks, items,<br/>resolved menus)]
+  D[Labels via AIMS<br/>signage players<br/>public API]
+  W --> E
+  P --> E
+  E -- service request API --> PD
+  S -- validate, source menu --> E
+  S -- service request API --> PD
+  PD -- product.changed --> S
+  S -- resolved menus --> D
 ```
 
 | System | Owns | Never does |
 |---|---|---|
-| **ETL server** | Every call to a source; attribute maps; the validation cache; source catalogs; keeping projections current | Store schedules or local overrides |
-| **Product database** | What an item *is*: projections, source links, harvested values, overrides, and each store's always-available product set. Reached through its **service request API** | Know which day or target an item is on |
-| **Scheduling + validation** | Where and when an item shows: targets, weeks, placements, order, resolved menus | Call a source directly, or store product attributes beyond a one-week override |
+| **ETL server** | Every call to a source. Attribute maps. The Webtrition validation cache (this week and next). POS staging catalogs. Creating and refreshing projections. | Store schedules or local overrides |
+| **Product database** | What an item *is*: projections, source links, harvested values, overrides at concept / company / store, and each store's always-available product set (`location_products`). Reached only through its **service request API**. | Know which day or target an item is on |
+| **Scheduling + validation** | Where and when an item shows: targets, Default Week, weeks, placements, order locks, resolved menus. | Call a source directly, or store product attributes beyond a one-week override |
 
-## 2. Principles
+## 3. Infrastructure choices
 
-1. **Every item is a projection.** Projections are WAND products over one or more sources plus local
-   overrides (the DoorDash / Grubhub standard). **Webtrition:** the ETL creates a projection for every
-   new MRN + portion it sees. **Retail:** projections are **seeded at the concept** (by hand, or a
-   one-time import from the concept's first POS, usually through a lab store) and then *linked*; a new
-   POS is a mapping exercise onto the existing projections, never an import. However it was first
-   created, the projection stays and serves many APIs and many locations.
-   **The two sources play different roles.** Webtrition already has its own recipe, menu and cycle
-   systems and supplies the end result; for it WAND only does **site and company enrichment**,
-   validation, and placing items in the right positions. For retail, the WAND product database *is*
-   the system of record.
-2. **A location product database is always available.** Each store has its full set of products,
-   resolved, regardless of whether Webtrition or a POS is reachable. Scheduling and devices never
-   depend on a source being up.
-3. **Seed one menu cycle.** A new store is seeded with about 4 weeks: the Webtrition menu cycle from the
-   menu templates (`duration`, usually 28 days; `cyclemenus` gives `menuRotationPeriod` and
-   `nextPlayDate`), so every item in the rotation exists as a projection before anyone schedules.
-4. **Source data keeps flowing in** for every mapped attribute, unless that attribute is overridden
-   locally. Out of stock is just another attribute; how it displays is decided elsewhere.
-5. **Sources can be swapped.** Each source type has an attribute map. Changing POS means relinking the
-   product; the product and its overrides stay.
-6. **Links fill attributes in priority order.** Priority 1 supplies every attribute it maps. Priority 2
-   supplies the attributes priority 1 doesn't map but it does, and so on.
-7. **Ownership:** retail products are owned by the **concept** (one Whopper, however many POS APIs).
-   Webtrition and custom products bubble up to the **company** (translations for all locations from
-   one place). Values inherit down; a higher-level edit wins and stores have no say.
-8. **Dated Webtrition items are not kept.** They're unique per date × meal period × station; the
-   validation cache holds this week and next, then drops them. Projections (per MRN + portion) are kept.
-9. **One target model.** A label and a signage menu zone are both a *menu target*.
-10. **Default Week is day-of-week only; real weeks are concrete.** Converting, copying or recurring a week
-    makes new menu items for the new week. Weeks are created on view or API request, with autofill
-    applied and validated then. Default Week changes apply instantly.
-11. **Order freezes once shown.** New items go to the end; they can't take a showing position unless
-    they're the only item that could show.
-12. **Keep 8 weeks of schedule history.** The Default Week is never purged.
-13. **Nothing slow sits in front of the UI.** No slow Airflow DAGs; the ETL server and product database
-    answer directly.
+| # | Choice | Why | Rejected |
+|---|---|---|---|
+| I1 | **Three separate systems** (ETL, product DB, scheduling) | The product database serves many APIs and locations beyond menus. Scheduling only places items. Source calls stay in one place. | One combined menu service: mixes the system of record with placement, and source outages leak into the UI |
+| I2 | **ETL is an always-on service** answering direct calls. Background work runs on workers or a nightly job. | Rule: no slow DAGs in front of a UI. `validate` and `source-menu` are called while a person waits. | Airflow DAGs on the request path. Airflow is allowed only for the nightly batch. |
+| I3 | **Validation cache in the ETL** for this week and next, one wds call per store per week (`Days=7`) | WAND's wds route never caches items (every call hits Compass), so this snapshot *is* the cache. Keeps a stale copy if Webtrition is down. | Calling wds per request. Keeping dated Webtrition items longer. |
+| I4 | **Product database behind a service request API** | Many callers (scheduling, ETL, other apps). Lets the product DB change inside without breaking callers. | Shared tables joined directly by scheduling |
+| I5 | **`location_products`: a resolved product set per store**, rebuilt on change | A store works when sources are down. Search, quick add and scheduling read one table. | Resolving through the source chain on every read |
+| I6 | **Resolved menus cached** for this week and next, with a hash | Devices, signage, the AIMS push and the public API read only this. The hash decides whether to push. | Resolving on every device request |
+| I7 | **Events, not polling**, between systems (`product.changed`) | Product and price changes reach menus right away without scans | Nightly reconciliation only |
+| I8 | **Postgres** for all three. Playground: one Supabase project with schemas `product`, `etl`, `schedule`. | Matches today's stack. Schemas keep the boundaries real. | Separate databases in the playground |
 
-## 3. Identities and matching
+**Where it runs**
+
+| Piece | Production | Playground |
+|---|---|---|
+| ETL server | WAND service (always on) + workers | Supabase edge function (`populate-menu-data` grows into it) + `pg_cron` |
+| Product database + service request API | WAND service on Postgres | `product` schema + RPC functions standing in for the API |
+| Scheduling + validation | WAND service on Postgres | `schedule` schema + edge function |
+| Events | Queue or webhook | Trigger + `pg_notify` |
+| Nightly / rollover / retention | Scheduled job (Airflow allowed here) | `pg_cron` |
+
+## 4. Concepts and identities
+
+| Term | Meaning |
+|---|---|
+| **Projection** | A WAND product over one or more linked sources plus local overrides (the DoorDash / Grubhub model). Every item on a menu is a projection. |
+| **Link** | A projection's connection to a source item, in priority order (1 = primary). |
+| **Attribute map** | Per source type: which source field fills which WAND attribute. Changing POS means using another map, not changing products. |
+| **Location products** | A store's full, resolved product set. Always available. |
+| **Target** | Something that shows a menu: a smart label or a signage menu zone. |
+| **Default Week** | A target's base week. Days of the week only, no dates. |
+| **Week** | A target's schedule for one real week (Sunday to Saturday). It follows the Default Week until someone edits it. |
+| **Validation cache** | Dated Webtrition menu items for this week and next, held by the ETL |
+| **Staging catalog** | What a POS sends that no one has mapped yet |
+| **Lab store** | A store a concept uses to set up and map POS catalogs |
 
 | Thing | Identity | Lives in |
 |---|---|---|
 | Webtrition menu item (one day) | Webtrition `id`, unique per date × meal period × station | Validation cache only |
-| Webtrition item across days | **fingerprint** `(mrn, portion, meal_period)`; portion makes it unique | Week items |
+| Webtrition item across days | **Fingerprint** `(mrn, portion, meal_period)` | Matching at resolve time |
 | Webtrition projection | `(company, mrn, portion)` | Product database |
-| POS / retail item | `(source_system, external_id)` within the API's scope (store, company) | Catalog, product links |
-| WAND product | `product_id` | Product database |
+| POS item | `(source_system, external_id)`; ids are **global across a concept** | Staging catalog, concept maps, links |
+| Retail projection | `product_id`, owned by the concept | Product database |
 
-- **Station is not part of the match.** People add from the right station; it's saved for sorting and
-  as a tie-break, never checked.
-- **Different portion = different item**, always. Product edits apply to the same MRN + portion only.
+- **Station is not part of the match.** People add an item from the right station. Station is saved for
+  sorting and as a tie-break, never checked.
+- **A different portion is a different item.** Edits apply to the same MRN + portion only.
+- An MRN is a master recipe. A Webtrition menu item can differ from its recipe (name, price, portion).
 
-## 4. Product database
+## 5. Data model: product database
 
-Can be built new. Reached only through its service request API (section 4.6). Week start is Sunday;
-day masks use bit 0 = Sunday.
+Postgres. All tables have `created_at` / `updated_at` unless shown otherwise.
 
-### 4.1 Hierarchy
+### 5.1 Hierarchy
 
 ```sql
-concepts         (id uuid pk, name,
-                  settings jsonb)                 -- allow_location_brand_edits,
-                                                  -- allow_make_brand_item (location actions)
-companies        (id uuid pk, name)
-company_concepts (company_id fk, concept_id fk, pk (company_id, concept_id))
-stores           (id uuid pk, company_id fk, name, sap_code, venue, timezone,
-                  is_lab bool,                    -- a lab store the concept maps from
-                  settings jsonb)
+create table concepts (
+  id          uuid primary key,
+  name        text not null,
+  settings    jsonb not null default '{}'   -- allow_location_brand_edits, allow_make_brand_item
+);
+
+create table companies (
+  id    uuid primary key,
+  name  text not null
+);
+
+create table company_concepts (              -- a company can run several concepts
+  company_id  uuid references companies,
+  concept_id  uuid references concepts,
+  primary key (company_id, concept_id)
+);
+
+create table stores (
+  id          uuid primary key,
+  company_id  uuid not null references companies,
+  name        text not null,
+  timezone    text not null,
+  sap_code    text, venue text,             -- Webtrition unit + location
+  is_lab      boolean not null default false,  -- a lab store a concept maps from
+  settings    jsonb not null default '{}'   -- openDays…
+);
 ```
 
-### 4.2 Projections and links
+### 5.2 Projections and links
 
 ```sql
-products (
-  id uuid pk,
-  owner_level text check (owner_level in ('concept','company')),
-  owner_id uuid,                                  -- concept for retail, company for the rest
-  kind text check (kind in ('webtrition','retail','custom')),
-  mrn text, portion text,                         -- webtrition only; portion '' when none
-  name_key text,                                  -- normalized name, for the name check
-  status text default 'active',                   -- active | inactive (not seen for a while)
-  first_seen date, last_seen date,
-  created_by text,                                -- 'etl' (auto-import), 'catalog', a user
-  updated_at timestamptz
-)
+create table products (
+  id           uuid primary key,
+  kind         text not null check (kind in ('webtrition','retail','custom')),
+  owner_level  text not null check (owner_level in ('concept','company')),
+  owner_id     uuid not null,               -- concept for retail, company for webtrition / custom
+  mrn          text, portion text,          -- webtrition only; portion '' when none
+  name_key     text not null,               -- normalized name, for the name check
+  status       text not null default 'active' check (status in ('active','inactive','retired')),
+  first_seen   date, last_seen date,
+  created_by   text not null,               -- 'etl', 'seed', or a user id
+  check ((kind = 'retail') = (owner_level = 'concept'))
+);
 create unique index on products (owner_id, mrn, portion) where kind = 'webtrition';
-create unique index on products (owner_id, name_key) where kind <> 'webtrition';
+create unique index on products (owner_id, name_key)     where kind <> 'webtrition';
 
-source_attribute_maps (                            -- one map per source type; swap POS = other map
-  source_system int, source_field text,
-  attribute text,                                 -- name, price, calories, allergens, out_of_stock…
-  transform text,                                 -- optional: cents→dollars, code→icon…
-  pk (source_system, source_field)
-)
+create table source_attribute_maps (         -- one map per source type
+  source_system  int  not null,
+  source_field   text not null,
+  attribute      text not null,             -- name, price, calories, allergens, out_of_stock…
+  transform      text,                      -- optional: cents_to_dollars, code_to_icon…
+  primary key (source_system, source_field)
+);
 
-product_links (
-  id uuid pk, product_id fk,
-  priority int,                                   -- 1 = primary, 2, 3… For API links the store's
-                                                  -- store_sources.priority is used when set
-  target text check (target in ('api','product')),
-  source_system int,
-  external_id text,                               -- POS item id, or 'mrn|portion' for Webtrition
-  linked_product_id uuid,                         -- target 'product': e.g. a Webtrition product
-                                                  -- linked to a retail product
-  scope_level text, scope_id uuid,                -- where the link applies (a store's POS…)
-  linked_at timestamptz, unlinked_at timestamptz  -- relink on POS change; history kept
-)
+create table product_links (
+  id                 uuid primary key,
+  product_id         uuid not null references products,
+  priority           int  not null,         -- 1 = primary; API links use store_sources.priority when set
+  target             text not null check (target in ('api','product')),
+  source_system      int,
+  external_id        text,                  -- POS item id, or 'mrn|portion' for Webtrition
+  linked_product_id  uuid references products,  -- target 'product'
+  scope_level        text check (scope_level in ('concept','company','store')),
+  scope_id           uuid,
+  linked_at          timestamptz not null,
+  unlinked_at        timestamptz            -- closed on relink; history kept
+);
 create unique index on product_links (product_id, priority) where unlinked_at is null;
 create unique index on product_links (source_system, external_id, scope_id) where unlinked_at is null;
 
-product_source_values (                            -- harvested by the ETL, already mapped
-  link_id fk pk, values jsonb, source_hash text, harvested_at timestamptz
-)
+create table product_source_values (         -- harvested by the ETL, already mapped
+  link_id       uuid primary key references product_links,
+  values        jsonb not null,             -- WAND attribute names only
+  source_hash   text not null,
+  harvested_at  timestamptz not null
+);
 
-product_values (                                   -- local overrides per level; any attribute
-  product_id fk,
-  level text check (level in ('concept','company','store')),
-  level_id uuid,
-  values jsonb,                                   -- incl. translations: {"fr-CA": {"name": …}}
-  updated_at timestamptz, updated_by uuid,
-  pk (product_id, level, level_id)
-)
+create table product_values (                -- local overrides per level
+  product_id  uuid references products,
+  level       text check (level in ('concept','company','store')),
+  level_id    uuid,
+  values      jsonb not null,               -- any attribute, incl. translations {"fr-CA": {...}}
+  updated_by  uuid,
+  primary key (product_id, level, level_id)
+);
 ```
 
-### 4.3 How one attribute gets its value
-
-For a product at a store, per attribute, the first that has a value wins:
-
-1. **Local override**, most specific first: store → company → concept. (A one-week override in the
-   scheduling system sits above these for that week.)
-2. **Linked sources in priority order:** the lowest-numbered link whose attribute map includes this
-   attribute, skipping sources not active at the store (`store_sources.active`). A store's POS
-   priority comes from `store_sources.priority`, so lowering or switching a POS at a location is one
-   row, not an edit to every product. Example: Webtrition at priority 1 maps nutrition, allergens, name; Agilysys at priority 2
-   maps price and out_of_stock. Webtrition doesn't map price, so price comes from Agilysys. For a
-   Webtrition link, the **day's menu item** value (validation cache, at resolve time) beats the
-   harvested value.
-3. Otherwise empty.
-
-Rules:
-- **Higher-level edits win:** saving at a level clears the same attribute below it (and in future week
-  overrides). Brand managers edit at the concept or above; the company edits Webtrition and custom
-  products. Stores have no say.
-- **Changing POS:** close the old link, open one to the new source at the same priority.
-- **Name check:** unique `name_key` within the owner before anything is created by hand.
-
-### 4.4 Location products (always available)
+### 5.3 Location products
 
 ```sql
-location_products (                                -- each store's resolved product set
-  store_id, product_id,
-  values jsonb,                                   -- fully resolved (4.3, without dated values)
-  sources jsonb,                                  -- which link supplied each attribute
-  available_days smallint, meal_periods int[],    -- seen pattern in the current cycle
-  station_ids int[],
-  resolved_at timestamptz, version bigint,
-  pk (store_id, product_id)
-)
+create table location_products (             -- each store's resolved product set; always available
+  store_id        uuid references stores,
+  product_id      uuid references products,
+  values          jsonb not null,           -- fully resolved (§8 F6 step 4, without dated values)
+  sources         jsonb not null,           -- which link or level supplied each attribute
+  available_days  smallint,                 -- bit 0 = Sunday; seen pattern in the current cycle
+  meal_periods    int[], station_ids int[],
+  version         bigint not null,
+  resolved_at     timestamptz not null,
+  primary key (store_id, product_id)
+);
 ```
 
-Rebuilt for a product whenever its links, harvested values or overrides change. This is what search,
-quick add and scheduling read, and what keeps a store working when a source is down. Search shows items
-not on this week's menu as prominently as the ones that are.
-
-### 4.5 Catalogs, terms, categories
+### 5.4 Sources, catalogs and mapping
 
 ```sql
-store_sources (                                    -- which sources feed a store, and how
-  store_id, source_system,
-  active bool,                                    -- POS live for this location
-  priority int,                                   -- link priority at this store (lower it to
-                                                  -- demote a POS)
-  create_mode text check (create_mode in ('auto','seed','none')),
-                                                  -- auto: Webtrition (projection per new item)
-                                                  -- seed: the concept's first POS at its lab
-                                                  --       store, one-time import to the concept
-                                                  -- none: map only (every other store / POS)
-  refresh text,                                   -- 'cycle' (Webtrition) | interval (POS)
-  config jsonb,                                   -- sap_code/venue, POS credentials ref…
-  pk (store_id, source_system)
-)
+create table store_sources (
+  store_id       uuid references stores,
+  source_system  int,
+  active         boolean not null default false,
+  priority       int not null,              -- link priority at this store; lower it to demote a POS
+  create_mode    text not null check (create_mode in ('auto','seed','none')),
+                 -- auto: Webtrition, a projection per new item
+                 -- seed: the concept's first POS at its lab store, one-time import
+                 -- none: map only
+  refresh        text not null,             -- 'cycle' (Webtrition) | interval, e.g. '5 minutes'
+  config         jsonb not null default '{}',  -- credentials reference, ids
+  primary key (store_id, source_system)
+);
 
-source_catalog_items (                             -- staging catalog: what a POS sends (full pull)
-  store_id, source_system, external_id,
-  name text, values jsonb,                        -- mapped attributes
-  last_seen timestamptz, gone_at timestamptz,
-  pk (store_id, source_system, external_id)
-)
+create table source_catalog_items (          -- staging catalog: what a POS sends (full pull)
+  store_id       uuid references stores,
+  source_system  int,
+  external_id    text,
+  name           text,
+  values         jsonb,                     -- mapped attributes
+  last_seen      timestamptz, gone_at timestamptz,
+  primary key (store_id, source_system, external_id)
+);
 
-concept_item_maps (                                -- POS item → projection, set once at the concept;
-                                                  -- POS item ids are global across a concept
-  concept_id, source_system, external_id,
-  product_id fk,
-  mapped_from_store_id uuid,                      -- the lab (or location) it was mapped from
-  mapped_by uuid, mapped_at timestamptz,
-  pk (concept_id, source_system, external_id)
-)
+create table concept_item_maps (             -- POS item → projection, once per concept
+  concept_id            uuid references concepts,
+  source_system         int,
+  external_id           text,
+  product_id            uuid not null references products,
+  mapped_from_store_id  uuid references stores,
+  mapped_by             uuid,
+  mapped_at             timestamptz not null,
+  primary key (concept_id, source_system, external_id)
+);
 
-concept_source_rules (                             -- optional automatic import per POS
-  concept_id, source_system,
-  auto_import bool default false,                 -- true: unmapped items become projections
-  pk (concept_id, source_system)
-)
-
-catalog_terms (owner_level, owner_id, kind, term, seen_count, last_seen, from_source,
-               pk (owner_id, kind, term))          -- quick-add chips: ingredient / allergen / icon
-product_categories     (id, owner_level, owner_id, name, sort)
-product_category_items (category_id, product_id, sort, pk (category_id, product_id))
+create table concept_source_rules (          -- optional automatic import per POS
+  concept_id     uuid references concepts,
+  source_system  int,
+  auto_import    boolean not null default false,
+  primary key (concept_id, source_system)
+);
 ```
 
-**POS mapping happens at the concept.** A brand manager maps a POS's items to the concept's projections
-once, in `concept_item_maps`, and every store of that concept on that POS uses it: the store's links
-come from the map, not from per-store work.
-
-- **Where they map from:** a location's staging catalog, usually a **lab store** (`stores.is_lab`). The
-  concept may need to set up the catalog for a location (add the POS to it) to get something to map
-  from.
-- **From a location:** if the concept allows it (`concepts.settings`), a location can make a brand edit
-  or **make a brand item** (create the concept projection) for an unmapped POS item. It's saved at the
-  concept, like a brand manager's edit.
-- **Unmapped items** stay in the staging catalog, available to be mapped, invisible on menus. Nothing is
-  created from them unless an automatic import applies: the concept seed (`create_mode = 'seed'`) or a
-  concept rule (`concept_source_rules.auto_import`).
-- POS item ids are global across a concept (that's what lets it scale across the enterprise), so one
-  map per concept and POS is enough; no store or company scope.
-- Suggest matches by name; a person confirms.
-
-### 4.6 Service request API
-
-| Request | Caller | Does |
-|---|---|---|
-| `GET /stores/{id}/products?q&day&mealPeriod&category` | Scheduling, UI | Search `location_products` |
-| `GET /stores/{id}/products/{productId}` | Scheduling, devices | One resolved product |
-| `POST /products/upsert-from-source` | ETL | Find or create the projection for a source item; link; save harvested values |
-| `POST /products` / `PATCH /products/{id}/values?level` | UI | Custom items, overrides |
-| `POST /products/{id}/links` / `DELETE …/links/{linkId}` | UI, ETL | Link, relink, reprioritize |
-| `GET /stores/{id}/catalog?source&unmapped` | UI | Staging catalog at a location (often the lab) |
-| `POST /concepts/{id}/maps` | UI (brand manager, or a location when allowed) | Map POS items to concept projections; applies to every store on that POS |
-| `POST /concepts/{id}/products/from-catalog` | UI (brand manager, or a location when allowed) | Make a brand item from a staging catalog item |
-| `POST /concepts/{id}/seed {store, source}` | UI (brand manager) | One-time: create concept projections from the lab store's POS catalog |
-| `PATCH /stores/{id}/sources/{source}` | UI | Make a POS active, change its priority |
-| event `product.changed {product_id, store_ids, attributes}` | → Scheduling | Rebuild affected resolved menus |
-
-## 5. ETL server
-
-Always-on service with source adapters. The only thing that calls Webtrition or a POS.
-
-### 5.1 What it serves
-
-| Endpoint | Caller | Does |
-|---|---|---|
-| `GET /source-menu?store&week[&mealPeriod&station]` | Scheduling (autofill) | Dated Webtrition items for the week, in the sort standard |
-| `POST /validate {store, week, items}` | Scheduling | Per item per day: available / not in source / closed, bound Webtrition menu item id, that day's values |
-| `POST /refresh {store, source}` | UI, schedule | Pull now (catalog or cycle) |
-
-### 5.2 Validation cache (Webtrition, this week + next)
+### 5.5 Helpers
 
 ```sql
-source_menu_snapshots (id, store_id, source_system, week_start, fetched_at, status, payload_hash,
-                       unique (store_id, source_system, week_start))
-source_menu_items (snapshot_id fk on delete cascade, menu_item_id int, service_date date,
-                   meal_period_id int, station_id int, mrn text, portion text, source_sort int,
-                   name text, price text, attrs jsonb,
-                   pk (snapshot_id, service_date, menu_item_id))
+create table catalog_terms (                 -- quick-add chips
+  owner_level  text, owner_id uuid,          -- concept (retail) / company
+  kind         text check (kind in ('ingredient','allergen','icon')),
+  term         text,
+  seen_count   int, last_seen date, from_source boolean,
+  primary key (owner_id, kind, term)
+);
+
+create table product_categories (
+  id           uuid primary key,
+  owner_level  text, owner_id uuid,
+  name         text not null, sort int
+);
+
+create table product_category_items (
+  category_id  uuid references product_categories,
+  product_id   uuid references products,
+  sort         int,
+  primary key (category_id, product_id)
+);
+```
+
+## 6. Data model: ETL
+
+```sql
+create table source_menu_snapshots (         -- validation cache, this week + next
+  id             uuid primary key,
+  store_id       uuid not null,
+  source_system  int  not null,
+  week_start     date not null,             -- Sunday
+  fetched_at     timestamptz not null,
+  status         text not null check (status in ('ok','stale','failed')),
+  payload_hash   text,
+  unique (store_id, source_system, week_start)
+);
+
+create table source_menu_items (             -- one dated Webtrition menu item
+  snapshot_id     uuid references source_menu_snapshots on delete cascade,
+  menu_item_id    int  not null,            -- unique per date / meal period / station
+  service_date    date not null,
+  meal_period_id  int, station_id int,
+  mrn             text, portion text,
+  source_sort     int,
+  name            text, price text,         -- the menu item's own values
+  attrs           jsonb,                    -- nutrition, allergens, icons, ingredients
+  primary key (snapshot_id, service_date, menu_item_id)
+);
 create index on source_menu_items (snapshot_id, mrn, portion, meal_period_id);
+
+create table source_cycles (                 -- Webtrition menu cycle per store
+  store_id             uuid,
+  menu_collection_id   int,
+  rotation_days        int not null,        -- menu templates `duration` / cyclemenus `menuRotationPeriod`
+  next_play_date       date,
+  seeded_through       date,
+  primary key (store_id, menu_collection_id)
+);
 ```
 
-One wds call per store per week (POST `/client/wds`, `Days=7`, `allergenMenu: "all"` or Retail
-Allergen menus come back empty). Served if under ~15 minutes old, else refreshed; if Webtrition fails,
-the old snapshot is served marked `stale`. WAND's wds route doesn't cache items, so this is the cache.
-
-### 5.3 Populating the product database
-
-Every pull does both jobs: update the validation cache (Webtrition) and keep projections current.
-
-**Webtrition (auto import, cycle-aware)**
-1. **Seed** a new store: read menu templates / `cyclemenus` for the cycle length (usually 28 days),
-   pull that many days (4 wds calls of 7 days), and for every distinct MRN + portion call
-   `upsert-from-source` (creates the company projection if new, links it at the store's priority,
-   saves mapped values). Record meal periods, stations and days seen in `location_products`.
-2. **Ongoing:** each refresh of this/next week also upserts any new MRN + portion it sees, updates
-   harvested values when the source hash changes, and bumps `last_seen`.
-3. **Cycle change** (`nextPlayDate`, a new menu collection): pull the new cycle ahead of time, same as
-   the seed.
-
-**POS / retail (no schedule; full catalog each request)**
-1. Pull the full item list on the store's interval (minutes for out of stock / price).
-2. Diff against `source_catalog_items`: new, changed, gone.
-3. New: if the concept already maps it (`concept_item_maps`), link the store's projection right away.
-   Otherwise it stays in the **staging catalog** to be mapped. The ETL creates a retail projection only
-   under an automatic import: the concept seed (`create_mode = 'seed'`) or a concept rule
-   (`concept_source_rules.auto_import`).
-4. Changed: update `product_source_values` for mapped items (price, out_of_stock…).
-5. Gone: set `gone_at`; the projection and its link stay.
-6. When a mapping is added at the concept, the ETL links every store of that concept on that POS.
-
-**Adding a POS:** the concept adds it to a lab store (or a location), pulls its catalog and maps its
-items to the existing projections. Then each location makes the POS active and sets its priority (or
-lowers the old POS). The projections don't change.
-
-After any write the product database rebuilds the affected `location_products` and emits
-`product.changed`.
-
-**Inactive projections:** a Webtrition projection not seen for **two menu cycles** becomes `inactive`:
-hidden from quick add, still searchable, never deleted while scheduled. Retail projections never go
-inactive from a POS; they stay to serve any API until someone retires them.
-
-### 5.4 Timing
-
-- Direct calls for anything a person waits on (`validate`, `source-menu`, `refresh`).
-- Nightly: refresh this + next week for every Webtrition store with targets; check for a cycle change.
-- POS interval pulls: always-on workers, not batch DAGs.
-- Saturday night rollover: next week becomes this week, load the new next week.
-
-Airflow is acceptable for the nightly batch only.
-
-## 6. Scheduling + validation
-
-### 6.1 Targets and dayparts
+## 7. Data model: scheduling
 
 ```sql
-dayparts (id uuid pk, store_id, name, sort, color, source_meal_period_ids int[])
+create table dayparts (
+  id                      uuid primary key,
+  store_id                uuid not null,
+  name                    text not null, sort int, color text,
+  source_meal_period_ids  int[]             -- which Webtrition meal periods feed it
+);
 
-menu_targets (
-  id uuid pk, store_id,
-  kind text check (kind in ('label','zone')),
-  external_id text,                               -- AIMS label id / signage zone id
-  name text,
-  menu_source text,                               -- 'webtrition' | 'retail'; null = store's
-  config jsonb,                                   -- pages per daypart, size; zones report their
-                                                  -- item capacity and overflow rules
+create table menu_targets (
+  id           uuid primary key,
+  store_id     uuid not null,
+  kind         text not null check (kind in ('label','zone')),
+  external_id  text not null,               -- AIMS label id / signage zone id
+  name         text,
+  menu_source  text check (menu_source in ('webtrition','retail')),  -- null = the store's
+  config       jsonb not null default '{}', -- pages per daypart; zones report capacity + overflow rules
   unique (store_id, kind, external_id)
-)
-```
+);
 
-### 6.2 Weeks and items
-
-```sql
-menu_weeks (
-  id uuid pk, target_id fk,
-  kind text check (kind in ('default','week')),
-  week_start date,                                -- null for default
-  origin text check (origin in ('default','copy','recurring','manual')),
-  origin_week_id uuid, recurrence_weeks int,
-  edited bool default false,
-  materialized_at timestamptz, updated_at timestamptz,
-  check ((kind='default') = (week_start is null))
-)
+create table menu_weeks (
+  id                uuid primary key,
+  target_id         uuid not null references menu_targets,
+  kind              text not null check (kind in ('default','week')),
+  week_start        date,                   -- null for default
+  origin            text not null check (origin in ('default','copy','recurring','manual')),
+  origin_week_id    uuid references menu_weeks,
+  recurrence_weeks  int,
+  edited            boolean not null default false,  -- true = has its own schedule (Override)
+  materialized_at   timestamptz,
+  check ((kind = 'default') = (week_start is null))
+);
 create unique index on menu_weeks (target_id) where kind = 'default';
 create unique index on menu_weeks (target_id, week_start) where kind = 'week';
 
-menu_autofill_rules (
-  id uuid pk, week_id fk on delete cascade, daypart_id fk,
-  kind text check (kind in ('source','category')),
-  station_id int, meal_period_id int,             -- 'source': from the Webtrition week
-  category_id uuid,                               -- 'category': retail menus, signage zones
-  max_items int, sort int
-)
+create table menu_autofill_rules (
+  id              uuid primary key,
+  week_id         uuid not null references menu_weeks on delete cascade,
+  daypart_id      uuid not null references dayparts,
+  kind            text not null check (kind in ('source','category')),
+  station_id      int, meal_period_id int,  -- 'source': from the Webtrition week
+  category_id     uuid,                     -- 'category': retail menus, signage zones
+  max_items       int,                      -- or the zone's reported capacity
+  sort            int
+);
 
-menu_week_items (                                  -- placements; product data lives in the product DB
-  id uuid pk, week_id fk on delete cascade, daypart_id fk,
-  product_id uuid not null,                       -- every item is a projection now
-  meal_period_id int,                             -- Webtrition: with the product's MRN + portion,
-                                                  -- the fingerprint for each day's match
-  station_id int,                                 -- where it was added from; not matched
-  follows_meal_period_id int,
-  state text check (state in ('shown','hidden')), -- hidden removes an autofill item
-  on_mask smallint default 0, off_mask smallint default 0,   -- neither = Auto (source days)
-  position int,                                   -- only when pinned by hand
-  source_sort int, item_number int,               -- sort standard, frozen at creation
-  overrides jsonb default '{}',                   -- this week only
-  origin_item_id uuid, updated_at timestamptz
-)
+create table menu_week_items (
+  id                      uuid primary key,
+  week_id                 uuid not null references menu_weeks on delete cascade,
+  daypart_id              uuid not null references dayparts,
+  product_id              uuid not null,     -- always a projection
+  meal_period_id          int,               -- Webtrition: with the product's MRN + portion = fingerprint
+  station_id              int,               -- where it was added from; not matched
+  follows_meal_period_id  int,
+  state                   text not null default 'shown' check (state in ('shown','hidden')),
+  on_mask                 smallint not null default 0,   -- days forced On (bit 0 = Sunday)
+  off_mask                smallint not null default 0,   -- days forced Off; neither = Auto
+  position                int,               -- only when pinned by hand
+  source_sort             int, item_number int,   -- sort standard, frozen at creation
+  overrides               jsonb not null default '{}',  -- this week only
+  origin_item_id          uuid
+);
+create index on menu_week_items (week_id, daypart_id);
+create index on menu_week_items (product_id);
 
-menu_order_locks (target_id, service_date, daypart_id, order_keys text[], locked_at,
-                  pk (target_id, service_date, daypart_id))
+create table menu_order_locks (              -- frozen order once a day has been shown
+  target_id     uuid,
+  service_date  date,
+  daypart_id    uuid,
+  order_keys    text[] not null,             -- week item ids in shown order
+  locked_at     timestamptz not null,
+  primary key (target_id, service_date, daypart_id)
+);
 
-resolved_menus (
-  target_id, service_date, daypart_id,
-  items jsonb,                                    -- final order, display values, bound menu item id
-  availability jsonb, hash text, resolved_at timestamptz,
-  product_versions jsonb,                         -- location_products.version used
-  source_status text,                             -- ok | stale
-  pk (target_id, service_date, daypart_id)
-)
+create table resolved_menus (                -- what devices read; this week + next
+  target_id         uuid,
+  service_date      date,
+  daypart_id        uuid,
+  items             jsonb not null,          -- ordered items, display values, bound menu_item_id
+  availability      jsonb not null,          -- per item: available | not_in_source | closed | unknown
+  product_versions  jsonb not null,          -- location_products.version used
+  source_status     text not null,           -- ok | stale
+  hash              text not null,
+  resolved_at       timestamptz not null,
+  primary key (target_id, service_date, daypart_id)
+);
 ```
 
-- Every week item points at a projection, since the ETL creates one for every new item. The Webtrition
-  fingerprint is the product's MRN + portion plus the item's meal period.
-- No Webtrition menu item ids on week items: one item with a day mask binds to up to 7 (one per day) at
-  resolve time; bindings go in `resolved_menus`.
-- Converting the Default Week, copying or recurring: new `menu_weeks` row, rules and items copied with
-  new ids and `origin_item_id`.
-- `resolved_menus` is held for this week + next. Devices, signage, the AIMS push and the API read only
-  this; the hash decides whether to push.
+## 8. Logic flows
 
-### 6.3 Sort and frozen order
+### F1 · Seed a store (Webtrition)
 
-Until a day has been shown: pinned `position`, then source `sortOrder`, then Webtrition menu item id
-(category fill: category order, then name). Items without a source sort after source items.
+1. Read menu templates / `cyclemenus` for the cycle length (usually 28 days) and next play date. Save
+   to `source_cycles`.
+2. Pull that many days from wds (4 calls of 7 days, `allergenMenu: "all"`).
+3. For each distinct MRN + portion, call `upsert-from-source`: find or create the **company**
+   projection, link it at the store's priority, save the mapped values.
+4. Record meal periods, stations and days seen. Rebuild `location_products`.
+5. Keep this week and next as the validation cache.
 
-Once a day has been sent to a target, `menu_order_locks` holds its order. Later items go to the end, and
-only take a showing position when they're the only item that could show there. Reordering by hand writes
-a new lock.
+### F2 · Refresh Webtrition (ongoing)
 
-## 7. Workflow: populating a schedule
+1. Triggered when a person opens a week (if the cache is over ~15 minutes old), nightly for every
+   store with targets, or by `POST /refresh`.
+2. One wds call per store per week for this week and next. Replace the snapshot. If the call fails,
+   keep the old snapshot and mark it `stale`.
+3. Upsert any new MRN + portion as a projection. Update harvested values when the source hash changes.
+   Bump `last_seen`.
+4. **Cycle change** (`next_play_date` reached or a new menu collection): pull the new cycle ahead of
+   time, as in F1.
+5. A projection unseen for **two cycles** becomes `inactive` (hidden from quick add, still searchable,
+   never removed while scheduled).
 
-### 7.1 Opening a week (UI view or API request)
+### F3 · Pull a POS (ongoing)
 
-1. Find the week; if missing, copy the matching recurring week, else the Default Week (new ids).
-2. Webtrition targets: `GET /source-menu` from the ETL for autofill rules, `POST /validate` for the
-   week's items. Retail targets: no source call; category rules read the product database.
-3. Resolve each day/daypart: autofill + week items, drop hidden, place pins, apply the order lock, then
-   values: this week's override → `location_products` values → the day's Webtrition values for
-   attributes that link supplies.
-4. Write `resolved_menus` for this/next week; the first send of a day writes its lock.
+1. Pull the full catalog on the store's interval.
+2. Diff against `source_catalog_items`: new, changed, gone.
+3. **New:** if `concept_item_maps` has it, link the store's projection right away. Otherwise it stays
+   in the **staging catalog**. A projection is created only under an automatic import: the concept
+   seed (`create_mode = 'seed'`) or `concept_source_rules.auto_import`.
+4. **Changed:** update `product_source_values` for linked items (price, out_of_stock…).
+5. **Gone:** set `gone_at`. The projection and its link stay. Retail projections never go inactive
+   because a POS dropped them.
+6. Rebuild affected `location_products` and emit `product.changed`.
 
-**Editing the Default Week** processes immediately: this week and every future week that still only
-follows the Default Week (`edited = false`) are re-copied from **today**, and their resolved menus are
-rebuilt and pushed in the same request. Today's frozen order still applies (removed items drop off, new
-ones go to the end). Past days never change.
+### F4 · Seed a concept and add a POS (retail)
 
-**Editing a week that only follows the Default Week** creates that week's own schedule: the copy is
-marked `edited = true` (an Override in the UI), the edit is applied to it, and from then on it no longer
-follows Default Week changes. Recurring weeks behave the same way.
+1. **First POS for a concept:** add the POS to the concept's lab store with `create_mode = 'seed'`.
+   Pull its catalog and create concept projections from it once. This step is optional; projections
+   can also be created by hand.
+2. **Every later POS:** add it to the lab store (or a location) with `create_mode = 'none'`. Pull the
+   catalog.
+3. A brand manager maps catalog items to existing projections in `concept_item_maps` (name matches
+   suggested, a person confirms). POS ids are global across the concept, so one map covers every store.
+4. If the concept allows it, a location can **make a brand edit** or **make a brand item** from an
+   unmapped catalog item. It's saved at the concept.
+5. The ETL links every store of the concept that has that POS.
+6. Each location makes the POS active and sets its priority (or lowers the old POS). Projections don't
+   change.
 
-If the ETL can't reach Webtrition, step 2 uses the stale snapshot; if there is none (week beyond next),
-items resolve from `location_products` with availability `unknown`.
+### F5 · Open a week (UI view or API request)
 
-### 7.2 Adding an item
+1. Find the `menu_weeks` row for (target, week).
+2. If missing, copy the matching recurring week, else the Default Week: new row, rules and items with
+   new ids and `origin_item_id`, `edited = false`.
+3. Webtrition target: call ETL `GET /source-menu` (autofill rules) and `POST /validate` (the week's
+   items). Retail target: no source call; category rules read the product database.
+4. Resolve each day and daypart (F6).
+5. Write `resolved_menus` for days in this week and next.
 
-- **From the Webtrition week or search:** picks a projection (each portion is its own); validated by the
-  ETL against that day's items by MRN + portion + meal period (station ignored). No match is allowed,
-  shown as "Not on the source menu Tue".
-- **Retail:** always a projection from the product database (POS items are mapped to projections,
-  not placed directly).
-- **Custom quick add:** name check, chips from `catalog_terms`, creates a company projection with no
-  source.
-- Once a day has been shown, a new item lands at the end.
+### F6 · Resolve one target, day and daypart
 
-### 7.3 When products change
+1. **Candidates:** autofill rule results (Webtrition items for that meal period / station, or
+   category products) plus `menu_week_items` for the daypart. Match autofill results to week items by
+   product. Drop items with `state = 'hidden'`.
+2. **Day check:** an item shows on the day if its `on_mask` has the day, or neither mask has it and the
+   source offers it that day (Auto). `off_mask` hides it. Closed days (store `openDays`) show nothing
+   and aren't flagged.
+3. **Bind and validate** (Webtrition): find that day's menu item by MRN + portion + meal period,
+   station ignored. Several matches: prefer the item's own station, then the sort standard. Found =
+   `available`, bound to its `menu_item_id`. Not found = `not_in_source` (still allowed, shown as "Not on
+   the source menu Tue"). Week beyond the cache = `unknown`.
+4. **Values** per attribute, first that has one wins:
+   1. this week's `overrides`;
+   2. local overrides: store → company → concept (`product_values`);
+   3. linked sources in priority order: the lowest-numbered link whose attribute map includes the
+      attribute, skipping sources not active at the store. For Webtrition the day's menu item value
+      beats the harvested value;
+   4. otherwise empty.
+5. **Order:** if the day has a lock (F10), follow it. Otherwise pinned `position`, then source
+   `sortOrder`, then Webtrition menu item id (category fill: category order, then name). Items with no
+   source sort after source items.
+6. Hash the result. Push to AIMS / signage only if the hash changed.
 
-`product.changed` (from an override, a relink or a harvested value such as a new POS price or out of
-stock) → scheduling clears the same attributes from future week overrides when the change is a
-higher-level edit, and rebuilds the affected `resolved_menus`, pushing only changed hashes.
+### F7 · Edit the Default Week or a week
 
-### 7.4 Retention (nightly)
+- **Edit the Default Week:** processes immediately. This week and every future week with
+  `edited = false` are re-copied from **today** onward, resolved and pushed in the same request. Today's
+  lock still applies (removed items drop off, new ones go to the end). Past days never change.
+- **Edit a week that only follows the Default Week:** that week gets its own schedule. Set
+  `edited = true` (shown as Override), apply the edit, and from then on it no longer follows Default Week
+  changes. Recurring weeks work the same way.
+- **Copy / paste / recur:** new week rows and items with new ids. Rules, masks and overrides are
+  carried over.
 
-Schedule weeks older than 8 weeks (Default Week kept); validation snapshots older than this week;
-resolved menus and locks older than today. Products are never deleted, only marked inactive.
+### F8 · Add an item
 
-## 8. In the playground
+- **Webtrition, from the week or search:** pick a projection (each portion is its own). Validate
+  against that day's items (F6 step 3).
+- **Retail:** always a projection from the product database. POS items are mapped to projections, never
+  placed directly.
+- **Custom quick add:** name check (unique `name_key` within the owner), chips from `catalog_terms`,
+  creates a company projection with no source.
+- Once a day has been shown, a new item goes to the end (F10).
 
-One Supabase project can play all three roles:
+### F9 · A product changes
 
-- **Schemas:** `product` (section 4), `etl` (5.2 and catalogs) and `schedule` (section 6). Scheduling
-  calls product functions (RPC) that stand in for the service request API, never product tables
-  directly.
-- **ETL:** `supabase/functions/populate-menu-data` becomes the ETL function (`seed`, `refresh`,
-  `source-menu`, `validate`).
-- **Events:** a trigger on `location_products` + `pg_notify` (or a webhook) for `product.changed`.
+1. The product database saves an override at the editor's level and clears the same attribute at every
+   level below it (higher levels win; stores have no say). Or the ETL harvests a new source value.
+2. Rebuild `location_products` for the affected stores. Emit
+   `product.changed {product_id, store_ids, attributes, level}`.
+3. Scheduling: for a higher-level edit, clear the same attributes from week overrides from this week
+   onward. Re-resolve affected days (F6) and push changed hashes.
 
-Steps:
-1. Hierarchy, `store_sources` (the demo store on Webtrition, auto import), `menu_targets` (one per demo
-   device; `device_names` folds in).
-2. Seed: run the ETL seed for 4 weeks to create projections and `location_products`.
-3. Weeks: from `device_week_schedules` / `device_schedule_items`, mapping each MRN to its projection and
-   collapsing per-day rows and `label_day_settings` into `on_mask` / `off_mask`. Existing local values
-   (`product_local_values`, `product_display_names`, `product_dayparts`, `converge-custom`) become store
-   overrides or custom projections.
-4. Move week resolution from `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` into the scheduling
-   function so the UI and API resolve the same way; the UI keeps a projection for optimistic edits.
-5. Drop `menu_items`, `product_availability` and the folded tables.
+### F10 · Frozen order
 
-## 9. Decisions
+1. The first time a day / daypart is sent to a target, write `menu_order_locks` with the shown order.
+2. After that, an item that shows up later (new in the source, autofill, added by a person) goes to the
+   **end**.
+3. It may take a showing position only if it's the only item that could show there.
+4. Reordering by hand writes a new lock.
 
-2026-11-24
-1. Match on MRN + portion + meal period for the date; station isn't checked.
-2. Product edits apply to the same MRN **and** portion only; each portion is its own product.
-3. Order freezes once a day is shown; new items go to the end.
-4. Values inherit down; higher-level edits win; brand managers edit at the concept or above; stores
-   have no say.
-5. Retail products are concept projections; Webtrition and custom products bubble up to the company.
-6. Source data always flows in for mapped attributes unless overridden; each POS has an attribute map.
-7. A product can link to several sources; a Webtrition product can link to a retail product.
-8. Default Week changes apply instantly. Retail targets fill by category or by hand; signage zones
-   need category fill and report their own capacity and overflow rules.
-9. Scheduling + validation is separate from the product database; the ETL makes the source calls.
+### F11 · Nightly, rollover, retention
 
-2026-11-25
-10. The ETL creates projections for **every new Webtrition item** while updating the validation
-    cache (Webtrition). Retail: see 18.
-11. Each store has a **location product database** that is always available; new stores are seeded with
-    one menu cycle (usually 4 weeks, from the menu templates).
-12. Unscheduled sources (retail POS) send the full catalog each request; the catalog is shown as
-    a mapping worklist onto projections (see 18).
-13. The product database is reached through a **service request API**.
-14. **Link priority:** priority 1 supplies all its mapped attributes; each next link supplies only
-    attributes not mapped by the ones before it.
-15. **Out of stock is an attribute** like any other; display rules are outside this design.
+- **Nightly:** refresh this week and next for every Webtrition store with targets (F2), check for cycle
+  changes, re-resolve and push changes.
+- **Saturday night rollover:** next week becomes this week; load the new next week.
+- **Retention:** delete `menu_weeks` older than 8 weeks (never the Default Week), snapshots older than
+  this week, `resolved_menus` and `menu_order_locks` older than today. Products are never deleted,
+  only marked inactive or retired.
 
-16. **Default Week edits process immediately**; editing a week that only follows the Default Week
-    creates that week's own schedule.
-17. Webtrition projections go **inactive after two menu cycles** unseen.
-18. **Retail projections come first, then links.** No POS importing beyond an optional one-time import
-    from the concept's first POS; each new POS is mapped to the existing projections, then made active or
-    given a lower priority per location. The original projection stays to serve any API.
+## 9. APIs
 
-19. **POS mapping is at the concept**, once per POS, shared by every store on it. The concept maps from
-    a location's staging catalog, usually a lab store. If the concept allows it, a location can make a
-    brand edit or make a brand item.
-20. **Unmapped POS items stay in the staging catalog**, available to map, unless an automatic import
-    applies (the concept seed, or a concept auto-import rule).
+### 9.1 Product database: service request API
 
-21. **POS item ids are global across a concept**, so one mapping per concept and POS covers every store.
-22. **Retail projections are seeded at the concept** and serve many APIs and locations.
-23. **Webtrition is the system of record for its items**; WAND does site and company enrichment,
-    validation and placement only.
+| Request | Caller | Does |
+|---|---|---|
+| `GET /stores/{id}/products?q&day&mealPeriod&category` | Scheduling, UI | Search `location_products`; unavailable items listed as prominently as available ones |
+| `GET /stores/{id}/products/{productId}` | Scheduling, devices | One resolved product |
+| `POST /products/upsert-from-source` | ETL | Find or create the projection for a source item; link it; save harvested values |
+| `POST /products` · `PATCH /products/{id}/values?level=` | UI | Custom items, overrides at a level |
+| `POST /products/{id}/links` · `DELETE /products/{id}/links/{linkId}` | UI, ETL | Link, relink, change priority |
+| `GET /stores/{id}/catalog?source&unmapped` | UI | Staging catalog at a location (often the lab store) |
+| `POST /concepts/{id}/maps` | Brand manager; a location when allowed | Map POS items to concept projections; covers every store on that POS |
+| `POST /concepts/{id}/products/from-catalog` | Brand manager; a location when allowed | Make a brand item from a staging catalog item |
+| `POST /concepts/{id}/seed {store, source}` | Brand manager | One-time: concept projections from the lab store's POS catalog |
+| `PATCH /stores/{id}/sources/{source}` | UI | Make a POS active, change its priority |
+| event `product.changed` | → Scheduling | `{product_id, store_ids, attributes, level}` |
 
-## 10. Still open
+### 9.2 ETL server
 
-Nothing blocking. Next step: the first playground migration (section 8).
+| Request | Caller | Does |
+|---|---|---|
+| `GET /source-menu?store&week[&mealPeriod&station]` | Scheduling | Dated Webtrition items for the week, in the sort standard |
+| `POST /validate {store, week, items}` | Scheduling | Per item per day: availability, bound `menu_item_id`, that day's values |
+| `POST /refresh {store, source}` | UI, jobs | Pull now |
+| `POST /seed {store}` | Setup | F1 |
+
+### 9.3 Scheduling
+
+| Request | Caller | Does |
+|---|---|---|
+| `GET /targets/{id}/weeks/{weekStart}` | UI, API | F5: open (create if needed), resolve, return |
+| `GET /targets/{id}/default-week` · `PATCH …` | UI | Default Week and its edits (F7) |
+| `POST/PATCH/DELETE /targets/{id}/weeks/{weekStart}/items` | UI | Add, change, hide, pin items |
+| `POST /targets/{id}/weeks/{weekStart}/copy` · `/recur` | UI | Copy, paste, recurring |
+| `GET /menus?target&date&daypart` | Devices, signage, public API | Read `resolved_menus` only |
+
+## 10. Build plan
+
+Each phase is reviewed before the next starts.
+
+| Phase | Builds | Done when |
+|---|---|---|
+| **0. Approve** | This document | Approved; status changed above |
+| **1. Schemas** | `product`, `etl`, `schedule` schemas with §5–7 tables in the playground Supabase; hierarchy and one demo store | Migration applies cleanly; RLS stays open for the playground |
+| **2. ETL Webtrition** | `populate-menu-data` becomes the ETL: `seed` (F1), `refresh` (F2), `source-menu`, `validate` | Demo store seeded for one cycle; this and next week cached; projections in `location_products` |
+| **3. Product DB API** | RPC functions for §9.1 (search, upsert-from-source, overrides, links); `product.changed` via `pg_notify` | Search returns available and unavailable items; an override shows up in `location_products` |
+| **4. Scheduling core** | Targets, Default Week, weeks, items; F5–F7, F10; `resolved_menus` | Existing demo schedules migrated and resolving the same as today's UI |
+| **5. UI switch-over** | UI reads and writes through scheduling and product functions; week resolution moved out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` | Smart Labels and Products work on the new tables; old tables dropped |
+| **6. Retail** | `store_sources`, staging catalog, concept maps, seed (F3, F4), category autofill | A test POS catalog seeded at a lab store and mapped; a retail target fills by category |
+| **7. Signage zones** | `menu_targets.kind = 'zone'` with reported capacity and overflow | A zone resolves a category menu |
+
+**Playground migration notes:** `device_names` becomes `menu_targets.name`. `device_week_schedules` /
+`device_schedule_items` become `menu_weeks` / `menu_week_items` (per-day rows and `label_day_settings`
+become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`, `product_display_names`,
+`product_dayparts` become store overrides. `converge-custom` rows become custom projections.
+`menu_items` and `product_availability` are dropped.
+
+## 11. Decisions
+
+| ID | Decision | Date |
+|---|---|---|
+| D1 | Webtrition items are matched by MRN + portion + meal period for the date; station isn't checked | 11-24 |
+| D2 | A different portion is a different item; edits apply to the same MRN and portion | 11-24 |
+| D3 | Order freezes once a day is shown; new items go to the end unless they're the only item that could show | 11-24 |
+| D4 | Values inherit down; a higher-level edit wins and clears lower levels; stores have no say | 11-24 |
+| D5 | Brand managers edit at the concept or above; the company edits Webtrition and custom products | 11-24 |
+| D6 | Signage zones report their own capacity and overflow rules | 11-24 |
+| D7 | Retail targets fill by category or by hand; signage zones need category fill | 11-24 |
+| D8 | Scheduling + validation is separate from the product database; the ETL makes all source calls | 11-24 |
+| D9 | Every item is a projection; the ETL creates one for every new Webtrition item | 11-25 |
+| D10 | Each store has an always-available location product set; stores are seeded with one menu cycle | 11-25 |
+| D11 | The product database is reached through a service request API | 11-25 |
+| D12 | Links fill attributes in priority order: link 1 supplies all it maps; each next link only what earlier ones don't map | 11-25 |
+| D13 | Source data always flows in for mapped attributes unless overridden; each POS has an attribute map so POS can change | 11-25 |
+| D14 | Out of stock is an attribute; display rules are out of scope | 11-25 |
+| D15 | Default Week edits process immediately; editing a week that only follows the Default Week gives it its own schedule | 11-25 |
+| D16 | Webtrition projections go inactive after two cycles unseen; retail projections don't | 11-25 |
+| D17 | Retail projections come first, then links; a new POS is a mapping exercise, not an import | 11-25 |
+| D18 | Retail projections are seeded at the concept; a one-time import from the concept's first POS is optional | 11-25 |
+| D19 | POS mapping is done once at the concept, usually from a lab store; locations may make brand edits or brand items when allowed | 11-25 |
+| D20 | Unmapped POS items stay in a staging catalog unless an automatic import applies | 11-25 |
+| D21 | POS item ids are global across a concept | 11-25 |
+| D22 | Webtrition and custom projections are owned by the company (translations for all locations); retail by the concept | 11-25 |
+| D23 | Webtrition is the system of record for its items; WAND does site and company enrichment, validation and placement | 11-25 |
+
+## 12. Open items
+
+None blocking approval.
+
+## Change log
+
+| Version | Date | Change |
+|---|---|---|
+| 1.0 | 2026-11-25 | Restructured as the reference for approval: infrastructure choices, full schema, flows F1–F11, APIs, build plan |

@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 .env
 .env.*
-!.env.example
+!.env.exampledocs/review-page/menu-scheduling-design.html
