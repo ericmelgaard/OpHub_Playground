@@ -3,14 +3,14 @@
 | | |
 |---|---|
 | **Status** | **Proposed — awaiting approval.** No build work starts until this is approved. |
-| **Version** | 1.4 · 2026-11-25 |
+| **Version** | 1.5 · 2026-11-25 |
 | **Owner** | Eric Melgaard |
 | **Scope** | Infrastructure, table schema and the logic that populates menu schedules on smart labels and signage menu zones |
 | **Source of truth** | This file (`docs/MENU_SCHEDULING_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
 
 **How to use this document.** Each part of the build should point back to a section here: the
 tables in §7–9, retention in §10, the flows in §11 (`F1`–`F13`), the APIs in §12. Decisions have IDs
-(`D1`–`D41`, §14). Start with §4: it explains the life of a menu item, which everything else serves. If
+(`D1`–`D44`, §14). Start with §4: it explains the life of a menu item, which everything else serves. If
 code and this document disagree, this document wins until it's changed on purpose.
 
 ## 1. Goals and non-goals
@@ -164,8 +164,8 @@ from when that date was last fetched.
   its `menu_item_links` row is written.
 - `planned` becomes `linked` by itself when the date's menu items arrive. Nobody re-adds anything.
 - One placement links to a different `menu_item_id` on each day of the week.
-- Copying a week, recurring and the Default Week copy **placements**, never links. Links are always made
-  for the new dates.
+- The Default Week is **followed by reference**: weeks that follow it hold no copies. Copying a week and
+  recurring copy **placements** (new ids), never links. Links are always made for the actual dates.
 - If Webtrition replaces the item (a different portion is a different item), that date becomes
   `missing`. A person picks the replacement, which is a new placement.
 - On the day, an Auto placement that's `missing` doesn't show (it follows the source); one forced On
@@ -209,8 +209,10 @@ custom item.
   (validation response), then the company and store values from the product database, then any
   this-week override. Soup of the Day gets everything from the product database. A retail item works the
   same way, with its POS price harvested per the POS sync policy.
-- **Default Week** placements are stored the same way under the target's Default Week row, with day
-  masks and no links (it has no dates). Real weeks are copied from it (§4.4).
+- **Default Week** placements are stored once under the target's Default Week row, with day masks and
+  no dates. Weeks that follow the Default Week have **no row and no copies**; reading any date in them
+  resolves straight from these placements (§4.7). A retail menu that never changes is one set of
+  placements, kept forever.
 - **Size:** a target's page is a few kilobytes a week; 50 targets is about 1 MB a week of placements,
   plus links for Webtrition placements only (§10.2).
 - **Updates:** because only identities are stored, a product edit or a new validation result changes
@@ -221,6 +223,31 @@ custom item.
   offers it.
 - **Hidden autofill items.** Removing an autofilled item stores a placement with `state = 'hidden'`, so
   autofill doesn't bring it back that week.
+
+### 4.7 Which placements apply to a date: Default Week, recurring and edited weeks
+
+For a target and a date, the scheduler takes the first that exists:
+
+1. **The week's own schedule**: a `menu_weeks` row for that week (`kind = 'week'`). It exists only
+   when someone edited that week (an Override), copied or pasted into it, or a recurring week was
+   applied to it.
+2. **A recurring week that lands on it**: a week marked to repeat every N weeks from its start date,
+   until its optional end date. On first access to a week it lands on, its placements are copied into a
+   new week row for that week (new items for the new week, per the original requirement), with
+   `origin = 'recurring'` and `edited = false`.
+3. **The Default Week**, by reference. No row, no copies.
+
+| | Default Week | A week set to repeat |
+|---|---|---|
+| What it is | The base for any week with no schedule of its own | A real, dated week that repeats every N weeks from its start date, until an optional end date |
+| Dates | None; days of the week only | Starts on a date; can alternate (every 2 weeks, a rotation) |
+| Its items | Special items, stored once | Each occurrence gets new items for its week (copied on first access) |
+| Later edits to the original | Apply at once to every week that follows it | Reach occurrences that are still unedited (`edited = false`) |
+| Precedence | Lowest: used when nothing else applies | Beats the Default Week on the weeks it lands on |
+| Best for | A menu that basically never changes (a retail brand) | Rotations, or "from Jan 4, every week is this" while the Default Week stays the fallback |
+
+Editing a week that follows the Default Week creates its row and copies the Default Week's placements
+into it, then applies the edit; from then on it's an Override and stops following the Default Week.
 
 ## 5. Freshness and sync strategy
 
@@ -667,15 +694,16 @@ create table menu_targets (
   unique (store_id, kind, external_id)
 );
 
-create table menu_weeks (
+create table menu_weeks (                   -- default row + only weeks with their own schedule (§4.7)
   id                uuid primary key,
   target_id         uuid not null references menu_targets,
   kind              text not null check (kind in ('default','week')),
   week_start        date,                   -- null for default
   origin            text not null check (origin in ('default','copy','recurring','manual')),
   origin_week_id    uuid references menu_weeks,
-  recurrence_weeks  int,
-  edited            boolean not null default false,  -- true = has its own schedule (Override)
+  recurrence_weeks  int,                    -- set on a week that repeats every N weeks
+  recurrence_end    date,                   -- optional last week it repeats
+  edited            boolean not null default false,  -- true = changed after it was made (Override)
   materialized_at   timestamptz,
   check ((kind = 'default') = (week_start is null))
 );
@@ -784,7 +812,7 @@ create table endpoint_subscriptions (        -- webhooks
 
 Retention: `menu_change_feed` keeps 7 days.
 
-## 10. Data retention and volume
+## 10. Data retention, volume and scale
 
 ### 10.1 What is kept, and for how long
 
@@ -816,7 +844,7 @@ page, and 10 weeks of schedules (8 back, this week, next week).
 |---|---|---|
 | `source_menu_items` (14 days, slim) | ~9,000 | ~3 MB |
 | `product_source_values` + `location_products` | ~3,000 | ~10 MB |
-| `menu_week_items` | ~30,000 | ~10 MB |
+| `menu_week_items` (Default Week once, plus only weeks with their own schedule) | ~3,000–30,000 | ~1–10 MB |
 | `menu_item_links` (Webtrition placements × days scheduled) | up to ~200,000 | ~25 MB |
 | `resolved_menus` (50 × 14 days × 4 dayparts) | ~2,800 | ~12 MB |
 | `shown_menus` (50 × 56 days × 4 dayparts × ~1.5 versions, ~1 KB) | ~17,000 | ~20 MB |
@@ -833,6 +861,31 @@ every dated row instead (§8, I13) would add about 25 MB per store for the cache
 - A daily job (F11) drops expired partitions, deletes past-window `source_menu_days`, deletes
   `menu_weeks` older than 8 weeks (placements and links cascade), and ages out catalog rows and terms.
 - Products are never deleted by retention.
+
+### 10.4 Scale as an enterprise service
+
+Sizing example (assumptions, to confirm): 5,000 stores, 50 targets each (250,000 targets), most stores
+on Webtrition.
+
+| Load | Estimate | How the design handles it |
+|---|---|---|
+| **Webtrition validation** | 5,000 stores × 96 one-day pulls = ~480,000 wds calls a day; ~6/s on average, several times that at morning peaks. Each call takes 3–6 s, so ~100+ in flight at peak. | Validate only stores with active targets, only inside their window; one-day pulls; single-flight. **Biggest external dependency:** confirm WAND wds / Compass capacity, and consider calling Compass directly where it's faster (3.3 s vs 4–6 s measured). Lengthen `validate_every` outside meal periods if needed. |
+| **Device reads** | 250,000 targets polling every minute = ~4,000 requests/s, nearly all `304` | Reads hit precomputed `resolved_menus` by hash (cacheable in Redis or at the edge); push (webhooks / AIMS) preferred so most devices don't poll |
+| **Fan-out from one edit** | A company edit (a translation) over 300 stores re-resolves up to 300 × 50 targets × 14 days × 4 dayparts ≈ 840,000 menus; a concept edit can reach millions | Only menus containing that product (index product → placements); queued in batches, **today first**, then this week, then next; idempotent and coalesced (several edits to one product = one rebuild) |
+| **Storage** | ~80 MB for a large store, much less for most; worst case ~400 GB for 5,000 large stores | Bounded by retention; Default Week by reference keeps schedules small; date partitions; shard by company (for example Citus) beyond a few TB |
+| **AIMS push** | Daypart changes across thousands of stores at the same minute | Push only changed hashes; spread through the push queue; respect AIMS rate limits |
+
+What makes it work at that scale:
+- **The request path only reads precomputed data.** Devices and the API never wait on a source for today
+  through next week.
+- **Source calls are policy-driven and bounded**, per store and source, not per request.
+- **Storage is bounded** by retention, slim dated rows and Default Week by reference.
+- **Stateless services and horizontal workers.** Any worker can take any job; jobs carry idempotency keys.
+- **Per-tenant fairness.** The queue round-robins across companies so one large tenant's fan-out can't
+  starve another's validation.
+- **Tenant isolation.** RLS by company and store on every table; credentials per source per store.
+- **Service levels to measure:** validation lag per store (target: under `max_age`), push latency from a
+  source change to the device, share of items `stale` / `unvalidated`, queue depth by priority.
 
 ## 11. Logic flows
 
@@ -923,8 +976,9 @@ Runs at setup, and again whenever a new menu template becomes active (F1b). Not 
 ### F5 · Open a week (UI view or API request)
 
 1. Find the `menu_weeks` row for (target, week).
-2. If missing, copy the matching recurring week, else the Default Week: new row, rules and placements
-   with new ids and `origin_item_id`, `edited = false`. No links are copied.
+2. If missing: if a recurring week lands on it, copy that week's rules and placements into a new row
+   (new ids, `origin_item_id`, `origin = 'recurring'`, `edited = false`). Otherwise **create nothing**:
+   the week follows the Default Week by reference (§4.7). No links are copied either way.
 3. **Webtrition target:** get the **validation response** for the week's dates from the ETL
    (`GET /source-menu`, `mode = cached` for planning or `fresh` when forced; uncached dates are pulled on
    demand, §5.1). This is the list of what can be scheduled, per date and meal period. Enrich it with
@@ -962,12 +1016,15 @@ Runs at setup, and again whenever a new menu template becomes active (F1b). Not 
 
 ### F7 · Edit the Default Week or a week
 
-- **Edit the Default Week:** processes immediately. This week and every future week with
-  `edited = false` are re-copied from **today** onward, resolved and pushed in the same request. Today's
+- **Edit the Default Week:** processes immediately. Every week that follows it (no row of its own)
+  changes at once, because it reads the Default Week by reference; nothing is re-copied. Cached menus
+  from **today** through next week are re-resolved and pushed in the same request. Today's
   lock still applies (removed items drop off, new ones go to the end). Past days never change.
-- **Edit a week that only follows the Default Week:** that week gets its own schedule. Set
-  `edited = true` (shown as Override), apply the edit, and from then on it no longer follows Default Week
-  changes. Recurring weeks work the same way.
+- **Edit a week that only follows the Default Week:** create its week row, copy the Default Week's
+  rules and placements into it (new ids), set `edited = true` (shown as Override) and apply the edit.
+  From then on it no longer follows Default Week changes.
+- **Edit a recurring week (the original):** unedited occurrences (`edited = false`) are re-copied from
+  it, from today onward. Editing an occurrence sets its `edited = true`.
 - **Copy / paste / recur:** new week rows and items with new ids. Rules, masks and overrides are
   carried over.
 
@@ -1035,8 +1092,9 @@ policy's limits). Changed values flow through F9.
    versions on request). Never re-resolved.
 2. **Today through next week:** return `resolved_menus` with its ETag. If its source days are past
    `max_age`, queue a refresh (F2b) and return the cache with freshness states.
-3. **Further out:** run F5 steps 1–5 for that week if needed (create the week from its origin, get the
-   validation response on demand, write links), resolve the day (F6) and return it. Not stored as a
+3. **Further out:** find the placements for that date (§4.7; a recurring week is copied on first
+   access, the Default Week is read by reference), get the validation response on demand, write links,
+   resolve the day (F6) and return it. Not stored as a
    cached menu; links are kept.
 4. **Forced:** `POST /refresh` first (subject to policy), then as above.
 
@@ -1147,7 +1205,7 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 | D31 | A person can update a single projection on demand (e.g. to see a recipe change) | 11-25 |
 | D32 | For Webtrition targets the scheduler works from the validation response; the product database enriches it and is the fallback | 11-25 |
 | D33 | Placements store product + meal period, never a menu item id; links are made per date in `menu_item_links` (planned, linked, missing) | 11-25 |
-| D34 | Copy, recur and the Default Week copy placements, never links | 11-25 |
+| D34 | Copy and recur copy placements, never links (Default Week: see D42) | 11-25 |
 | D35 | Dated Webtrition rows are slim; nutrition and allergen detail is stored once per product | 11-25 |
 | D36 | Retention per §10; date-keyed tables are partitioned by date so retention drops partitions | 11-25 |
 | D37 | A week stores placements only (product identity, days, position, this-week overrides); values are resolved at read time, for Webtrition, custom and retail items alike | 11-25 |
@@ -1155,6 +1213,9 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 | D39 | UI and API get the same answer for any date: past from what was shown, today to next week from the cache, later dates resolved on demand | 11-25 |
 | D40 | What was sent to each target is kept as a compact record (`shown_menus`) for 8 weeks; past days are read from it, never re-resolved | 11-25 |
 | D41 | Airflow is not used for the core (request path, validation, queue); it's acceptable only for light scheduled batch work | 11-25 |
+| D42 | The Default Week is followed by reference: weeks that follow it have no row and no copies; a week row exists only when that week has its own schedule | 11-25 |
+| D43 | A recurring week copies its placements into each week it lands on, on first access; it can have an end date | 11-25 |
+| D44 | Built to run as an enterprise service: precomputed reads, policy-bounded source calls, batched today-first fan-out, per-tenant fairness (§10.4) | 11-25 |
 
 ## 15. Open items
 
@@ -1168,6 +1229,7 @@ None blocking approval. To confirm while building phase 2:
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-11-25 | Restructured as the reference for approval: infrastructure choices, full schema, flows F1–F11, APIs, build plan |
+| 1.5 | 2026-11-25 | Default Week by reference (§4.7, F5, F7, F13); recurring end date; §10.4 scale as an enterprise service; D42–D44 |
 | 1.4 | 2026-11-25 | §4.6 how a mixed weekly menu is stored; §5.6 what refreshes on view and API by date; `shown_menus` for past days; `GET /menus` for any date (F13); why not Airflow; link priority example; D37–D41 |
 | 1.3 | 2026-11-25 | New §4 Life of a menu item (validation response first, placements vs menu item links, link states, example); new §10 Data retention and volume; `menu_item_links`; slim dated rows; F5, F6, F8 rewritten; D32–D36 |
 | 1.2 | 2026-11-25 | Seeding only at setup and on a new active menu template (F1b); no nightly warm-up; on-demand projection update (F9b); D29–D31 |
