@@ -6,15 +6,15 @@ table schema and the workflow for populating schedules; the product database can
 
 ## Questions to answer next
 
-1. **Who maps a new POS:** a brand manager once at the concept (one mapping shared by every store on
-   that POS), or each company / store for its own POS?
-2. **Unmapped POS items:** when a live POS sends items nobody has mapped yet, do they stay invisible
-   until mapped, or is someone notified?
+1. **Same POS item id across stores:** does a POS use the same item id for the Whopper at every store of
+   a concept? If ids differ per store or per company, `concept_item_maps` needs a company or store scope.
 
 Answered 2026-11-25 (now in the design, section 9): harvest scope, product DB service API, link
 priority, out of stock as an attribute, Default Week edits process immediately (editing a week that
 only follows the Default Week creates its own schedule), inactive after two menu cycles, retail
-projections first and then POS mapping (no importing beyond a one-time first-POS import).
+projections first and then POS mapping, POS mapping at the concept (usually from a lab store; locations
+can make brand edits / brand items when allowed), unmapped POS items wait in a staging catalog unless an
+automatic import applies.
 
 ## Next steps once those are answered
 

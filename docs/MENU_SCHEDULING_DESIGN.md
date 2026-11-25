@@ -97,10 +97,14 @@ day masks use bit 0 = Sunday.
 ### 4.1 Hierarchy
 
 ```sql
-concepts         (id uuid pk, name)
+concepts         (id uuid pk, name,
+                  settings jsonb)                 -- allow_location_brand_edits,
+                                                  -- allow_make_brand_item (location actions)
 companies        (id uuid pk, name)
 company_concepts (company_id fk, concept_id fk, pk (company_id, concept_id))
-stores           (id uuid pk, company_id fk, name, sap_code, venue, timezone, settings jsonb)
+stores           (id uuid pk, company_id fk, name, sap_code, venue, timezone,
+                  is_lab bool,                    -- a lab store the concept maps from
+                  settings jsonb)
 ```
 
 ### 4.2 Projections and links
@@ -214,12 +218,25 @@ store_sources (                                    -- which sources feed a store
   pk (store_id, source_system)
 )
 
-source_catalog_items (                             -- what an unscheduled source offers (full pull)
+source_catalog_items (                             -- staging catalog: what a POS sends (full pull)
   store_id, source_system, external_id,
   name text, values jsonb,                        -- mapped attributes
-  product_id uuid,                                -- the projection it's mapped to; null = unmapped
   last_seen timestamptz, gone_at timestamptz,
   pk (store_id, source_system, external_id)
+)
+
+concept_item_maps (                                -- POS item → projection, set once at the concept
+  concept_id, source_system, external_id,
+  product_id fk,
+  mapped_from_store_id uuid,                      -- the lab (or location) it was mapped from
+  mapped_by uuid, mapped_at timestamptz,
+  pk (concept_id, source_system, external_id)
+)
+
+concept_source_rules (                             -- optional automatic import per POS
+  concept_id, source_system,
+  auto_import bool default false,                 -- true: unmapped items become projections
+  pk (concept_id, source_system)
 )
 
 catalog_terms (owner_level, owner_id, kind, term, seen_count, last_seen, from_source,
@@ -228,10 +245,20 @@ product_categories     (id, owner_level, owner_id, name, sort)
 product_category_items (category_id, product_id, sort, pk (category_id, product_id))
 ```
 
-For a POS the catalog is a **mapping worklist**: it shows what the POS sends and which projection each
-item is mapped to. Unmapped items are the work (suggest matches by name; a person confirms). Only a
-store's first POS, with `create_mode = 'once'`, may create projections from it in one pass for
-convenience.
+**POS mapping happens at the concept.** A brand manager maps a POS's items to the concept's projections
+once, in `concept_item_maps`, and every store of that concept on that POS uses it: the store's links
+come from the map, not from per-store work.
+
+- **Where they map from:** a location's staging catalog, usually a **lab store** (`stores.is_lab`). The
+  concept may need to set up the catalog for a location (add the POS to it) to get something to map
+  from.
+- **From a location:** if the concept allows it (`concepts.settings`), a location can make a brand edit
+  or **make a brand item** (create the concept projection) for an unmapped POS item. It's saved at the
+  concept, like a brand manager's edit.
+- **Unmapped items** stay in the staging catalog, available to be mapped, invisible on menus. Nothing is
+  created from them unless an automatic import applies: the store's first POS (`create_mode = 'once'`)
+  or a concept rule (`concept_source_rules.auto_import`).
+- Suggest matches by name; a person confirms.
 
 ### 4.6 Service request API
 
@@ -242,7 +269,9 @@ convenience.
 | `POST /products/upsert-from-source` | ETL | Find or create the projection for a source item; link; save harvested values |
 | `POST /products` / `PATCH /products/{id}/values?level` | UI | Custom items, overrides |
 | `POST /products/{id}/links` / `DELETE …/links/{linkId}` | UI, ETL | Link, relink, reprioritize |
-| `GET /stores/{id}/catalog?source&unmapped` / `POST …/catalog/map` | UI | Mapping worklist; map POS items to projections |
+| `GET /stores/{id}/catalog?source&unmapped` | UI | Staging catalog at a location (often the lab) |
+| `POST /concepts/{id}/maps` | UI (brand manager, or a location when allowed) | Map POS items to concept projections; applies to every store on that POS |
+| `POST /concepts/{id}/products/from-catalog` | UI (brand manager, or a location when allowed) | Make a brand item from a staging catalog item |
 | `POST /stores/{id}/catalog/import-once` | UI | First POS only: create projections from its catalog |
 | `PATCH /stores/{id}/sources/{source}` | UI | Make a POS active, change its priority |
 | event `product.changed {product_id, store_ids, attributes}` | → Scheduling | Rebuild affected resolved menus |
@@ -292,14 +321,17 @@ Every pull does both jobs: update the validation cache (Webtrition) and keep pro
 **POS / retail (no schedule; full catalog each request)**
 1. Pull the full item list on the store's interval (minutes for out of stock / price).
 2. Diff against `source_catalog_items`: new, changed, gone.
-3. New: lands in the catalog **unmapped**. The ETL never creates a retail projection, except the one-time
-   import of a store's first POS (`create_mode = 'once'`).
+3. New: if the concept already maps it (`concept_item_maps`), link the store's projection right away.
+   Otherwise it stays in the **staging catalog** to be mapped. The ETL creates a retail projection only
+   under an automatic import: the store's first POS (`create_mode = 'once'`) or a concept rule
+   (`concept_source_rules.auto_import`).
 4. Changed: update `product_source_values` for mapped items (price, out_of_stock…).
 5. Gone: set `gone_at`; the projection and its link stay.
+6. When a mapping is added at the concept, the ETL links every store of that concept on that POS.
 
-**Adding a POS to a location:** add `store_sources` (inactive), pull its catalog, map its items to the
-existing projections, then make it active and set its priority (or lower the old POS). The projections
-don't change.
+**Adding a POS:** the concept adds it to a lab store (or a location), pulls its catalog and maps its
+items to the existing projections. Then each location makes the POS active and sets its priority (or
+lowers the old POS). The projections don't change.
 
 After any write the product database rebuilds the affected `location_products` and emits
 `product.changed`.
@@ -509,9 +541,14 @@ Steps:
     from a store's first POS; each new POS is mapped to the existing projections, then made active or
     given a lower priority per location. The original projection stays to serve any API.
 
+19. **POS mapping is at the concept**, once per POS, shared by every store on it. The concept maps from
+    a location's staging catalog, usually a lab store. If the concept allows it, a location can make a
+    brand edit or make a brand item.
+20. **Unmapped POS items stay in the staging catalog**, available to map, unless an automatic import
+    applies (first POS, or a concept auto-import rule).
+
 ## 10. Still open
 
-1. **Who maps a new POS:** a brand manager once at the concept (mapping shared by every store on that
-   POS), or each company / store for its own POS?
-2. **Unmapped POS items:** when a live POS sends items no one has mapped yet, do they stay invisible
-   until mapped, or is someone notified?
+1. **Same POS item id across stores:** does a POS use the same item id for the Whopper at every store of
+   a concept? If ids differ per store or per company, `concept_item_maps` needs a scope (company or
+   store) as well.
