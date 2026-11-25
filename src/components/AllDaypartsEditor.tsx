@@ -13,7 +13,7 @@ import { sortDayparts } from '../lib/weekSchedule';
 import { plainText } from '../lib/richText';
 import { LabelName } from './RichText';
 import { ThreeStageToggle, SomeDaysTag } from './DayToggle';
-import type { DisplayToggle } from './InlineItemPicker';
+import type { DisplayToggle } from './DayToggle';
 
 interface AllDaypartsEditorProps {
   device: Device;

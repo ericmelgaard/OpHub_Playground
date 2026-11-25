@@ -1,7 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { FilterConfig, Placement } from '../types';
-import { ChevronDown, ChevronRight, MapPin, X, Check, CheckSquare, Square } from 'lucide-react';
-import { Button } from './ui/button';
+import { ChevronDown, ChevronRight, MapPin, X, CheckSquare, Square } from 'lucide-react';
 import { levelIconColor } from '@/lib/levelColors';
 
 interface SmartLabelFiltersProps {

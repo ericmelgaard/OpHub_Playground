@@ -1,4 +1,5 @@
-import type { DisplayToggle } from './InlineItemPicker';
+// A day's setting for an item on a label: Off, Auto (follows the source) or On
+export type DisplayToggle = 'on' | 'auto' | 'off';
 
 // Off / Auto / On for an item on a label page (Off / On when it isn't linked to a source)
 export function ThreeStageToggle({ state, onChange, disabledReason, allowAuto = true }: {

@@ -1,4 +1,4 @@
-import { MenuItem, Device, Concept, Company, Store, Rule, Brand, DeviceGroup, DeviceWeekSchedule, DeviceScheduleItem, DaySetting, ProductValues } from '../types';
+import { MenuItem, Device, Concept, Company, Store, Brand, DeviceGroup, DeviceWeekSchedule, DaySetting, ProductValues } from '../types';
 import { applyLocalValues } from '../lib/productValues';
 import { mockDevices, mockPlacements } from './mockData';
 import { supabase } from '../lib/supabase';
@@ -17,15 +17,8 @@ const mockDelay = (ms: number = 800) => new Promise(resolve => setTimeout(resolv
 // Helper function to deep clone objects
 const clone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
 
-// Initialize mock channel items with some default data
-const mockChannelItems: Record<string, Set<number>> = {
-  'shelf-labels': new Set([1, 2, 3]),
-  'digital-signage': new Set([4, 5]),
-  'order-confirmation': new Set([6])
-};
 
 // Mock rules storage
-let mockRules: Rule[] = [];
 
 // Maps a raw device_week_schedules row (with nested items) to DeviceWeekSchedule
 const mapScheduleRow = (s: any): DeviceWeekSchedule => ({
@@ -579,52 +572,6 @@ export const api = {
   getPlacements: async () => {
     await mockDelay();
     return clone(mockPlacements);
-  },
-
-  // Rules
-  getRules: async (): Promise<Rule[]> => {
-    await mockDelay();
-    return clone(mockRules);
-  },
-
-  createRule: async (rule: Rule): Promise<Rule> => {
-    await mockDelay();
-    const newRule = clone(rule);
-    mockRules.push(newRule);
-    return newRule;
-  },
-
-  updateRule: async (rule: Rule): Promise<Rule> => {
-    await mockDelay();
-    const index = mockRules.findIndex(r => r.id === rule.id);
-    if (index === -1) throw new Error('Rule not found');
-    mockRules[index] = clone(rule);
-    return rule;
-  },
-
-  deleteRule: async (ruleId: string): Promise<void> => {
-    await mockDelay();
-    mockRules = mockRules.filter(r => r.id !== ruleId);
-  },
-
-  // Channel operations
-  assignItemToChannel: async (itemId: number, channelId: string): Promise<void> => {
-    await mockDelay();
-    if (!mockChannelItems[channelId]) {
-      mockChannelItems[channelId] = new Set();
-    }
-    mockChannelItems[channelId].add(itemId);
-  },
-
-  removeItemFromChannel: async (itemId: number, channelId: string): Promise<void> => {
-    await mockDelay();
-    if (mockChannelItems[channelId]) {
-      mockChannelItems[channelId].delete(itemId);
-    }
-  },
-
-  isItemInChannel: (itemId: number, channelId: string): boolean => {
-    return mockChannelItems[channelId]?.has(itemId) ?? false;
   },
 
   // Device page operations

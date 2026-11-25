@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Device, LabelSize, Placement, DeviceWeekSchedule } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Wifi, WifiOff, ChevronRight, Calendar, Tag } from 'lucide-react';

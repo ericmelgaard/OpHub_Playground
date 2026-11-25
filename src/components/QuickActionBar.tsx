@@ -1,5 +1,5 @@
 import React from 'react';
-import { Monitor, Package, Layers, Tv, Globe, Activity, PenLine, Tag } from 'lucide-react';
+import { PenLine } from 'lucide-react';
 import { QuickActionCard } from './QuickActionCard';
 import { Device, MenuItem } from '../types';
 

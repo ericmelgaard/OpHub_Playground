@@ -158,6 +158,29 @@ async function upsertItems(supabase: any, items: MenuItem[]) {
   return { inserted, dates, mealPeriods: mealPeriods.length, stations: stations.length };
 }
 
+// This function runs with the service role and is called from the browser with the public
+// anon key, so anyone with that key can call it. Each mode is limited to what the app needs:
+// cleanup only removes past days, and direct-insert only takes well-formed source items for
+// nearby weeks (never app-made products), in batches of a sane size.
+const MAX_DIRECT_ITEMS = 5000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const isoDay = (d: Date) => d.toISOString().split("T")[0];
+const isDay = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+// A source item the sync would send: numeric id, a source MRN (not an app-made CUSTOM- one),
+// a name, and a menu date within a week back / three weeks ahead
+function isSourceItem(item: any): boolean {
+  if (!item || typeof item !== "object") return false;
+  if (typeof item.id !== "number" || typeof item.name !== "string") return false;
+  if (typeof item.mrn !== "string" || item.mrn === "" || item.mrn.startsWith("CUSTOM-")) return false;
+  if (item.sourceName === "converge-custom") return false;
+  if (typeof item.date !== "string") return false;
+  const day = item.date.split("T")[0];
+  if (!isDay(day)) return false;
+  const now = Date.now();
+  return day >= isoDay(new Date(now - 7 * DAY_MS)) && day <= isoDay(new Date(now + 21 * DAY_MS));
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -186,7 +209,11 @@ Deno.serve(async (req: Request) => {
     // Products created in the app (source_name 'converge-custom', MRN 'CUSTOM-…') are kept.
     if (mode === "cleanup") {
       const before = body?.before;
-      if (!before) return jsonRes({ error: "Missing 'before' date" }, 400);
+      if (!isDay(before)) return jsonRes({ error: "'before' must be a YYYY-MM-DD date" }, 400);
+      // Only past days can be removed (a day of slack for time zones)
+      if (before > isoDay(new Date(Date.now() + DAY_MS))) {
+        return jsonRes({ error: "'before' can't be in the future" }, 400);
+      }
       const { error, count } = await supabase
         .from("menu_items")
         .delete({ count: "exact" })
@@ -206,13 +233,18 @@ Deno.serve(async (req: Request) => {
 
     // --- DIRECT INSERT: accept pre-fetched menuItems array ---
     if (mode === "direct-insert" && Array.isArray(body?.menuItems)) {
-      const result = await upsertItems(supabase, body.menuItems);
-      return jsonRes({ success: true, ...result });
+      if (body.menuItems.length > MAX_DIRECT_ITEMS) {
+        return jsonRes({ error: `At most ${MAX_DIRECT_ITEMS} items per call` }, 400);
+      }
+      const items = body.menuItems.filter(isSourceItem);
+      const result = items.length ? await upsertItems(supabase, items) : { inserted: 0 };
+      return jsonRes({ success: true, skipped: body.menuItems.length - items.length, ...result });
     }
 
     // --- DEFAULT: fetch from Wand API and insert ---
     const startDate = body?.date || new Date().toISOString().split("T")[0];
-    const weeks = Math.min(body?.weeks || 1, 8);
+    if (body?.date !== undefined && !isDay(body.date)) return jsonRes({ error: "'date' must be a YYYY-MM-DD date" }, 400);
+    const weeks = Math.min(Math.max(Number(body?.weeks) || 1, 1), 8);
     const sapCode = body?.sapCode || "72917";
     const venue = body?.venue || "73103";
 

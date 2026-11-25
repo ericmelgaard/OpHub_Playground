@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Wifi, WifiOff, Clock, MapPin, Monitor, Sparkles, Tv, Users, Tag, ImageOff } from 'lucide-react';
+import { X, Wifi, WifiOff, Clock, MapPin, Monitor, Sparkles, Tv, Users, Tag } from 'lucide-react';
 import { Device, DeviceGroup, Brand } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

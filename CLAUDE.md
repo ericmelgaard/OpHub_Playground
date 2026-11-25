@@ -148,8 +148,6 @@ Reference: `src/components/SiteSettingsPage.tsx`, settings in `src/lib/siteSetti
   edited and filled. Closed days look **disabled but pickable**: on the label page a dashed,
   muted day tile with "Closed" in place of the dot, gray page counts, and a gray "Closed {day}"
   note instead of the amber empty-page warnings; "Closed" beside the day in day dropdowns.
-- The old settings screen (integrations, rule builder, brands, demo devices) is demo
-  scaffolding, opened from Manage Demo → "Rules, brands and demo devices".
 
 ### IDs → copy button (approved 2026-11-17)
 Component: `CopyButton` (`src/components/CopyButton.tsx`). **Every ID shown in the app has a copy

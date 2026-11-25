@@ -1,30 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  Bell,
-  BookOpen,
-  Settings,
-  Plus,
-  Sun,
-  Moon,
-  Laptop,
-  Menu,
-  X,
-  CheckCircle,
-  Package,
-  Monitor,
-  Tag,
-  Tv,
-  Receipt,
-  Wand2,
-  MapPin,
-  ChevronDown,
-  Home,
-  Loader2,
-  Building2,
-  Building,
-  Store as StoreIcon,
-  SlidersHorizontal,
-} from 'lucide-react';
+import { Bell, BookOpen, Sun, Moon, Laptop, Menu, CheckCircle, Wand2, MapPin, ChevronDown, Home, Loader2, Building2, Building, Store as StoreIcon } from 'lucide-react';
 import { Theme } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -38,12 +13,9 @@ import type { DemoSecondaryDomain } from '../services/mockData';
 interface NavigationProps {
   notifications: number;
   setNotifications: (count: number) => void;
-  onCreateItem: () => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
   onMenuClick: () => void;
-  selectedPage?: 'products' | 'devices' | 'channels';
-  selectedChannel?: string | null;
   concepts?: any[];
   companies?: any[];
   stores?: any[];
@@ -64,34 +36,14 @@ interface NavigationProps {
   onSelectOtherCompany?: (companyId: string) => void;
   isMultiDomainUser?: boolean;
   selectedSecondaryDomain?: DemoSecondaryDomain | null;
-  onToggleMultiDomain?: (enabled: boolean) => void;
-  // Demo tools that used to be in Settings: rule builder, brands, group templates, demo devices
-  onOpenDemoTools?: () => void;
-  onSelectSecondaryDomain?: (domainId: string) => void;
-  demoSecondaryDomains?: DemoSecondaryDomain[];
 }
-
-const CHANNEL_INFO = {
-  'shelf-labels': { name: 'Smart Labels', icon: Tag },
-  'digital-signage': { name: 'Signage', icon: Tv },
-  'order-confirmation': { name: 'Order Confirmation', icon: Receipt },
-};
-
-const PAGE_INFO = {
-  products: { name: 'Operator Hub', icon: Package },
-  devices: { name: 'Devices', icon: Monitor },
-  channels: { name: 'Channels', icon: Tag },
-};
 
 export function Navigation({
   notifications,
   setNotifications,
-  onCreateItem,
   theme,
   setTheme,
   onMenuClick,
-  selectedPage,
-  selectedChannel,
   concepts = [],
   companies = [],
   stores = [],
@@ -112,10 +64,6 @@ export function Navigation({
   onSelectOtherCompany,
   isMultiDomainUser = false,
   selectedSecondaryDomain = null,
-  onToggleMultiDomain,
-  onOpenDemoTools,
-  onSelectSecondaryDomain,
-  demoSecondaryDomains = [],
 }: NavigationProps) {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
@@ -132,10 +80,8 @@ export function Navigation({
   const [showDismissAllConfirm, setShowDismissAllConfirm] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
-  const [showDemoMenu, setShowDemoMenu] = useState(false);
   const [navSpinner, setNavSpinner] = useState(false);
   const storeDropdownRef = useRef<HTMLDivElement>(null);
-  const demoMenuRef = useRef<HTMLDivElement>(null);
   const dropdownScrollRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -167,20 +113,6 @@ export function Navigation({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showStoreDropdown]);
 
-  useEffect(() => {
-    if (!showDemoMenu) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        demoMenuRef.current &&
-        !demoMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowDemoMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showDemoMenu]);
-
   const themeOptions = [
     { value: 'light', label: 'Light Mode', icon: Sun },
     { value: 'dark', label: 'Dark Mode', icon: Moon },
@@ -189,37 +121,6 @@ export function Navigation({
 
   const currentThemeIcon =
     themeOptions.find((option) => option.value === theme)?.icon || Sun;
-
-  // Get the current context (page/channel) for display
-  const getCurrentContext = () => {
-    if (!selectedPage) return null;
-
-    const pageInfo = PAGE_INFO[selectedPage];
-    const PageIcon = pageInfo.icon;
-
-    if (selectedPage === 'channels' && selectedChannel) {
-      const channelInfo = CHANNEL_INFO[selectedChannel];
-      const ChannelIcon = channelInfo.icon;
-      
-      return (
-        <div className="flex items-center gap-2">
-          <ChannelIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-          <span className="font-medium text-sky-600 dark:text-sky-400">
-            {channelInfo.name}
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center gap-2">
-        <PageIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        <span className="font-medium text-sky-600 dark:text-sky-400">
-          {pageInfo.name}
-        </span>
-      </div>
-    );
-  };
 
   // Determine current navigation level
   const currentLevel: 'wand' | 'concept' | 'company' | 'store' = selectedStore
@@ -538,90 +439,6 @@ export function Navigation({
             </div>
 
           <div className="flex items-center space-x-2 sm:space-x-6">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="relative" ref={demoMenuRef}>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowDemoMenu(!showDemoMenu)}
-                  className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 text-sm font-medium text-white rounded-lg hover:bg-brand-dark transition-colors bg-brand"
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                  <span className="hidden sm:inline">Manage Demo</span>
-                </Button>
-
-                {showDemoMenu && (
-                  <Card className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-                    <CardContent className="p-4 space-y-4">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                          Demo Controls
-                        </h3>
-                        <label className="flex items-center justify-between cursor-pointer">
-                          <span className="text-sm text-gray-700 dark:text-gray-300">
-                            Multi-domain user
-                          </span>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={isMultiDomainUser}
-                            onClick={() => onToggleMultiDomain?.(!isMultiDomainUser)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              isMultiDomainUser ? 'bg-brand' : 'bg-gray-300 dark:bg-gray-600'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                isMultiDomainUser ? 'translate-x-6' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                        </label>
-                      </div>
-
-                      {isMultiDomainUser && (
-                        <div className="space-y-2">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                            Secondary Domain
-                          </label>
-                          <div className="space-y-1">
-                            {demoSecondaryDomains.map((domain) => (
-                              <button
-                                key={domain.id}
-                                onClick={() => onSelectSecondaryDomain?.(domain.id)}
-                                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md transition-colors ${
-                                  domain.id === selectedSecondaryDomain?.id
-                                    ? 'text-white bg-brand hover:bg-brand-dark'
-                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                              >
-                                <Building2 className="h-4 w-4 flex-shrink-0" />
-                                <span className="truncate text-left">{domain.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <p className="text-xs text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-gray-700">
-                        Toggling multi-domain shows "Other" sections in the quick nav at every level.
-                      </p>
-                      {onOpenDemoTools && (
-                        <button
-                          type="button"
-                          onClick={() => { setShowDemoMenu(false); onOpenDemoTools(); }}
-                          className="w-full px-3 py-2 text-sm text-left rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        >
-                          Rules, brands and demo devices
-                        </button>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </div>
-
-            <div className="h-6 w-px bg-gray-700 dark:bg-gray-800" />
-
             <Button
               variant="ghost"
               className="relative p-2 rounded-full hover:bg-white/10 dark:hover:bg-gray-900 transition-colors"

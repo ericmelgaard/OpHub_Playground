@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { daypartColor } from '../lib/daypartColors';
 import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
@@ -8,7 +8,7 @@ import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
 import { ItemSelectionModal } from '../components/ItemSelectionModal';
 import { DeviceHeader } from '../components/DeviceHeader';
 import { DeviceConfigPage } from '../components/DeviceConfigPage';
-import { DisplayToggle } from '../components/InlineItemPicker';
+import type { DisplayToggle } from '../components/DayToggle';
 import { useModalHistory } from '../hooks/useModalHistory';
 import { api } from '../services/api';
 import { MergeMode, getDraft, getAppliedLocalState, saveDraft, useHasDraft } from '../lib/pendingChanges';

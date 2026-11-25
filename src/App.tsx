@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Tag, Tv, Receipt, Database, Package, Layers, Globe, Activity, Building2, Building, Store as StoreIcon, Plus } from 'lucide-react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { Tag, Tv, Database, Package, Layers, Globe, Activity, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
 import { ensureCurrentAndNextWeek } from './services/menuDataLoader';
@@ -21,7 +21,6 @@ import { orderedDayparts } from './components/DaypartSelector';
 import { SmartLabelFilters } from './components/SmartLabelFilters';
 import { Sidebar } from './components/Sidebar';
 import { FilterSidebar } from './components/FilterSidebar';
-import { CreateRuleModal } from './components/CreateRuleModal';
 import { DeviceFirstWorkflow, LabelNav, LocalChange } from './workflows/DeviceFirstWorkflow';
 import { addPendingChange, getDraft, hasPendingChanges, setAfterApply, usePendingSummary, PendingChange } from './lib/pendingChanges';
 import { isOfferedOnDay, isCustomItem, WEEK_DAYS, type ItemDayOverrides } from './lib/labelDisplay';
@@ -33,11 +32,10 @@ import type { ProductScheduleRow } from './components/ProductEditPage';
 import { sourceSystem } from './lib/sources';
 import { QuickActionBar, QuickActionType, QuickActionConfig } from './components/QuickActionBar';
 import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsModal';
-import { SettingsPage } from './components/SettingsPage';
 import { GroupsPage } from './components/GroupsPage';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { LocationChangeOverlay } from './components/LocationChangeOverlay';
-import { Theme, Channel, MenuItem, Device, Rule, FilterConfig, DeviceWeekSchedule, ProductValues } from './types';
+import { Theme, MenuItem, Device, FilterConfig, DeviceWeekSchedule, ProductValues } from './types';
 import { api, type ProductInput } from './services/api';
 import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
@@ -85,8 +83,6 @@ function App() {
   // Navigation state
   const [notifications, setNotifications] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // Demo tools (rule builder, brands, demo devices), opened from Manage Demo
-  const [showSettings, setShowSettings] = useState(false);
   // Site settings (side panel → Site settings)
   const [showSiteSettings, setShowSiteSettings] = useState(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
@@ -94,15 +90,6 @@ function App() {
     api.getSiteSettings(SITE_ID).then(setSiteSettings);
   }, []);
 
-  const [selectedPage, setSelectedPage] = useState<'products' | 'devices' | 'channels'>('products');
-
-  // Channel state
-  const [channels] = useState<Channel[]>([
-    { id: 'shelf-labels', name: 'Digital Shelf Labels', icon: Tag, items: [] },
-    { id: 'digital-signage', name: 'Digital Signage', icon: Tv, items: [] },
-    { id: 'order-confirmation', name: 'Order Confirmation', icon: Receipt, items: [] }
-  ]);
-  const [selectedChannel, setSelectedChannel] = useState<string | null>('shelf-labels');
 
   // Menu items state
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -207,8 +194,6 @@ function App() {
   // Modal state
   // The product sheet's form for a new custom product
   const [creatingProduct, setCreatingProduct] = useState(false);
-  const [showCreateRuleModal, setShowCreateRuleModal] = useState(false);
-  const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   // Product-first placement: pick a label, then open its device page with the
   // product's name in the Available Items search (same pattern as "Show")
@@ -316,18 +301,13 @@ function App() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [placements, setPlacements] = useState<any[]>([]);
-  const [selectedPlacement, setSelectedPlacement] = useState<string | null>(null);
   const [loadingLocations, setLoadingLocations] = useState(false);
   const [locationChangeTrigger, setLocationChangeTrigger] = useState(0);
   const [locationChangeInfo, setLocationChangeInfo] = useState<{ label: string; path: string[] }>({ label: 'WAND', path: [] });
 
-  // Rules state
-  const [rules, setRules] = useState<Rule[]>([]);
-
-  // Multi-domain demo state
-  const [isMultiDomainUser, setIsMultiDomainUser] = useState(false);
-  const [selectedSecondaryDomainId, setSelectedSecondaryDomainId] = useState<string>(demoSecondaryDomains[0]?.id || '');
-  const selectedSecondaryDomain = demoSecondaryDomains.find(d => d.id === selectedSecondaryDomainId) || null;
+  // Multi-domain users: off until it comes from the APIs (the demo toggle was in Manage Demo)
+  const isMultiDomainUser = false;
+  const selectedSecondaryDomain = demoSecondaryDomains[0] ?? null;
 
   // Load menu items + ensure current/next week data exists
   useEffect(() => {
@@ -826,46 +806,6 @@ function App() {
     return updated.find(i => i.id === id) ?? null;
   }, []);
 
-  const handleCreateRule = useCallback((rule: Rule) => {
-    setRules(prev => [...prev, rule]);
-    setShowCreateRuleModal(false);
-  }, []);
-
-  const handleEditRule = useCallback((rule: Rule) => {
-    setSelectedRule(rule);
-    setShowCreateRuleModal(true);
-  }, []);
-
-  const handleConceptClick = useCallback((conceptId: string) => {
-    if (selectedConcept === conceptId) {
-      setSelectedConcept(null);
-      setSelectedCompany(null);
-      setSelectedStore(null);
-      setExpandedConcept(null);
-    } else {
-      setSelectedConcept(conceptId);
-      setSelectedCompany(null);
-      setSelectedStore(null);
-      setExpandedConcept(conceptId);
-    }
-  }, [selectedConcept]);
-
-  const handleCompanyClick = useCallback((companyId: string) => {
-    if (selectedCompany === companyId) {
-      setSelectedCompany(null);
-      setSelectedStore(null);
-      setExpandedCompany(null);
-    } else {
-      setSelectedCompany(companyId);
-      setSelectedStore(null);
-      setExpandedCompany(companyId);
-    }
-  }, [selectedCompany]);
-
-  const handleStoreSelect = useCallback((storeId: string) => {
-    setSelectedStore(storeId);
-  }, []);
-
   const handleDeviceSelect = useCallback((device: Device, daypart?: string | null) => {
     setSelectedDevice(device);
     setSteppingLabels(false);
@@ -1163,12 +1103,9 @@ function App() {
         <Navigation
           notifications={notifications}
           setNotifications={setNotifications}
-          onCreateItem={() => setCreatingProduct(true)}
           theme={theme}
           setTheme={setTheme}
           onMenuClick={() => setIsSidebarOpen(true)}
-          selectedPage={selectedPage}
-          selectedChannel={selectedChannel}
           concepts={concepts}
           companies={companies}
           stores={stores}
@@ -1181,10 +1118,6 @@ function App() {
           onExpandCompany={setExpandedCompany}
           isMultiDomainUser={isMultiDomainUser}
           selectedSecondaryDomain={selectedSecondaryDomain}
-          onToggleMultiDomain={setIsMultiDomainUser}
-          onOpenDemoTools={() => setShowSettings(true)}
-          onSelectSecondaryDomain={setSelectedSecondaryDomainId}
-          demoSecondaryDomains={demoSecondaryDomains}
           onResetLocation={() => {
             setSelectedConcept(null);
             setSelectedCompany(null);
@@ -1469,22 +1402,10 @@ function App() {
                         error={error}
                         menuItems={menuItems}
                         viewMode={viewMode}
-                        selectedChannel={selectedChannel}
-                        expandedItem={null}
-                        toggleItemExpansion={() => {}}
-                        isItemInChannel={(itemId, channelId) => api.isItemInChannel(itemId, channelId)}
-                        toggleItemInChannel={(item, channelId) => {
-                          if (api.isItemInChannel(item.id, channelId)) {
-                            api.removeItemFromChannel(item.id, channelId);
-                          } else {
-                            api.assignItemToChannel(item.id, channelId);
-                          }
-                        }}
                         setSelectedItem={(item) => {
                           setSelectedItem(item);
                         }}
                         setShowDeviceModal={setShowLabelPicker}
-                        setShowPageSelectionModal={() => {}}
                         setWorkflowType={() => {}}
                         devices={devices}
                         searchValue={searchValue}
@@ -1523,45 +1444,6 @@ function App() {
               setSiteSettings(next);
             }}
             onClose={() => setShowSiteSettings(false)}
-          />
-        )}
-
-        {showSettings && (
-          <SettingsPage
-            onClose={() => setShowSettings(false)}
-            theme={theme}
-            setTheme={setTheme}
-            integrationSettings={{
-              type: 'webtrition',
-              businessUnit: '',
-              location: '',
-              enabled: false,
-              customAttributeDefinitions: [],
-              supportedLanguages: []
-            }}
-            setIntegrationSettings={() => {}}
-            onOpenRules={() => setShowCreateRuleModal(true)}
-            devices={devices}
-          />
-        )}
-
-        {showCreateRuleModal && (
-          <CreateRuleModal
-            show={showCreateRuleModal}
-            onClose={() => {
-              setShowCreateRuleModal(false);
-              setSelectedRule(null);
-            }}
-            onSave={handleCreateRule}
-            selectedRule={selectedRule}
-            integrationSettings={{
-              type: 'webtrition',
-              businessUnit: '',
-              location: '',
-              enabled: false,
-              customAttributeDefinitions: [],
-              supportedLanguages: []
-            }}
           />
         )}
 

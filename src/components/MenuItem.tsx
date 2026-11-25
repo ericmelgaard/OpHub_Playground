@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Coffee, MapPin, MoreVertical, Plus, Clock, ChevronDown, ChevronUp, ChevronRight, Calendar, Eye, Link2 } from 'lucide-react';
+import { MapPin, MoreVertical, Plus, ChevronRight, Calendar, Eye, Link2 } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
   Card,
@@ -22,14 +22,8 @@ import { CopyButton } from './CopyButton';
 
 interface MenuItemProps {
   item: MenuItemType;
-  selectedChannel: string | null;
-  expandedItem: string | null;
-  toggleItemExpansion: (itemId: number) => void;
-  isItemInChannel: (itemId: number, channelId: string) => boolean;
-  toggleItemInChannel: (item: MenuItemType, channelId: string) => void;
   setSelectedItem: (item: MenuItemType) => void;
   setShowDeviceModal: (show: boolean) => void;
-  setShowPageSelectionModal: (show: boolean) => void;
   setWorkflowType: (type: 'manage' | 'assign' | null) => void;
   viewMode: 'grid' | 'list';
   devices: Device[];
@@ -51,11 +45,8 @@ export const PRODUCT_ROW_COLS = 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_min
 
 export function MenuItem({
   item,
-  expandedItem,
-  toggleItemExpansion,
   setSelectedItem,
   setShowDeviceModal,
-  setShowPageSelectionModal,
   setWorkflowType,
   viewMode,
   onEdit,
@@ -66,8 +57,6 @@ export function MenuItem({
   selectedCycleWeek,
   refreshTag,
 }: MenuItemProps) {
-  const [expandedDetails, setExpandedDetails] = useState(false);
-
   // Dayparts are the product's own (none = all dayparts). Stations: from the source for imported
   // products, from the labels it's on for custom ones
   const placement = useMemo(() => ({
@@ -110,222 +99,6 @@ export function MenuItem({
   };
 
   const getDaypartColor = (daypart: string) => daypartColor(daypart).chip;
-
-  // Option 1: Expandable with all details
-  const renderExpandableInfo = () => (
-    <div className="flex flex-col gap-2">
-      <button
-        onClick={() => setExpandedDetails(!expandedDetails)}
-        className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-      >
-        {expandedDetails ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : (
-          <ChevronDown className="h-4 w-4" />
-        )}
-        <span>
-          {item.mealPeriods?.length || 0} dayparts • {item.mealStations?.length || 0} stations
-        </span>
-      </button>
-
-      {expandedDetails && (
-        <div className="flex flex-col gap-3 pl-6 pt-2 border-l-2 border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <Clock className="h-3.5 w-3.5 text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Dayparts</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {item.mealPeriods?.map((period, idx) => (
-                <Badge
-                  key={idx}
-                  variant="outline"
-                  className={`text-xs border ${getDaypartColor(period)}`}
-                >
-                  {period}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <MapPin className={`h-3.5 w-3.5 ${levelIconColor('placement')}`} />
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Stations</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {item.mealStations?.map((station, idx) => (
-                <Badge
-                  key={idx}
-                  variant="secondary"
-                  className="text-xs"
-                >
-                  {station}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // Option 2: Color-coded compact grid
-  const renderColorCodedGrid = () => (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5">
-        {item.mealPeriods?.map((period, idx) => (
-          <Badge
-            key={idx}
-            variant="outline"
-            className={`text-xs border ${getDaypartColor(period)}`}
-          >
-            {period}
-          </Badge>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
-        {item.mealStations?.slice(0, 6).map((station, idx) => (
-          <Badge
-            key={idx}
-            variant="secondary"
-            className="text-xs"
-          >
-            {station.length > 25 ? station.substring(0, 25) + '...' : station}
-          </Badge>
-        ))}
-        {item.mealStations && item.mealStations.length > 6 && (
-          <Badge variant="secondary" className="text-xs bg-gray-200 dark:bg-gray-700">
-            +{item.mealStations.length - 6} more
-          </Badge>
-        )}
-      </div>
-    </div>
-  );
-
-  // Option 3: Compact with hover tooltip (using title attribute)
-  const renderCompactWithTooltip = () => (
-    <div className="flex flex-col gap-2">
-      <div
-        className="flex items-center gap-2 cursor-help"
-        title={item.mealPeriods?.join(', ')}
-      >
-        <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-        <div className="flex flex-wrap gap-1.5">
-          {item.mealPeriods?.slice(0, 3).map((period, idx) => (
-            <Badge
-              key={idx}
-              variant="outline"
-              className={`text-xs border ${getDaypartColor(period)}`}
-            >
-              {period}
-            </Badge>
-          ))}
-          {item.mealPeriods && item.mealPeriods.length > 3 && (
-            <Badge variant="secondary" className="text-xs">
-              +{item.mealPeriods.length - 3}
-            </Badge>
-          )}
-        </div>
-      </div>
-      <div
-        className="flex items-center gap-2 cursor-help"
-        title={item.mealStations?.join('\n')}
-      >
-        <MapPin className={`h-4 w-4 flex-shrink-0 ${levelIconColor('placement')}`} />
-        <span className="text-xs text-gray-600 dark:text-gray-400">
-          {item.mealStations?.length || 0} locations
-        </span>
-      </div>
-    </div>
-  );
-
-  // Option 4: Organized grid with sections
-  const renderOrganizedGrid = () => (
-    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 space-y-2.5">
-      <div className="flex items-start gap-2">
-        <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-        <div className="flex flex-wrap gap-1.5 flex-1">
-          {item.mealPeriods?.map((period, idx) => (
-            <Badge
-              key={idx}
-              variant="outline"
-              className={`text-xs border ${getDaypartColor(period)}`}
-            >
-              {period}
-            </Badge>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-start gap-2">
-        <MapPin className={`h-4 w-4 flex-shrink-0 mt-0.5 ${levelIconColor('placement')}`} />
-        <div className="flex-1 max-h-20 overflow-y-auto">
-          <div className="flex flex-wrap gap-1.5">
-            {item.mealStations?.map((station, idx) => (
-              <Badge
-                key={idx}
-                variant="secondary"
-                className="text-xs"
-              >
-                {station.length > 30 ? station.substring(0, 30) + '...' : station}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Option 5: Summary view with expand button
-  const renderSummaryView = () => (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {item.mealPeriods?.length || 0} dayparts
-          </span>
-        </div>
-        <button
-          onClick={() => setExpandedDetails(!expandedDetails)}
-          className="text-xs text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
-        >
-          {expandedDetails ? 'Hide' : 'Show all'}
-          {expandedDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </button>
-      </div>
-
-      {expandedDetails ? (
-        <div className="space-y-2 pt-2 border-t dark:border-gray-700">
-          <div className="flex flex-wrap gap-1.5">
-            {item.mealPeriods?.map((period, idx) => (
-              <Badge
-                key={idx}
-                variant="outline"
-                className={`text-xs border ${getDaypartColor(period)}`}
-              >
-                {period}
-              </Badge>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-            {item.mealStations?.map((station, idx) => (
-              <Badge key={idx} variant="secondary" className="text-xs">
-                {station}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <MapPin className={`h-4 w-4 ${levelIconColor('placement')}`} />
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {item.mealStations?.length || 0} stations
-          </span>
-        </div>
-      )}
-    </div>
-  );
 
   const renderDaypartsAndStations = () => {
     // Normalize data - handle both grouped (arrays) and single (string) values

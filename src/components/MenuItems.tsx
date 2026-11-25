@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { MenuItem as MenuItemComponent, PRODUCT_ROW_COLS } from './MenuItem';
 import { MenuItem as MenuItemType, Device, FilterConfig } from '../types';
@@ -12,14 +12,8 @@ interface MenuItemsProps {
   error: string | null;
   menuItems: MenuItemType[];
   viewMode: 'grid' | 'list';
-  selectedChannel: string | null;
-  expandedItem: string | null;
-  toggleItemExpansion: (itemId: number) => void;
-  isItemInChannel: (itemId: number, channelId: string) => boolean;
-  toggleItemInChannel: (item: MenuItemType, channelId: string) => void;
   setSelectedItem: (item: MenuItemType) => void;
   setShowDeviceModal: (show: boolean) => void;
-  setShowPageSelectionModal: (show: boolean) => void;
   setWorkflowType: (type: 'manage' | 'assign' | null) => void;
   devices: Device[];
   onEdit?: (item: MenuItemType) => void;
@@ -43,14 +37,8 @@ export function MenuItems({
   error,
   menuItems,
   viewMode,
-  selectedChannel,
-  expandedItem,
-  toggleItemExpansion,
-  isItemInChannel,
-  toggleItemInChannel,
   setSelectedItem,
   setShowDeviceModal,
-  setShowPageSelectionModal,
   setWorkflowType,
   devices,
   onEdit,
@@ -168,14 +156,8 @@ export function MenuItems({
           <MenuItemComponent
             key={`grid-${item.id}`}
             item={item}
-            selectedChannel={selectedChannel}
-            expandedItem={expandedItem}
-            toggleItemExpansion={toggleItemExpansion}
-            isItemInChannel={isItemInChannel}
-            toggleItemInChannel={toggleItemInChannel}
             setSelectedItem={setSelectedItem}
             setShowDeviceModal={setShowDeviceModal}
-            setShowPageSelectionModal={setShowPageSelectionModal}
             setWorkflowType={setWorkflowType}
             viewMode={viewMode}
             devices={devices}
@@ -212,14 +194,8 @@ export function MenuItems({
         <MenuItemComponent
           key={`list-${item.id}`}
           item={item}
-          selectedChannel={selectedChannel}
-          expandedItem={expandedItem}
-          toggleItemExpansion={toggleItemExpansion}
-          isItemInChannel={isItemInChannel}
-          toggleItemInChannel={toggleItemInChannel}
           setSelectedItem={setSelectedItem}
           setShowDeviceModal={setShowDeviceModal}
-          setShowPageSelectionModal={setShowPageSelectionModal}
           setWorkflowType={setWorkflowType}
           viewMode={viewMode}
           devices={devices}

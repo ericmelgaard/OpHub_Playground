@@ -12,7 +12,7 @@ import {
   Sparkles, CalendarOff } from 'lucide-react';
 import { Device, MenuItem, DevicePage as DevicePageType, Substitution, SubstitutionKey, SubstitutionContext, ResolvedItem } from '../types';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { isItemActiveForDaypart, DAY_ABBR } from '../lib/availability';
 import { resolveItemsForDay, hasSubstitutionOnAnyDay } from '../lib/substitutions';
@@ -20,7 +20,7 @@ import { QuickAddModal } from './QuickAddModal';
 import { ItemActionSheet } from './ItemActionSheet';
 import { SubstitutionFlow } from './SubstitutionFlow';
 import { PageActionBar } from './PageActionBar';
-import type { DisplayToggle } from './InlineItemPicker';
+import type { DisplayToggle } from './DayToggle';
 import { ThreeStageToggle, SomeDaysTag } from './DayToggle';
 import { AllDaypartsEditor } from './AllDaypartsEditor';
 import { LabelAnchor } from './LabelAnchor';

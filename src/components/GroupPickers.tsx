@@ -259,7 +259,6 @@ export function AddBrandsModal({ isOpen, onClose, brands, selectedIds, onConfirm
             ) : (
               filtered.map((b) => {
                 const isSelected = checked.has(b.id);
-                const logoUrl = getLogoUrl(b);
                 return (
                   <button
                     key={b.id}

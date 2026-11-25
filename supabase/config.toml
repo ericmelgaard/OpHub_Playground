@@ -1,2 +1,3 @@
 [functions.populate-menu-data]
-verify_jwt = false
+# The app sends the anon key; requests without a valid key are refused
+verify_jwt = true
