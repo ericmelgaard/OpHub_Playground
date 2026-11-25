@@ -4,6 +4,11 @@ Rules for any AI (or person) adding or changing UI in WAND Digital prototypes. T
 new screens look like they were always part of the app. **When in doubt, find the closest
 existing component and copy its patterns.**
 
+**Menu scheduling (data, infrastructure, APIs, what the UI must show):**
+[`docs/MENU_SCHEDULING_DESIGN.md`](docs/MENU_SCHEDULING_DESIGN.md) is the source of truth. Read its
+"Using this document" section first; UI that shows schedules, weeks or item states must match its §15
+and the `R-UI-*` requirements.
+
 ## Rules for AI
 - Copy the closest existing pattern before creating anything new.
 - Use the colors, components, icons, and daypart colors defined below.

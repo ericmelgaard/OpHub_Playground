@@ -3,15 +3,46 @@
 | | |
 |---|---|
 | **Status** | **Proposed — awaiting approval.** No build work starts until this is approved. |
-| **Version** | 1.5 · 2026-11-25 |
+| **Version** | 2.0 · 2026-11-25 |
 | **Owner** | Eric Melgaard |
 | **Scope** | Infrastructure, table schema and the logic that populates menu schedules on smart labels and signage menu zones |
 | **Source of truth** | This file (`docs/MENU_SCHEDULING_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
+| **Proposed — confirm** | Items marked this way are recommendations waiting for the owner's decision; they're listed in §19. Build to them unless §19 says otherwise. |
 
-**How to use this document.** Each part of the build should point back to a section here: the
-tables in §7–9, retention in §10, the flows in §11 (`F1`–`F13`), the APIs in §12. Decisions have IDs
-(`D1`–`D44`, §14). Start with §4: it explains the life of a menu item, which everything else serves. If
-code and this document disagree, this document wins until it's changed on purpose.
+## Using this document
+
+This document is the single reference for building menu scheduling: the infrastructure, the SQL
+tables, the logic, the APIs and what the UI must show. It's written so that people and AI coding agents
+can answer build questions from it directly.
+
+**Where to find what**
+
+| Question | Read |
+|---|---|
+| What is this system and why is it built this way? | §1 Goals, §2 Architecture, §4 Life of a menu item |
+| What infrastructure do we need? | §3 Infrastructure choices, §10.4 Scale, §13 Security, §14 Service levels, requirements `R-INF-*` (§16) |
+| What SQL tables do we need? | §7 Product database, §8 ETL, §9 Scheduling, §10 Retention, requirements `R-DB-*` |
+| How does data stay fresh? What is cached, what is computed? | §5 Freshness and sync, §5.7 Compute on change, look up on read |
+| What does a device or partner receive? | §12.4 Menu response, §12.5 Offline package, §12.6 Errors and limits |
+| How does a specific behavior work? | §11 Logic flows (`F1`–`F15`) |
+| How do people, devices and services authenticate? | §13 Security and access |
+| What must the UI show? | §15 UI representation, requirements `R-UI-*` |
+| What is the testable list of requirements? | §16 Requirements (every one traces to a section) |
+| In what order do we build, and how do we know a phase is done? | §17 Build plan |
+| Why was a choice made? | §18 Decisions (`D1`–`D57`) |
+| What is still undecided? | §19 Open items and proposed decisions |
+
+**Instructions for AI agents using this document**
+
+- Treat this file as the source of truth. Answer from it, and cite the section, flow (`F…`), decision
+  (`D…`) or requirement (`R-…`) you used.
+- Use the table and column definitions in §7–9 as written. Don't invent tables, columns, states or
+  endpoints. If something needed isn't here, say so and point to §19 rather than filling the gap.
+- Items marked **Proposed — confirm** are the current plan; mention that they're awaiting confirmation.
+- For UI work, check §15 and the `R-UI-*` requirements, and follow the repository's UI style guide
+  (`CLAUDE.md`) for components and wording.
+- If code and this document disagree, this document wins until it's changed on purpose (change it first,
+  then the code).
 
 ## 1. Goals and non-goals
 
@@ -370,6 +401,29 @@ The UI and the API get the same answer for the same date. What happens depends o
 - **Mixed pages** resolve both kinds together; a slow Webtrition pull never blocks custom items (they
   resolve at once; Webtrition items fall back to `stale` / `unvalidated` if the pull times out).
 
+### 5.7 Compute on change, look up on read
+
+Resolving a menu (choosing placements, matching links, layering values, ordering) is the expensive
+step. It runs **when something changes**, and its result is stored. Requests from devices and the API
+are key lookups of stored rows; they compute only for dates outside the stored window.
+
+| Data | Written when | Read by | Computed per request? |
+|---|---|---|---|
+| Placements, Default Week | A person edits a schedule | Resolving | No |
+| Webtrition day cache | Every validation pull (no change = only `fetched_at` updates) | Resolving | No |
+| Menu item links | A date's menu items are fetched and matched | Resolving, UI, support | No |
+| Store product set (`location_products`) | A product, link, override or harvested value changes | Resolving, search | No |
+| Resolved menus, today through next week | Re-resolved and written only when the result changes | Devices, API, UI | **No: key lookup** |
+| What was shown (`shown_menus`) | Each version sent | Past days, audit | No |
+| Change feed | Each changed resolved menu | Webhooks, polling | No |
+| Offline packages | Rebuilt when any input changes (F14) | Offline devices | **No: lookup by version** |
+| Dates after next week | Not stored as resolved menus | UI, API | **Yes**, then held in a short-lived memory cache (Redis) until the data passes `max_age` |
+| Multi-day responses | Assembled from stored resolved-menu rows | Devices, API | Assembly only, no resolving |
+
+Why: reads far outnumber changes (250,000 targets polling each minute is ~4,000 requests a second,
+while a Webtrition day changes a few times); writes stay small (a store's ~96 daily validations are
+almost all "no change"); stored rows keep answering when a source is down.
+
 ## 6. Concepts and identities
 
 | Term | Meaning |
@@ -683,6 +737,20 @@ create table dayparts (
   source_meal_period_ids  int[]             -- which Webtrition meal periods feed it
 );
 
+create table daypart_hours (                 -- when each daypart runs, per weekday, store time zone
+  daypart_id  uuid references dayparts on delete cascade,
+  weekday     smallint check (weekday between 0 and 6),   -- 0 = Sunday
+  starts      time not null,
+  ends        time not null,                -- ends < starts = runs past midnight; it belongs to the
+                                            -- date it starts on (D50)
+  primary key (daypart_id, weekday)
+);
+
+create table attribute_profiles (            -- which attributes a kind of target receives (D51)
+  id          text primary key,             -- 'label_2in', 'label_3in', 'signage', …
+  attributes  text[] not null               -- e.g. {name, price, icons}
+);
+
 create table menu_targets (
   id           uuid primary key,
   store_id     uuid not null,
@@ -691,6 +759,9 @@ create table menu_targets (
   name         text,
   menu_source  text check (menu_source in ('webtrition','retail')),  -- null = the store's
   config       jsonb not null default '{}', -- pages per daypart; zones report capacity + overflow rules
+  attribute_profile  text references attribute_profiles,
+  delivery     text not null default 'online' check (delivery in ('online','offline')),
+                                            -- offline = receives offline packages (§12.5)
   unique (store_id, kind, external_id)
 );
 
@@ -804,13 +875,45 @@ create table endpoint_subscriptions (        -- webhooks
   target_id    uuid,                         -- null = every target in the store
   url          text not null,
   secret_ref   text,                         -- signing secret reference
-  push_window  text not null default 'today',  -- today | this_week
+  push_window  text not null default 'today',  -- today | today_tomorrow | this_week (AIMS: D52)
   last_seq     bigint,                       -- last change delivered
   active       boolean not null default true
 );
 ```
 
-Retention: `menu_change_feed` keeps 7 days.
+```sql
+create table offline_packages (              -- weekly pattern + exceptions for offline devices (§12.5)
+  target_id     uuid not null,
+  version       text not null,               -- hash of the package contents
+  horizon_days  int  not null,               -- how far ahead exceptions are included
+  payload       jsonb not null,
+  built_at      timestamptz not null,
+  current       boolean not null,
+  primary key (target_id, version)
+);
+create unique index on offline_packages (target_id) where current;
+
+create table device_status (                 -- what each device last reported (§13, F15)
+  device_id        uuid primary key,         -- devices table, §13
+  target_id        uuid,
+  package_version  text,                     -- offline devices
+  menu_hash        text,                     -- online devices
+  last_seen        timestamptz,
+  reported_at      timestamptz
+);
+
+create table package_deliveries (            -- which package version a device had, when (audit)
+  device_id    uuid not null,
+  target_id    uuid not null,
+  version      text not null,
+  active_from  timestamptz not null,         -- reported by the device on reconnect
+  active_to    timestamptz,
+  primary key (device_id, active_from)
+);
+```
+
+Retention: `menu_change_feed` keeps 7 days; `offline_packages` keeps the current and previous version
+for 30 days; `package_deliveries` keeps 8 weeks, like `shown_menus`.
 
 ## 10. Data retention, volume and scale
 
@@ -827,6 +930,8 @@ Retention: `menu_change_feed` keeps 7 days.
 | Menu item links | `menu_item_links` | Same as their placements (8 weeks back) | What each placement matched, per date |
 | Resolved menus | `resolved_menus` | Today through next week | What endpoints read |
 | What was shown | `shown_menus` | 8 weeks, like schedules | Past days are read from it; audit |
+| Offline packages | `offline_packages` | Current + previous version, 30 days | What offline devices load |
+| Device reports | `device_status`, `package_deliveries` | Status current; deliveries 8 weeks | What an offline device actually had |
 | Order locks | `menu_order_locks` | Today only | Frozen order |
 | Change feed | `menu_change_feed` | 7 days | Endpoint polling and webhook retries |
 | Sync jobs and status | `sync_jobs`, `source_sync_status` | Jobs 7 days; status current | Troubleshooting |
@@ -1094,9 +1199,33 @@ policy's limits). Changed values flow through F9.
    `max_age`, queue a refresh (F2b) and return the cache with freshness states.
 3. **Further out:** find the placements for that date (§4.7; a recurring week is copied on first
    access, the Default Week is read by reference), get the validation response on demand, write links,
-   resolve the day (F6) and return it. Not stored as a
-   cached menu; links are kept.
+   resolve the day (F6) and return it. Not stored as a resolved menu; links are kept. Hold the result
+   in the memory cache until its data passes `max_age`.
 4. **Forced:** `POST /refresh` first (subject to policy), then as above.
+5. **A range of dates** (`from`/`to`): each date is answered on its own by the rules above (its own
+   week, its own schedule source, its own links), so a range can cross from a Default Week week into a
+   scheduled week; the response is assembled per day (§12.4).
+
+### F14 · Build an offline package
+
+1. Triggered when anything a package depends on changes for an offline target (`delivery = 'offline'`):
+   the Default Week, a week row or recurring week inside the horizon, a product value, daypart hours.
+2. Build the **pattern** from the Default Week: per daypart, its hours per weekday and its placements in
+   order, each with the weekdays it shows on (from its day masks) and its resolved values, trimmed to
+   the target's attribute profile.
+3. Add **exceptions**: each date inside the horizon (default 8 weeks, **Proposed — confirm**) whose
+   placements don't come from the Default Week (a week's own schedule, a recurring week) or that has a
+   Webtrition placement set to Auto (sent as finished days, since it can't be predicted).
+4. Hash the payload as `version`. If it differs from the current one, store it as current, write a
+   change feed row and notify subscribers.
+
+### F15 · Device reports in
+
+1. An online device sends its menu hash with each read (`If-None-Match`); an offline device sends its
+   package version on reconnect (`POST /devices/{id}/heartbeat`).
+2. Update `device_status`. For offline devices, close the previous `package_deliveries` row and open one
+   for the reported version, so the record says which version was active and when.
+3. A device not heard from in 24 hours is reported (§14), not treated as an error by the menu system.
 
 ## 12. APIs
 
@@ -1140,25 +1269,411 @@ policy's limits). Changed values flow through F9.
 | `POST /targets/{id}/weeks/{weekStart}/copy` · `/recur` | UI | Copy, paste, recurring |
 | `GET /targets/{id}/available?date&daypart` | UI | What can be scheduled: the date's validation response, enriched (Webtrition), or products (retail); each with link state |
 | `GET /targets/{id}/links?from&to` | UI, support | Menu item links per placement and date |
-| `GET /menus?target&date&daypart` | Devices, signage, public API | Any date (F13): past from `shown_menus`, today to next week from `resolved_menus` (ETag = hash, `304` when unchanged), later dates resolved on demand |
+| `GET /menus?target&date[&daypart]` · `GET /menus?target&from&to[&daypart]` | Devices, signage, public API | Any date or range up to 31 days (F13, §12.4): past from `shown_menus`, today to next week from `resolved_menus`, later dates resolved on demand; ETag = hash, `304` when unchanged |
+| `GET /targets/{id}/offline-package[?version]` | Offline devices | Current package (§12.5); `304` when the device already has it |
+| `POST /devices/{id}/heartbeat {version \| hash}` | Devices | Report what the device has (F15) |
 | `GET /targets/{id}/shown?date[&daypart]` | UI, support | Every version sent for a past day |
 | `GET /changes?store&since=<seq>` | Polling endpoints | Changes since a sequence number |
 | `POST/DELETE /subscriptions` | Endpoint setup | Register a webhook (§5.5) |
 
-## 13. Build plan
+### 12.4 Menu response format (devices, signage, partners)
+
+One shape for one date or a range. Attributes are trimmed to the target's attribute profile (D51).
+
+```json
+{
+  "target": { "id": "…", "kind": "label", "externalId": "<AIMS label id>", "attributeProfile": "label_2in" },
+  "timezone": "America/Chicago",
+  "hash": "<combined hash of every day and daypart below>",
+  "days": [
+    {
+      "date": "2026-12-04",
+      "schedule": { "source": "default", "weekStart": "2026-11-29", "edited": false },
+      "dayparts": [
+        {
+          "daypart": { "id": "…", "name": "Lunch", "starts": "10:30", "ends": "14:00" },
+          "hash": "9f2c…",
+          "resolvedAt": "2026-11-25T14:05:12Z",
+          "items": [
+            {
+              "position": 1,
+              "productId": "…",
+              "kind": "webtrition",
+              "name": "Chicken Tenders",
+              "price": "7.50",
+              "icons": ["…"],
+              "link": { "state": "linked", "menuItemId": 123456 },
+              "freshness": { "state": "validated", "fetchedAt": "2026-11-25T14:04:58Z" }
+            },
+            {
+              "position": 2,
+              "productId": "…",
+              "kind": "custom",
+              "name": "Soup of the Day",
+              "price": "4.25",
+              "link": null,
+              "freshness": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `days[].schedule.source` | Where that day's placements came from: `default`, `week` (its own schedule) or `recurring`. Informational; devices can ignore it. |
+| `days[].dayparts[].hash` | Changes when that day and daypart change; lets a device refresh only what changed |
+| `hash` | Combined hash; send as `If-None-Match` for a `304` |
+| `items[].kind` | `webtrition`, `retail` or `custom` |
+| `items[].link` | Webtrition only: `planned`, `linked` or `missing`, and the menu item id when linked |
+| `items[].freshness` | Webtrition and POS-sourced values: `validated`, `stale`, `unvalidated`, `limited`, with the fetch time |
+| Attribute fields | Only those in the target's attribute profile (name, price, icons, calories, allergens, description, nutrition, out_of_stock …) |
+
+Past days carry `"schedule": { "source": "shown" }` and the version that was sent. A daypart that runs
+past midnight is listed under the date it starts on.
+
+### 12.5 Offline package (retail devices that may lose connection)
+
+For targets with `delivery = 'offline'`. The device stores the package and applies it for any date
+while offline.
+
+```json
+{
+  "target": { "id": "…", "kind": "zone", "attributeProfile": "signage" },
+  "version": "a41e…",
+  "timezone": "America/Chicago",
+  "weekStartsOn": "sun",
+  "builtAt": "2026-11-25T14:10:00Z",
+  "horizonDays": 56,
+  "pattern": {
+    "source": "default",
+    "dayparts": [
+      {
+        "daypart": "Lunch",
+        "hours": { "sun": ["11:00","15:00"], "mon": ["10:30","14:00"], "tue": ["10:30","14:00"],
+                   "wed": ["10:30","14:00"], "thu": ["10:30","14:00"], "fri": ["10:30","14:00"],
+                   "sat": ["11:00","15:00"] },
+        "items": [
+          { "position": 1, "productId": "…", "name": "Whopper",       "price": "6.49", "days": ["sun","mon","tue","wed","thu","fri","sat"] },
+          { "position": 2, "productId": "…", "name": "Fish Sandwich", "price": "5.99", "days": ["fri"] },
+          { "position": 3, "productId": "…", "name": "Taco Tuesday",  "price": "1.99", "days": ["tue"] }
+        ]
+      }
+    ]
+  },
+  "exceptions": [
+    { "from": "2026-12-20", "to": "2026-12-26", "source": "week", "days": [ "…same shape as §12.4 days…" ] }
+  ],
+  "validUntil": null
+}
+```
+
+**Device rules for any date, offline:**
+
+1. If an exception covers the date, use that exception's day.
+2. Otherwise use the pattern: for each daypart, keep items whose `days` include the weekday, in
+   `position` order.
+3. Switch dayparts by that weekday's `hours`, in `timezone`. A daypart whose end is earlier than its
+   start runs past midnight and belongs to the day it starts.
+4. When online: `GET /targets/{id}/offline-package` with the stored version (`304` if current), and
+   `POST /devices/{id}/heartbeat` with the version in use.
+
+Offline limits: out-of-stock and POS price changes wait until reconnect; Webtrition Auto placements
+are only sent as finished days inside the horizon; `validUntil` is set only when something
+unpredictable ends the pattern.
+
+### 12.6 Errors, paging, rate limits and edit safety
+
+- **Errors** use JSON problem details (RFC 9457) with a stable `code`:
+
+| HTTP | `code` | When |
+|---|---|---|
+| 400 | `invalid_range` | Range over 31 days, `to` before `from`, bad date |
+| 401 | `unauthenticated` | Missing or expired credential |
+| 403 | `forbidden` | Credential lacks the scope or the store / target |
+| 404 | `not_found` | Unknown target, week, product |
+| 409 | `version_conflict` | An edit sent with an out-of-date `If-Match` (someone else changed it) |
+| 429 | `rate_limited` | Over the rate limit; `Retry-After` set |
+| 200 | (state `limited`) | A forced refresh the source policy refused; body gives `lastOkAt`, `nextAllowedAt` |
+| 503 | `source_unavailable` | Only when a forced refresh fails **and** there is no cached data at all |
+
+- **Paging:** list endpoints (`/changes`, catalog, search, links) are cursor-paged: `limit` (default 100,
+  max 1,000) and `cursor`; the response gives `nextCursor`.
+- **Rate limits (Proposed — confirm):** per device 60 requests a minute; per partner client 600 a
+  minute; UI per user 300 a minute. `429` with `Retry-After`.
+- **Edit safety:** week, Default Week and placement edits require `If-Match` with the version last read;
+  a stale version returns `409` so two people can't overwrite each other.
+
+## 13. Security and access
+
+**Proposed — confirm** (all of §13).
+
+### 13.1 Who calls what
+
+| Caller | Credential | Can reach |
+|---|---|---|
+| **People** (Operator Hub users) | WAND sign-in (the existing Cognito user pool), short-lived JWT with role and scope claims | UI-facing endpoints, within their scope |
+| **Devices** (signage players, label gateways) | Per-device token issued at registration, stored hashed, scoped to one store and its targets, revocable, rotated yearly | `GET /menus`, `GET /targets/{id}/offline-package`, heartbeat — read only |
+| **Partners and integrations** | OAuth 2 client credentials per company, with scopes (`menus:read`, `changes:read`, `subscriptions:write`) | Read APIs and webhooks for their company's stores |
+| **AIMS push** | A service credential held by the push worker; labels never call the API | Reads resolved menus internally; writes to AIMS |
+| **Services** (ETL, product DB, scheduling) | Service tokens (or mTLS) per service | Each other's internal endpoints only |
+| **Webhooks we send** | HMAC-SHA256 signature over timestamp + body, per-subscription secret | Receivers verify; requests older than 5 minutes are rejected |
+
+### 13.2 Roles and scope
+
+| Role | Scope | Can |
+|---|---|---|
+| Brand manager | Concept (or above) | Edit retail products, map POS items, seed, set concept settings; edit at concept level |
+| Company admin | Company | Edit Webtrition and custom products at company level, translations, store settings |
+| Store manager | Store | Schedules, Default Week, store-level overrides; brand edits / brand items only when the concept allows |
+| Viewer | Store or company | Read only |
+
+A higher-level edit always wins (D4); the role check decides who may make it.
+
+### 13.3 Data protection
+
+- Row-level security on every table by company and store; services set the caller's scope per request.
+- Source credentials (POS, Webtrition keys) live in a secret store; `store_sources.config` holds only a
+  reference.
+- Device and partner secrets are stored hashed; tokens can be revoked at once.
+- Audit: every edit records who, when and the level (`updated_by`, `mapped_by`, change feed `reason`).
+
+```sql
+create table devices (
+  id            uuid primary key,
+  store_id      uuid not null,
+  target_ids    uuid[] not null,             -- targets this device shows
+  kind          text not null check (kind in ('signage_player','label_gateway','other')),
+  token_hash    text not null,
+  status        text not null default 'active' check (status in ('active','revoked')),
+  registered_at timestamptz not null,
+  rotated_at    timestamptz
+);
+
+create table api_clients (
+  id            uuid primary key,
+  company_id    uuid not null,
+  name          text not null,
+  secret_hash   text not null,
+  scopes        text[] not null,             -- menus:read, changes:read, subscriptions:write
+  status        text not null default 'active' check (status in ('active','revoked')),
+  created_at    timestamptz not null
+);
+```
+
+## 14. Service levels and monitoring
+
+**Proposed — confirm** (targets).
+
+### 14.1 Speed and availability targets
+
+| Path | Target |
+|---|---|
+| `GET /menus`, one date, today through next week | p95 under 100 ms server time; `304` under 50 ms |
+| `GET /menus`, range up to 14 days | p95 under 300 ms |
+| `GET /targets/{id}/offline-package` | p95 under 200 ms |
+| A date after next week (on demand) | p95 under 6 s (bounded by the ~5 s source wait), then the fallback |
+| UI: open a cached week | p95 under 1 s |
+| UI: open an uncached week | p95 under 6 s, with the fallback shown if the source is slow |
+| Validation lag | 99% of active stores validated within `max_age` during their window |
+| Source change to device | Change recorded within 60 s of the pull; pushed to the device within 2 min (p95) |
+| Product edit to today's menus | Company-wide: within 2 min (p95). Concept-wide: today's menus within 15 min |
+| Availability | Device read API 99.9% a month; edit and ETL paths 99.5% |
+| Recovery | Point-in-time restore; data loss at most 5 min; back in service within 1 h |
+
+### 14.2 What to measure
+
+Validation lag per store; share of items `stale` / `unvalidated`; queue depth and wait by priority; job
+failures per source; wds response time; source-change-to-device time; webhook failures; fan-out backlog
+(today, this week, next week); `304` ratio; API p95 per endpoint; offline devices by last report.
+
+### 14.3 Alerts
+
+| Alert | Fires when |
+|---|---|
+| Store stale | A store's validation has been past 2 × `max_age` during its window |
+| Source failing | A source's error rate is over 20% for 15 minutes |
+| Queue backing up | Forced or UI jobs wait more than 30 s |
+| Fan-out behind | Today's re-resolves are more than 10 minutes behind |
+| Webhook failing | An endpoint has failed for an hour (it's paused and its owner notified) |
+| Retention failed | The daily retention job didn't finish |
+| Device silent | An offline device hasn't reported in 24 hours (a report, not a page) |
+
+## 15. UI representation
+
+What the Operator Hub UI must show so it represents this design correctly. Copy shown here is
+proposed; final wording and components follow the repository UI style guide (`CLAUDE.md`).
+
+### 15.1 Weeks
+
+| Design | UI |
+|---|---|
+| A week that follows the Default Week (no row, §4.7) | Week tile with the Default marker; "x of y labels differ from Default" counts targets whose week has its own row |
+| A week with its own schedule (`edited = true`) | Override marker |
+| A recurring week or occurrence | Recurring marker; the recurring control offers "every N weeks" and an optional end date |
+| Editing the Default Week | Says the change applies now to every week that follows the Default Week |
+| First edit of a week that follows the Default Week | Says this week now has its own schedule; tile turns Override |
+| Past weeks | Read only, shown from what was sent ("As shown") |
+
+### 15.2 Items on a label or zone
+
+| State | UI |
+|---|---|
+| `linked`, `validated` | Normal |
+| `missing` | "Not on the source menu" for that day; Auto items don't show on the label that day, forced On items show flagged |
+| `planned` | "Planned, not on a source menu yet" |
+| `stale` | A quiet flag with the last check time ("Checked 42 min ago") |
+| `unvalidated` | "Not checked yet" |
+| `limited` | "Refresh available at 2:00 AM" (from `nextAllowedAt`) on a refresh attempt |
+| Custom and retail items | No source flags |
+| Day strip | Outline on days the source offers the item (linked days); fill on days it's used |
+
+### 15.3 Adding items and search
+
+- The pick list for a Webtrition target and date is that date's validation response, with WAND names
+  and prices.
+- Search results show items that aren't on that day's menu as prominently as those that are, marked.
+- Custom quick add runs the name check and offers ingredient, allergen and icon chips.
+
+### 15.4 Freshness and sources
+
+- A "Refresh now" action that respects the source policy and shows `limited` when refused.
+- Sync status per source: last pull, last success, next due, next allowed, last error.
+
+### 15.5 Retail and devices
+
+- Staging catalog with unmapped count; map to a projection; "Make brand item" only when the concept
+  allows it.
+- Per store: which POS is active and its priority.
+- Device status: online menu hash or offline package version, last seen.
+
+## 16. Requirements
+
+Testable requirements. Each traces to the section, flow or decision that explains it. "Must" is
+required for the phase named in §17.
+
+### 16.1 Infrastructure (`R-INF`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-INF-1 | Three services with separate data: ETL, product database (behind its service API), scheduling | No service reads another's tables directly | §2, I1, I4 |
+| R-INF-2 | The ETL runs always on, with a durable job queue, priority order, per-source rate limiter and single-flight | Forced and UI jobs run before validation; duplicate requests share one source call | §5.4, I2, I9 |
+| R-INF-3 | Sync policies are data; changing one takes effect without a deploy | Change PAR to two pulls a day; the scheduler follows it | §5.2, D25 |
+| R-INF-4 | The core runs without Airflow; Airflow, if used, runs only the daily batch | No request waits on an Airflow run | §3, D41 |
+| R-INF-5 | Events between services (`product.changed`, `menu.source_changed`) | A product edit reaches today's menus without polling | I7, F9 |
+| R-INF-6 | Change feed, signed webhooks and ETag polling for endpoints | A source change reaches a webhook within the §14 target | §5.5, F12 |
+| R-INF-7 | Short-lived memory cache for dates after next week | A repeat request inside `max_age` doesn't resolve again | §5.7 |
+| R-INF-8 | Per-tenant fairness in the queue | One company's fan-out doesn't delay another's validation past `max_age` | §10.4 |
+| R-INF-9 | Services are stateless and scale out; jobs are idempotent | Two workers given the same job produce one result | §10.4 |
+
+### 16.2 Database (`R-DB`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-DB-1 | Tables, columns, keys and checks as defined in §7–9 and §13.3 | Migration matches the definitions | §7–9 |
+| R-DB-2 | Three schemas: `product`, `etl`, `schedule` | Each service's tables live in its schema | I8 |
+| R-DB-3 | Date-keyed tables partitioned weekly by date | `source_menu_items`, `menu_item_links`, `resolved_menus`, `shown_menus`, `menu_change_feed` are partitioned | §10.3, I13 |
+| R-DB-4 | Dated Webtrition rows hold no nutrition or allergen detail | `source_menu_items` has `detail_hash`, no detail columns | §8, D35 |
+| R-DB-5 | Weeks that follow the Default Week have no row | Opening such a week inserts nothing into `menu_weeks` | §4.7, D42 |
+| R-DB-6 | Row-level security by company and store on every table | A store user can't read another store's rows | §13.3 |
+| R-DB-7 | Retention per §10.1 runs daily | Partitions older than their window are gone after the job | §10 |
+| R-DB-8 | Edits use row versions for `If-Match` | A stale edit returns `409` | §12.6 |
+
+### 16.3 ETL and freshness (`R-ETL`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-ETL-1 | Seed one menu cycle at setup and when a new template becomes active | A new store has projections for its cycle; a new template triggers one seed | F1, F1b, D29 |
+| R-ETL-2 | Here-and-now validation pulls one day on each store's policy | Today is re-pulled every 15 min for Webtrition inside its window | F2, D24 |
+| R-ETL-3 | Uncached dates are pulled on demand with a ~5 s wait, then fall back | A week 3 weeks out loads; with Webtrition blocked it shows `unvalidated` | F2b, D27 |
+| R-ETL-4 | Forced refresh respects the policy | A forced PAR pull after the daily one returns `limited` with `nextAllowedAt` | F2b, D25 |
+| R-ETL-5 | Source outages keep the last data, marked `stale` | Block the source; menus still return, flagged | §5.3, D26 |
+| R-ETL-6 | Change detection by hash; only changes trigger re-resolving | An unchanged pull writes only `fetched_at` | §5.4 |
+| R-ETL-7 | Every new Webtrition MRN + portion becomes a company projection | A new item appears in `location_products` after the pull that saw it | D9 |
+| R-ETL-8 | POS items wait in the staging catalog unless mapped or auto-imported | A new unmapped POS item creates no product | F3, D20 |
+| R-ETL-9 | `allergenMenu: "all"` on every wds call | Retail Allergen menus return items | §5.1, F1 |
+
+### 16.4 Products (`R-PD`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-PD-1 | Value order per attribute: week override, store, company, concept, linked sources in priority order | Agilysys price at priority 2 shows when Webtrition doesn't map price | F6, D12 |
+| R-PD-2 | A higher-level edit clears the same attribute below it | A company translation replaces a store's | F9, D4 |
+| R-PD-3 | Retail projections are concept-owned; Webtrition and custom company-owned | Ownership checks in §7.2 hold | D22 |
+| R-PD-4 | POS mapping once per concept covers every store on that POS | Map at the lab store; every store links | F4, D19, D21 |
+| R-PD-5 | Webtrition projections go inactive after two cycles unseen; retail never | An unseen item is hidden from quick add after two cycles | F2b, D16 |
+| R-PD-6 | Name check before creating by hand | A duplicate custom name is refused | §7.2 |
+| R-PD-7 | On-demand refresh of one projection | "Update" pulls the recipe and changes values | F9b, D31 |
+
+### 16.5 Scheduling (`R-SCH`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-SCH-1 | Webtrition scheduling works from the validation response | The pick list for a date equals that date's menu items for the meal period | §4.1, D32 |
+| R-SCH-2 | Placements never store a menu item id; links are per date | A placement links to a different id each day | §4.4, D33 |
+| R-SCH-3 | `planned` becomes `linked` automatically when the date is published | A future placement turns `linked` after the date is fetched, with no edit | §4.3 |
+| R-SCH-4 | Placements for a date: own schedule, then recurring, then Default Week | The Thu–Mon example in §12.4 resolves per date | §4.7, F13 |
+| R-SCH-5 | Default Week edits apply at once to every week that follows it | Edit the Default Week; next week (no row) shows it immediately | F7, D15 |
+| R-SCH-6 | First edit of a following week creates its own schedule | The week gets a row and the Override marker | F7 |
+| R-SCH-7 | Recurring weeks copy on first access and can end | An occurrence after the end date follows the Default Week | §4.7, D43 |
+| R-SCH-8 | Order freezes once a day is shown | A new item added after the first send goes to the end | F10, D3 |
+| R-SCH-9 | Match by MRN + portion + meal period; station ignored | An item at a different station still links | D1 |
+| R-SCH-10 | Past days are read from what was shown | Rename a product; last Tuesday still shows the old name | D40 |
+
+### 16.6 APIs and devices (`R-API`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-API-1 | `GET /menus` answers any date and ranges up to 31 days in the §12.4 shape | Past, cached and far-future dates all return | F13, §12.4 |
+| R-API-2 | ETag / `304` on menus and packages | A repeat request with the hash returns `304` | §5.5 |
+| R-API-3 | Each day reports its schedule source | A Default Week day says `default` | §12.4 |
+| R-API-4 | Attributes trimmed to the target's attribute profile | A 2" label gets name, price, icons only | §12.4, D51 |
+| R-API-5 | Offline package with pattern, per-day items, hours per weekday, exceptions, version | A device applies Friday's items for any Friday offline | §12.5, F14 |
+| R-API-6 | Devices report their version; deliveries are recorded | Reconnect writes a `package_deliveries` row | F15 |
+| R-API-7 | Errors, paging, rate limits and `If-Match` per §12.6 | A 32-day range returns `400 invalid_range` | §12.6 |
+| R-API-8 | Webhooks signed; receivers can verify | A tampered body fails verification | §13.1 |
+
+### 16.7 Security (`R-SEC`), service levels (`R-NFR`), monitoring (`R-OBS`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-SEC-1 | People sign in with WAND sign-in; roles and scope enforced | A store manager can't edit at company level | §13.1–13.2 |
+| R-SEC-2 | Per-device tokens, hashed, scoped, revocable | A revoked device gets `401` at once | §13.1 |
+| R-SEC-3 | Partner clients use client credentials with scopes | A client without `subscriptions:write` can't add a webhook | §13.1 |
+| R-SEC-4 | Source credentials only in the secret store | No credential values in any table | §13.3 |
+| R-NFR-1 | Meet the §14.1 targets | Load test at the §10.4 sizing meets them | §14.1 |
+| R-OBS-1 | Measure the §14.2 metrics and fire the §14.3 alerts | Each alert can be triggered in a test | §14.2–14.3 |
+
+### 16.8 UI (`R-UI`)
+
+| ID | Requirement | Acceptance | Trace |
+|---|---|---|---|
+| R-UI-1 | Week tiles show Default, Override and Recurring per §15.1 | A following week shows Default; an edited one Override | §15.1 |
+| R-UI-2 | Item states and freshness shown per §15.2 | Each state can be produced and is visible | §15.2 |
+| R-UI-3 | Default Week edits and first edits explain their effect | Messages appear as in §15.1 | §15.1 |
+| R-UI-4 | Pick list from the validation response; search shows unavailable items as prominently | Matches §15.3 | §15.3 |
+| R-UI-5 | Refresh now respects policy and shows `limited` | Matches §15.4 | §15.4 |
+| R-UI-6 | Past weeks are read only and shown as sent | Editing controls are absent on past days | §15.1 |
+| R-UI-7 | Retail mapping and device status screens per §15.5 | Matches §15.5 | §15.5 |
+
+## 17. Build plan
 
 Each phase is reviewed before the next starts.
 
 | Phase | Builds | Done when |
 |---|---|---|
 | **0. Approve** | This document | Approved; status changed above |
-| **1. Schemas** | `product`, `etl`, `schedule` schemas with §7–9 tables in the playground Supabase; hierarchy and one demo store | Migration applies cleanly; RLS stays open for the playground |
-| **2. ETL Webtrition** | `populate-menu-data` becomes the ETL: `seed` (F1), new template detection (F1b), sync policies, scheduler, queue and rate limiter, validate here and now (F2), cached / uncached / forced (F2b), `source-menu`, `validate` | Demo store seeded for one cycle; today re-validated every 15 min; a forced refresh and an uncached future week both work; projections in `location_products` |
-| **3. Product DB API** | RPC functions for §12.1 (search, upsert-from-source, overrides, links); `product.changed` via `pg_notify` | Search returns available and unavailable items; an override shows up in `location_products` |
-| **4. Scheduling core** | Targets, Default Week, weeks, placements, `menu_item_links`, `shown_menus`; F5–F7, F10, F12, F13; `resolved_menus`, change feed, `GET /menus` with ETag; retention job (§10) | Existing demo schedules migrated and resolving the same as today's UI; a future-week placement goes `planned` → `linked`; a source change during the day shows in the change feed |
-| **5. UI switch-over** | UI reads and writes through scheduling and product functions; week resolution moved out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` | Smart Labels and Products work on the new tables; old tables dropped |
-| **6. Retail** | `store_sources`, staging catalog, concept maps, seed (F3, F4), category autofill | A test POS catalog seeded at a lab store and mapped; a retail target fills by category |
-| **7. Signage zones** | `menu_targets.kind = 'zone'` with reported capacity and overflow | A zone resolves a category menu |
+| **1. Schemas** | `product`, `etl`, `schedule` schemas with §7–9 tables in the playground Supabase; hierarchy and one demo store | Migration applies cleanly; RLS stays open for the playground. Covers R-DB-1–5, R-DB-7 |
+| **2. ETL Webtrition** (R-INF-2, R-INF-3, R-ETL-1–7, R-ETL-9) | `populate-menu-data` becomes the ETL: `seed` (F1), new template detection (F1b), sync policies, scheduler, queue and rate limiter, validate here and now (F2), cached / uncached / forced (F2b), `source-menu`, `validate` | Demo store seeded for one cycle; today re-validated every 15 min; a forced refresh and an uncached future week both work; projections in `location_products` |
+| **3. Product DB API** (R-PD-1–3, R-PD-5–7) | RPC functions for §12.1 (search, upsert-from-source, overrides, links); `product.changed` via `pg_notify` | Search returns available and unavailable items; an override shows up in `location_products` |
+| **4. Scheduling core** (R-SCH-*, R-API-1–4, R-API-7, R-INF-5–7) | Targets, Default Week, weeks, placements, `menu_item_links`, `shown_menus`; F5–F7, F10, F12, F13; `resolved_menus`, change feed, `GET /menus` with ETag; retention job (§10) | Existing demo schedules migrated and resolving the same as today's UI; a future-week placement goes `planned` → `linked`; a source change during the day shows in the change feed |
+| **5. UI switch-over** (R-UI-1–6) | UI reads and writes through scheduling and product functions; week resolution moved out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` | Smart Labels and Products work on the new tables; old tables dropped |
+| **6. Retail** (R-ETL-8, R-PD-4, R-UI-7) | `store_sources`, staging catalog, concept maps, seed (F3, F4), category autofill | A test POS catalog seeded at a lab store and mapped; a retail target fills by category |
+| **7. Signage zones and offline** (R-API-5, R-API-6) | `menu_targets.kind = 'zone'` with reported capacity and overflow; offline packages (F14) and device reports (F15) | A zone resolves a category menu; an offline device applies its package for a week without connection |
+| **8. Production hardening** (R-SEC-*, R-NFR-1, R-OBS-1, R-API-8, R-INF-8, R-INF-9, R-DB-6, R-DB-8) | Authentication, row-level security, rate limits, monitoring and alerts, load test at §10.4 sizing | §14.1 targets met; alerts fire in tests |
 
 **Playground migration notes:** `device_names` becomes `menu_targets.name`. `device_week_schedules` /
 `device_schedule_items` become `menu_weeks` / `menu_week_items` (per-day rows and `label_day_settings`
@@ -1166,7 +1681,7 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 `product_dayparts` become store overrides. `converge-custom` rows become custom projections.
 `menu_items` and `product_availability` are dropped.
 
-## 14. Decisions
+## 18. Decisions
 
 | ID | Decision | Date |
 |---|---|---|
@@ -1216,19 +1731,45 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 | D42 | The Default Week is followed by reference: weeks that follow it have no row and no copies; a week row exists only when that week has its own schedule | 11-25 |
 | D43 | A recurring week copies its placements into each week it lands on, on first access; it can have an end date | 11-25 |
 | D44 | Built to run as an enterprise service: precomputed reads, policy-bounded source calls, batched today-first fan-out, per-tenant fairness (§10.4) | 11-25 |
+| D45 | Menus are resolved when something changes and stored; reads are lookups; only dates after next week are computed per request (§5.7) | 11-25 |
+| D46 | One response shape for one date or a range (up to 31 days), with per-day and per-daypart hashes and a schedule source marker (§12.4) | 11-25 |
+| D47 | Each date in a range is resolved on its own, so a range can cross from a Default Week week into a scheduled week | 11-25 |
+| D48 | Offline retail devices get a weekly pattern with per-day items, hours per weekday and dated exceptions, versioned (§12.5) | 11-25 |
+| D49 | Daypart hours are stored per weekday in the store's time zone | 11-25 |
+| D50 | A daypart that runs past midnight belongs to the date it starts on | 11-25 |
+| D51 | Each target has an attribute profile that trims what it receives (Proposed — confirm the profiles) | 11-25 |
+| D52 | The AIMS push uses the `today_tomorrow` window: today's changes as they happen, tomorrow preloaded (Proposed — confirm) | 11-25 |
+| D53 | Devices report the menu hash or package version they have; deliveries are recorded | 11-25 |
+| D54 | Authentication per §13 (Proposed — confirm) | 11-25 |
+| D55 | Service levels per §14 (Proposed — confirm) | 11-25 |
+| D56 | Errors, paging, rate limits and `If-Match` edit safety per §12.6 | 11-25 |
+| D57 | This document is shared as the build reference for people and AI agents; requirements in §16 trace to it | 11-25 |
 
-## 15. Open items
+## 19. Open items and proposed decisions
 
-None blocking approval. To confirm while building phase 2:
+Nothing blocks approval of the design. These **Proposed — confirm** items need the owner's decision;
+build to the proposal until they're confirmed or changed.
 
-- The wait before an uncached future request falls back to unvalidated (draft: ~5 s).
-- Each source's real limits for its starting policy (PAR's daily sync time, other POS rates).
+| # | Decision needed | Proposal | Where |
+|---|---|---|---|
+| P1 | How people sign in | WAND sign-in (existing Cognito user pool), JWT with role and scope | §13.1 |
+| P2 | How devices authenticate | Per-device token at registration, hashed, scoped to store and targets, revocable, rotated yearly | §13.1 |
+| P3 | How partners authenticate | OAuth 2 client credentials per company with scopes | §13.1 |
+| P4 | Roles | Brand manager, company admin, store manager, viewer | §13.2 |
+| P5 | Speed and availability targets | As in §14.1 | §14.1 |
+| P6 | Rate limits | Device 60/min, partner 600/min, UI user 300/min | §12.6 |
+| P7 | Attribute profiles | `label_2in`: name, price, icons; `label_3in`: + calories; `signage`: name, description, price, calories, allergens, icons, nutrition summary | §9, §12.4 |
+| P8 | AIMS push window | `today_tomorrow` | §9, D52 |
+| P9 | Offline package horizon | 8 weeks of exceptions | F14 |
+| P10 | Wait before an uncached request falls back | ~5 s | F2b |
+| P11 | Each source's real limits for its first policy | Confirm PAR's daily sync time and other POS rates in phase 2 | §5.2 |
 
 ## Change log
 
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-11-25 | Restructured as the reference for approval: infrastructure choices, full schema, flows F1–F11, APIs, build plan |
+| 2.0 | 2026-11-25 | Shareable build reference: "Using this document" with agent instructions; §5.7 compute on change; §12.4 response format and ranges; §12.5 offline package; §12.6 errors, paging, rate limits, edit safety; §13 security and access; §14 service levels and monitoring; §15 UI representation; §16 numbered requirements; daypart hours, attribute profiles, offline and device tables; F14, F15; build phases 7–8; D45–D57; §19 proposed decisions |
 | 1.5 | 2026-11-25 | Default Week by reference (§4.7, F5, F7, F13); recurring end date; §10.4 scale as an enterprise service; D42–D44 |
 | 1.4 | 2026-11-25 | §4.6 how a mixed weekly menu is stored; §5.6 what refreshes on view and API by date; `shown_menus` for past days; `GET /menus` for any date (F13); why not Airflow; link priority example; D37–D41 |
 | 1.3 | 2026-11-25 | New §4 Life of a menu item (validation response first, placements vs menu item links, link states, example); new §10 Data retention and volume; `menu_item_links`; slim dated rows; F5, F6, F8 rewritten; D32–D36 |
