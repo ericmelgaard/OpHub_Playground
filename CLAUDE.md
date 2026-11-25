@@ -5,7 +5,7 @@ new screens look like they were always part of the app. **When in doubt, find th
 existing component and copy its patterns.**
 
 **Menu platform (product database, ETL, scheduling: data, infrastructure, APIs, what the UI must show):**
-the source of truth is `MENU_PLATFORM_DESIGN.md` in the private repo
+the source of truth is `MENU_PLATFORM_DESIGN.md` in the public repo
 [ericmelgaard/menu-platform-spec](https://github.com/ericmelgaard/menu-platform-spec). Clone it next to
 this repo (`../menu-platform-spec`) or read it with `gh`. Read its "Using this document" section first;
 UI that shows schedules, weeks or item states must match its §15 and the `R-UI-*` requirements.
