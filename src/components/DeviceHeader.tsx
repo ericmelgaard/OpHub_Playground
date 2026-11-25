@@ -93,11 +93,13 @@ export function DeviceHeader({ device, onClose, onOpenConfig }: DeviceHeaderProp
       {/* Right: sync status + pending changes + gear button */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <SyncStatus deviceId={device.id} size="md" showActions />
-        <PendingChangesButton deviceId={device.id} />
+        <span data-guide="save"><PendingChangesButton deviceId={device.id} /></span>
         <Button
           variant="ghost"
           size="icon"
           onClick={onOpenConfig}
+          data-guide="label-settings"
+          aria-label="Label settings"
           className="h-9 w-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
         >
           <Settings className="h-5 w-5" />

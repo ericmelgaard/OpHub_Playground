@@ -313,3 +313,20 @@ body {
     animation: none;
   }
 }
+
+/* User guide "Show me": the ring pulses outward so the eye finds the spot */
+@keyframes guide-spot-pulse {
+  0% { box-shadow: 0 0 0 0 rgb(14 165 233 / 0.45); }
+  70% { box-shadow: 0 0 0 14px rgb(14 165 233 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(14 165 233 / 0); }
+}
+
+.guide-spot-pulse {
+  animation: guide-spot-pulse 1.4s ease-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-spot-pulse {
+    animation: none;
+  }
+}

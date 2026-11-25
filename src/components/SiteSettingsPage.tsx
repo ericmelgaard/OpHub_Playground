@@ -63,7 +63,7 @@ export function SiteSettingsPage({ settings, onSave, onClose }: SiteSettingsPage
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          <Card className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <Card data-guide="business-days" className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
             <CardContent className="p-5 space-y-4">
               <div>
                 <div className="flex items-center gap-2">

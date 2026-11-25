@@ -226,6 +226,7 @@ export function LabelAnchor({
         {showAllTile && (
           <button
             onClick={() => onSelectDaypart(null)}
+            data-guide="all-dayparts"
             aria-pressed={isAll}
             className={`h-10 flex items-center justify-center gap-2 rounded-xl border-2 transition-colors ${tileState(isAll)}`}
           >
@@ -278,6 +279,7 @@ export function LabelAnchor({
         {/* Every day spans the week, so it sits above the days as one long button */}
         <button
           onClick={() => onSelectDay('every-day')}
+          data-guide="every-day"
           aria-pressed={selectedDay === 'every-day'}
           className={`h-10 flex items-center justify-center gap-2 rounded-xl border-2 transition-colors ${tileState(selectedDay === 'every-day')}`}
         >
@@ -285,7 +287,7 @@ export function LabelAnchor({
           <span className="text-sm font-semibold text-gray-900 dark:text-white">Every day</span>
           <span className="text-xs text-gray-500 dark:text-slate-400">{DAY_ABBR[WEEK[0]]}–{DAY_ABBR[WEEK[WEEK.length - 1]]}</span>
         </button>
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1" data-guide="day-tiles">
           {WEEK.map(d => {
             const date = dateFor(d);
             const gaps = dayHasGaps(d);

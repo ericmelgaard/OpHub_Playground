@@ -364,7 +364,7 @@ function ItemIds({ item }: { item: MenuItemType }) {
   const source = linkedSourceId(item);
   return (
     <>
-      <span className="inline-flex items-center gap-0.5">
+      <span className="inline-flex items-center gap-0.5" data-guide="product-id">
         ID {wandId(item)}
         <CopyButton value={wandId(item)} size="xs" />
       </span>

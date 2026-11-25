@@ -271,6 +271,7 @@ export function DaypartFilter({ options, value, pageDaypart, onChange, triggerCl
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
+          data-guide="add-daypart"
           type="button"
           title="Products offered in this daypart"
           className={`${triggerClassName} inline-flex items-center gap-1 max-w-[11rem]`}

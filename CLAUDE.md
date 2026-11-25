@@ -106,6 +106,13 @@ Reference: `src/components/UserGuideSheet.tsx`, content in `src/lib/userGuide.ts
   frame with a one-line caption. Keep them to a few key sections (a section's `figure`).
 - When a change is something staff will notice, add a What's new entry (stable `id`, date, a
   `section` to read more) and update the matching guide section in the same change.
+- **Show me (approved 2026-11-24):** a What's new entry can have `showMe` — the screen to open
+  (`site-settings`, `smart-labels`, `products`, or the first `label` / `product`), a spot
+  (`data-guide="…"` on the element) and a one-line note. "Show me" closes the guide, opens the
+  screen and points at the spot with a pulsing `sky` ring and a dark note bubble
+  (`src/components/GuideSpotlight.tsx`, `showGuideSpot()`); it goes away after a few seconds or
+  on any tap. Give every new entry a `showMe` when its spot can be reached, and mark the spot
+  with `data-guide`.
 
 ### Item details → right-side sheet
 Reference: `src/components/ProductSheet.tsx` (clicking a product card or row).

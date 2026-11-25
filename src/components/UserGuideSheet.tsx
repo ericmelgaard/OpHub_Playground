@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BookOpen, X, Search, Sparkles, Tag, ListPlus, CalendarDays, Layers, CalendarRange, Send, Package, RefreshCw,
+  BookOpen, X, Search, Sparkles, Crosshair, Tag, ListPlus, CalendarDays, Layers, CalendarRange, Send, Package, RefreshCw,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { GuideFigure } from './UserGuideFigures';
-import { GUIDE_SECTIONS, GUIDE_UPDATES, GuideSection } from '../lib/userGuide';
+import { GUIDE_SECTIONS, GUIDE_UPDATES, GuideSection, GuideShowMe } from '../lib/userGuide';
 
 const SECTION_ICONS: Record<GuideSection['icon'], typeof Tag> = {
   labels: Tag,
@@ -29,9 +29,11 @@ interface UserGuideSheetProps {
   // Updates not yet seen when the guide was opened, marked New
   newIds: Set<string>;
   onClose: () => void;
+  // Opens the screen an update is about and points at it
+  onShowMe?: (showMe: GuideShowMe) => void;
 }
 
-export function UserGuideSheet({ open, newIds, onClose }: UserGuideSheetProps) {
+export function UserGuideSheet({ open, newIds, onClose, onShowMe }: UserGuideSheetProps) {
   const [query, setQuery] = useState('');
   const [allUpdates, setAllUpdates] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -134,14 +136,28 @@ export function UserGuideSheet({ open, newIds, onClose }: UserGuideSheetProps) {
                     </div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white mt-0.5">{u.title}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">{u.text}</p>
-                    {u.section && (
-                      <button
-                        type="button"
-                        onClick={() => goTo(u.section!)}
-                        className="mt-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
-                      >
-                        Read more
-                      </button>
+                    {(u.section || (u.showMe && onShowMe)) && (
+                      <div className="mt-1 flex items-center gap-3">
+                        {u.showMe && onShowMe && (
+                          <button
+                            type="button"
+                            onClick={() => { onClose(); onShowMe(u.showMe!); }}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                          >
+                            <Crosshair className="h-3.5 w-3.5" />
+                            Show me
+                          </button>
+                        )}
+                        {u.section && (
+                          <button
+                            type="button"
+                            onClick={() => goTo(u.section!)}
+                            className="text-xs font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                          >
+                            Read more
+                          </button>
+                        )}
+                      </div>
                     )}
                   </li>
                 ))}

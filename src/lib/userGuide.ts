@@ -8,6 +8,14 @@ export interface GuideUpdate {
   title: string;
   text: string;
   section?: string;  // guide section to read more in
+  showMe?: GuideShowMe;
+}
+
+// "Show me": the screen to open and the spot (data-guide="…") to point at, with a one-line note
+export interface GuideShowMe {
+  open: 'site-settings' | 'smart-labels' | 'products' | 'label' | 'product';
+  target: string;
+  note: string;
 }
 
 export interface GuideEntry {
@@ -29,11 +37,18 @@ export interface GuideSection {
 
 export const GUIDE_UPDATES: GuideUpdate[] = [
   {
+    id: '2026-11-24-show-me',
+    date: '2026-11-24',
+    title: 'See where each update is',
+    text: 'Updates here have a "Show me" link. It opens the screen the update is about and points to the spot.',
+  },
+  {
     id: '2026-11-17-business-days',
     date: '2026-11-17',
     title: 'Set the days you\'re open',
     text: 'In Site settings (the menu at the top left), pick your business days. Empty spots on days you\'re closed aren\'t flagged anymore. You can still add items on those days.',
     section: 'labels',
+    showMe: { open: 'site-settings', target: 'business-days', note: 'Tap a day to mark it open or closed, then Save.' },
   },
   {
     id: '2026-11-17-label-names',
@@ -41,6 +56,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Name your labels',
     text: 'Give a label a name like "Grill Station - 1" in its settings (the gear on the label page). Lists and cards show the name; the device ID is on the label page and in its settings.',
     section: 'labels',
+    showMe: { open: 'label', target: 'label-settings', note: 'Open the label\'s settings to give it a name.' },
   },
   {
     id: '2026-11-15-day-fill',
@@ -48,6 +64,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Easier to see which days are on labels',
     text: 'The day letters on each product now have a blue fill on the days it\'s on a label. The outline still means the source offers it that day.',
     section: 'products',
+    showMe: { open: 'products', target: 'day-strip', note: 'A blue fill means the product is on a label that day.' },
   },
   {
     id: '2026-11-15-pick-daypart',
@@ -55,6 +72,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Pick the daypart to add from',
     text: 'Available Items always lists one daypart, and items you add follow its days. Searching shows "2 more in Breakfast" when other dayparts have matches. Tap it to switch.',
     section: 'items',
+    showMe: { open: 'label', target: 'add-daypart', note: 'Pick the daypart to add items from.' },
   },
   {
     id: '2026-11-15-custom-dayparts',
@@ -62,6 +80,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Pick a custom product\'s dayparts',
     text: 'Tick each daypart a custom product is offered at. "All" ticks every one.',
     section: 'products',
+    showMe: { open: 'products', target: 'create-product', note: 'Create a product, then tick the dayparts it\'s offered at.' },
   },
   {
     id: '2026-11-15-follows-daypart',
@@ -69,6 +88,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Items from another daypart keep their days',
     text: 'Add a Brunch item to the Breakfast page and it shows on the days Brunch is offered, marked "Follows Brunch". Each daypart also uses its own days now: an item served at Lunch on weekdays only shows on weekdays on the Lunch page.',
     section: 'items',
+    showMe: { open: 'label', target: 'add-daypart', note: 'Pick another daypart here. Items you add keep that daypart\'s days.' },
   },
   {
     id: '2026-11-15-save',
@@ -76,6 +96,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'One Save button',
     text: 'Label changes are always saved with Save. The label shows them on the days they\'re for, and changes for today show right away.',
     section: 'apply',
+    showMe: { open: 'label', target: 'save', note: 'Save applies your changes to this label.' },
   },
   {
     id: '2026-11-15-edit-source-products',
@@ -83,6 +104,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Edit products from the source',
     text: 'Every product can be edited now. For products from a source, your changes are kept here and marked "Local", and the source isn\'t changed. Changing a product\'s dayparts changes where it can be added.',
     section: 'products',
+    showMe: { open: 'product', target: 'product-edit', note: 'Edit any product. Your changes are marked Local.' },
   },
   {
     id: '2026-11-14-everyday-preview',
@@ -90,6 +112,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Every day shows your everyday menu',
     text: 'With Every day picked, the label preview shows the items that are on all 7 days. Items on some days only are tagged "Some days". Pick a day to see them on the label.',
     section: 'every-day',
+    showMe: { open: 'label', target: 'every-day', note: 'Every day previews the items on all 7 days.' },
   },
   {
     id: '2026-11-14-all-dayparts',
@@ -97,6 +120,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Change every daypart at once',
     text: 'All dayparts lists each item on the label for the day you picked, across every daypart. Add an item to all its dayparts in one step, or tap "+ Lunch" to add it to one more.',
     section: 'every-day',
+    showMe: { open: 'label', target: 'all-dayparts', note: 'Change the day you picked across every daypart.' },
   },
   {
     id: '2026-11-14-item-week',
@@ -104,6 +128,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Each item has its own week',
     text: 'Adding an item on one day puts it on that day only. To have it follow its normal days, add it with Every day picked.',
     section: 'days',
+    showMe: { open: 'label', target: 'day-tiles', note: 'Pick a day first to add an item for that day only.' },
   },
   {
     id: '2026-11-14-default-week',
@@ -111,6 +136,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Set an item\'s normal week',
     text: 'Day settings in the Default Week are the item\'s normal week on that label. Weeks without their own schedule use them.',
     section: 'weeks',
+    showMe: { open: 'smart-labels', target: 'schedule', note: 'Open Schedule to set the Default Week.' },
   },
   {
     id: '2026-11-14-browse-dayparts',
@@ -118,6 +144,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Add items from another daypart',
     text: 'Available Items has a daypart dropdown, so you can add a Brunch item to the Lunch page. Items from another daypart are turned On when you add them.',
     section: 'items',
+    showMe: { open: 'label', target: 'add-daypart', note: 'Pick another daypart to add its items to this page.' },
   },
   {
     id: '2026-11-14-product-ids',
@@ -125,6 +152,7 @@ export const GUIDE_UPDATES: GuideUpdate[] = [
     title: 'Product IDs and day strips',
     text: 'Every product shows its own ID. Products that come from a source also show the source ID next to a link icon. The day letters on each product show which days it\'s on labels this week.',
     section: 'products',
+    showMe: { open: 'products', target: 'product-id', note: 'Every product shows its own ID. Tap the icon to copy it.' },
   },
 ];
 

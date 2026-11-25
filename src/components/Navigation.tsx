@@ -9,8 +9,11 @@ import { UserGuideSheet } from './UserGuideSheet';
 import { unseenUpdates, markUpdatesSeen } from '@/lib/userGuide';
 import { levelIconColor } from '@/lib/levelColors';
 import type { DemoSecondaryDomain } from '../services/mockData';
+import type { GuideShowMe } from '../lib/userGuide';
 
 interface NavigationProps {
+  // User guide → Show me: open the screen an update is about
+  onShowMe?: (showMe: GuideShowMe) => void;
   notifications: number;
   setNotifications: (count: number) => void;
   theme: Theme;
@@ -39,6 +42,7 @@ interface NavigationProps {
 }
 
 export function Navigation({
+  onShowMe,
   notifications,
   setNotifications,
   theme,
@@ -557,7 +561,7 @@ export function Navigation({
       </div>
     </nav>
 
-      <UserGuideSheet open={showGuide} newIds={guideNewIds} onClose={() => setShowGuide(false)} />
+      <UserGuideSheet open={showGuide} newIds={guideNewIds} onClose={() => setShowGuide(false)} onShowMe={onShowMe} />
 
       <LocationSelectionModal
         isOpen={showLocationModal}

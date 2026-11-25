@@ -51,7 +51,7 @@ export function dayClass(onMenu: boolean, use: Use) {
 // One strip (lists and cards)
 export function ProductDayStrip({ menuDays, labelDays, signageDays, size = 'sm' }: DayUse & { size?: 'sm' | 'md' }) {
   return (
-    <div className="flex gap-0.5">
+    <div className="flex gap-0.5" data-guide="day-strip">
       {WEEK_ORDER.map(d => {
         const onMenu = menuDays.includes(d);
         const onLabels = !!labelDays?.has(d);

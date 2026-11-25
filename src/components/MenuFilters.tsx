@@ -153,6 +153,7 @@ export function MenuFilters({
               variant="outline"
               size="sm"
               onClick={onToggleSchedule}
+              data-guide="schedule"
               aria-pressed={scheduleOpen}
               className={`flex items-center gap-2 whitespace-nowrap transition-colors ${
                 scheduleOpen

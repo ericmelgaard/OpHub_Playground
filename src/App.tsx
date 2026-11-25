@@ -42,6 +42,8 @@ import { useNfc } from './hooks/useNfc';
 import { deviceName, matchesDevice } from './lib/deviceName';
 import { DEFAULT_SITE_SETTINGS, SITE_ID, SiteSettings, SiteSettingsContext } from './lib/siteSettings';
 import { SiteSettingsPage } from './components/SiteSettingsPage';
+import { GuideSpotlight, showGuideSpot } from './components/GuideSpotlight';
+import type { GuideShowMe } from './lib/userGuide';
 
 // Each label item replaced by the current product with the same id (or MRN), when there is one
 function withCurrentProducts(devices: Device[], menuItems: MenuItem[]): Device[] {
@@ -973,6 +975,39 @@ function App() {
     switchQuickAction(action);
   }, [selectedQuickAction, switchQuickAction]);
 
+  // User guide → Show me: open the screen an update is about, then point at the spot.
+  // Switching pages can ask about pending changes first, so the rest waits for the page.
+  const [pendingShowMe, setPendingShowMe] = useState<GuideShowMe | null>(null);
+  const showMePage = (open: GuideShowMe['open']): QuickActionType =>
+    open === 'products' || open === 'product' ? 'products' : 'smart-labels';
+  const handleShowMe = useCallback((showMe: GuideShowMe) => {
+    setProductSheetItem(null);
+    setShowSiteSettings(false);
+    if (showMe.open === 'site-settings') {
+      setShowSiteSettings(true);
+      showGuideSpot(showMe.target, showMe.note);
+      return;
+    }
+    // A page spot sits behind an open label, so close it (its pending changes are kept)
+    if (showMe.open !== 'label' && showDeviceWorkflow) {
+      setShowDeviceWorkflow(false);
+      setSelectedDevice(null);
+    }
+    if (selectedQuickAction !== showMePage(showMe.open)) handleQuickActionSelect(showMePage(showMe.open));
+    setPendingShowMe(showMe);
+  }, [showDeviceWorkflow, selectedQuickAction, handleQuickActionSelect]);
+  useEffect(() => {
+    if (!pendingShowMe || selectedQuickAction !== showMePage(pendingShowMe.open)) return;
+    if (pendingShowMe.open === 'label' && !showDeviceWorkflow) {
+      const label = visibleLabels[0] ?? devices[0];
+      if (!label) { setPendingShowMe(null); return; }
+      handleDeviceSelect(label, selectedDaypart);
+    }
+    if (pendingShowMe.open === 'product' && menuItems[0]) setProductSheetItem(menuItems[0]);
+    showGuideSpot(pendingShowMe.target, pendingShowMe.note);
+    setPendingShowMe(null);
+  }, [pendingShowMe, selectedQuickAction, showDeviceWorkflow, visibleLabels, devices, menuItems, selectedDaypart, handleDeviceSelect]);
+
   // Product refresh from Webtrition (simulated). Applied to the in-memory list;
   // added/changed products are tagged in the list until the next refresh.
   const [refreshTags, setRefreshTags] = useState<Map<number, 'new' | 'updated'>>(new Map());
@@ -1101,6 +1136,7 @@ function App() {
     <div className={theme}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
         <Navigation
+          onShowMe={handleShowMe}
           notifications={notifications}
           setNotifications={setNotifications}
           theme={theme}
@@ -1238,6 +1274,7 @@ function App() {
                     <ProductRefreshButton refresh={productRefresh} />
                     <button
                       onClick={() => setCreatingProduct(true)}
+                      data-guide="create-product"
                       className="flex items-center gap-2 h-11 px-4 text-sm font-medium text-white rounded-lg hover:bg-brand-dark transition-colors bg-brand"
                     >
                       <Plus className="h-4 w-4" />
@@ -1564,6 +1601,7 @@ function App() {
           onViewModeChange={setLabelViewMode}
         />
 
+        <GuideSpotlight />
         <PendingChangesBar openDeviceId={showDeviceWorkflow ? selectedDevice?.id : undefined} />
         <PendingChangesSheet
           devices={devices}

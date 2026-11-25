@@ -307,7 +307,7 @@ function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClos
 
       <div className="flex gap-2 px-4 sm:px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 safe-area-bottom">
         {onEdit && (
-          <Button variant="outline" onClick={onEdit} className="h-11 gap-2">
+          <Button variant="outline" onClick={onEdit} data-guide="product-edit" className="h-11 gap-2">
             <Pencil className="h-4 w-4" />Edit
           </Button>
         )}
