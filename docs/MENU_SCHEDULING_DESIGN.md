@@ -42,10 +42,12 @@ by hand).
 
 ## 2. Principles
 
-1. **Every source item is a projection.** When the ETL sees a new item from an auto-import source it
-   creates a projection in the product database; manual-import sources show items in a catalog and a
-   person adds them. Projections are WAND products over one or more sources plus local overrides (the
-   DoorDash / Grubhub standard).
+1. **Every item is a projection.** Projections are WAND products over one or more sources plus local
+   overrides (the DoorDash / Grubhub standard). **Webtrition:** the ETL creates a projection for every
+   new MRN + portion it sees. **Retail:** projections are created first (by hand, or a one-time import
+   from the first POS for convenience) and then *linked*; a new POS is a mapping exercise onto the
+   existing projections, never an import. However it was first created, the projection stays and
+   serves any API.
 2. **A location product database is always available.** Each store has its full set of products,
    resolved, regardless of whether Webtrition or a POS is reachable. Scheduling and devices never
    depend on a source being up.
@@ -128,7 +130,8 @@ source_attribute_maps (                            -- one map per source type; s
 
 product_links (
   id uuid pk, product_id fk,
-  priority int,                                   -- 1 = primary, 2, 3…
+  priority int,                                   -- 1 = primary, 2, 3… For API links the store's
+                                                  -- store_sources.priority is used when set
   target text check (target in ('api','product')),
   source_system int,
   external_id text,                               -- POS item id, or 'mrn|portion' for Webtrition
@@ -161,7 +164,9 @@ For a product at a store, per attribute, the first that has a value wins:
 1. **Local override**, most specific first: store → company → concept. (A one-week override in the
    scheduling system sits above these for that week.)
 2. **Linked sources in priority order:** the lowest-numbered link whose attribute map includes this
-   attribute. Example: Webtrition at priority 1 maps nutrition, allergens, name; Agilysys at priority 2
+   attribute, skipping sources not active at the store (`store_sources.active`). A store's POS
+   priority comes from `store_sources.priority`, so lowering or switching a POS at a location is one
+   row, not an edit to every product. Example: Webtrition at priority 1 maps nutrition, allergens, name; Agilysys at priority 2
    maps price and out_of_stock. Webtrition doesn't map price, so price comes from Agilysys. For a
    Webtrition link, the **day's menu item** value (validation cache, at resolve time) beats the
    harvested value.
@@ -197,8 +202,13 @@ not on this week's menu as prominently as the ones that are.
 ```sql
 store_sources (                                    -- which sources feed a store, and how
   store_id, source_system,
-  import_mode text check (import_mode in ('auto','manual')),   -- Webtrition: auto
-  link_priority int,                              -- priority new links from this source get
+  active bool,                                    -- POS live for this location
+  priority int,                                   -- link priority at this store (lower it to
+                                                  -- demote a POS)
+  create_mode text check (create_mode in ('auto','once','none')),
+                                                  -- auto: Webtrition (projection per new item)
+                                                  -- once: first POS, one-time import
+                                                  -- none: map only (every later POS)
   refresh text,                                   -- 'cycle' (Webtrition) | interval (POS)
   config jsonb,                                   -- sap_code/venue, POS credentials ref…
   pk (store_id, source_system)
@@ -207,8 +217,8 @@ store_sources (                                    -- which sources feed a store
 source_catalog_items (                             -- what an unscheduled source offers (full pull)
   store_id, source_system, external_id,
   name text, values jsonb,                        -- mapped attributes
-  product_id uuid,                                -- set once it's in the product database
-  last_seen timestamptz,
+  product_id uuid,                                -- the projection it's mapped to; null = unmapped
+  last_seen timestamptz, gone_at timestamptz,
   pk (store_id, source_system, external_id)
 )
 
@@ -218,8 +228,10 @@ product_categories     (id, owner_level, owner_id, name, sort)
 product_category_items (category_id, product_id, sort, pk (category_id, product_id))
 ```
 
-The catalog is shown in the UI so people can browse what a POS offers and add items (manual import);
-with `import_mode = 'auto'` every catalog item becomes a projection automatically, as Webtrition does.
+For a POS the catalog is a **mapping worklist**: it shows what the POS sends and which projection each
+item is mapped to. Unmapped items are the work (suggest matches by name; a person confirms). Only a
+store's first POS, with `create_mode = 'once'`, may create projections from it in one pass for
+convenience.
 
 ### 4.6 Service request API
 
@@ -230,7 +242,9 @@ with `import_mode = 'auto'` every catalog item becomes a projection automaticall
 | `POST /products/upsert-from-source` | ETL | Find or create the projection for a source item; link; save harvested values |
 | `POST /products` / `PATCH /products/{id}/values?level` | UI | Custom items, overrides |
 | `POST /products/{id}/links` / `DELETE …/links/{linkId}` | UI, ETL | Link, relink, reprioritize |
-| `GET /stores/{id}/catalog?source` / `POST …/catalog/import` | UI | Browse a source catalog; add items |
+| `GET /stores/{id}/catalog?source&unmapped` / `POST …/catalog/map` | UI | Mapping worklist; map POS items to projections |
+| `POST /stores/{id}/catalog/import-once` | UI | First POS only: create projections from its catalog |
+| `PATCH /stores/{id}/sources/{source}` | UI | Make a POS active, change its priority |
 | event `product.changed {product_id, store_ids, attributes}` | → Scheduling | Rebuild affected resolved menus |
 
 ## 5. ETL server
@@ -278,16 +292,21 @@ Every pull does both jobs: update the validation cache (Webtrition) and keep pro
 **POS / retail (no schedule; full catalog each request)**
 1. Pull the full item list on the store's interval (minutes for out of stock / price).
 2. Diff against `source_catalog_items`: new, changed, gone.
-3. New: `auto` → `upsert-from-source` (concept projection for retail, matched by an existing link or
-   name, else created); `manual` → stays in the catalog for a person to add.
-4. Changed: update `product_source_values` for linked items (price, out_of_stock…).
-5. Gone: mark the catalog row; the product stays (it may come back or be relinked).
+3. New: lands in the catalog **unmapped**. The ETL never creates a retail projection, except the one-time
+   import of a store's first POS (`create_mode = 'once'`).
+4. Changed: update `product_source_values` for mapped items (price, out_of_stock…).
+5. Gone: set `gone_at`; the projection and its link stay.
+
+**Adding a POS to a location:** add `store_sources` (inactive), pull its catalog, map its items to the
+existing projections, then make it active and set its priority (or lower the old POS). The projections
+don't change.
 
 After any write the product database rebuilds the affected `location_products` and emits
 `product.changed`.
 
-**Inactive projections:** a product not seen by any linked source for two cycles (or a set time for
-POS) becomes `inactive`: hidden from quick add, still searchable, never deleted while scheduled.
+**Inactive projections:** a Webtrition projection not seen for **two menu cycles** becomes `inactive`:
+hidden from quick add, still searchable, never deleted while scheduled. Retail projections never go
+inactive from a POS; they stay to serve any API until someone retires them.
 
 ### 5.4 Timing
 
@@ -399,9 +418,14 @@ a new lock.
    attributes that link supplies.
 4. Write `resolved_menus` for this/next week; the first send of a day writes its lock.
 
-Unedited weeks follow their origin: a Default Week (or recurring week) change re-copies this week and
-every future unedited week from **today**, rebuilds and pushes in the same request. Past days never
-change.
+**Editing the Default Week** processes immediately: this week and every future week that still only
+follows the Default Week (`edited = false`) are re-copied from **today**, and their resolved menus are
+rebuilt and pushed in the same request. Today's frozen order still applies (removed items drop off, new
+ones go to the end). Past days never change.
+
+**Editing a week that only follows the Default Week** creates that week's own schedule: the copy is
+marked `edited = true` (an Override in the UI), the edit is applied to it, and from then on it no longer
+follows Default Week changes. Recurring weeks behave the same way.
 
 If the ETL can't reach Webtrition, step 2 uses the stale snapshot; if there is none (week beyond next),
 items resolve from `location_products` with availability `unknown`.
@@ -411,8 +435,8 @@ items resolve from `location_products` with availability `unknown`.
 - **From the Webtrition week or search:** picks a projection (each portion is its own); validated by the
   ETL against that day's items by MRN + portion + meal period (station ignored). No match is allowed,
   shown as "Not on the source menu Tue".
-- **From a catalog (manual-import source):** the product database imports it (creates the projection),
-  then it's placed like any other.
+- **Retail:** always a projection from the product database (POS items are mapped to projections,
+  not placed directly).
 - **Custom quick add:** name check, chips from `catalog_terms`, creates a company projection with no
   source.
 - Once a day has been shown, a new item lands at the end.
@@ -467,23 +491,27 @@ Steps:
 9. Scheduling + validation is separate from the product database; the ETL makes the source calls.
 
 2026-11-25
-10. The ETL creates projections for **every new item** (auto import) while updating the validation
-    cache; manual-import sources go through a catalog.
+10. The ETL creates projections for **every new Webtrition item** while updating the validation
+    cache (Webtrition). Retail: see 18.
 11. Each store has a **location product database** that is always available; new stores are seeded with
     one menu cycle (usually 4 weeks, from the menu templates).
-12. Unscheduled sources (retail POS) send the full catalog each request; the catalog is browsable, with
-    add-by-hand or auto import.
+12. Unscheduled sources (retail POS) send the full catalog each request; the catalog is shown as
+    a mapping worklist onto projections (see 18).
 13. The product database is reached through a **service request API**.
 14. **Link priority:** priority 1 supplies all its mapped attributes; each next link supplies only
     attributes not mapped by the ones before it.
 15. **Out of stock is an attribute** like any other; display rules are outside this design.
 
+16. **Default Week edits process immediately**; editing a week that only follows the Default Week
+    creates that week's own schedule.
+17. Webtrition projections go **inactive after two menu cycles** unseen.
+18. **Retail projections come first, then links.** No POS importing beyond an optional one-time import
+    from a store's first POS; each new POS is mapped to the existing projections, then made active or
+    given a lower priority per location. The original projection stays to serve any API.
+
 ## 10. Still open
 
-1. **Default Week vs today's frozen order:** a Default Week change applies instantly, but does today's
-   locked order still hold (removed items drop off, new ones go to the end), or may it reorder today?
-2. **Inactive projections:** inactive after two cycles unseen (Webtrition) — right length? For POS,
-   after how long gone from the catalog?
-3. **Retail match on auto import:** when a store's POS sends an item the concept may already have (a
-   Whopper from a new POS), match by an existing link only, or also by exact name, before creating a
-   new projection?
+1. **Who maps a new POS:** a brand manager once at the concept (mapping shared by every store on that
+   POS), or each company / store for its own POS?
+2. **Unmapped POS items:** when a live POS sends items no one has mapped yet, do they stay invisible
+   until mapped, or is someone notified?
