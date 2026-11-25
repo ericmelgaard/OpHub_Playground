@@ -44,10 +44,14 @@ by hand).
 
 1. **Every item is a projection.** Projections are WAND products over one or more sources plus local
    overrides (the DoorDash / Grubhub standard). **Webtrition:** the ETL creates a projection for every
-   new MRN + portion it sees. **Retail:** projections are created first (by hand, or a one-time import
-   from the first POS for convenience) and then *linked*; a new POS is a mapping exercise onto the
-   existing projections, never an import. However it was first created, the projection stays and
-   serves any API.
+   new MRN + portion it sees. **Retail:** projections are **seeded at the concept** (by hand, or a
+   one-time import from the concept's first POS, usually through a lab store) and then *linked*; a new
+   POS is a mapping exercise onto the existing projections, never an import. However it was first
+   created, the projection stays and serves many APIs and many locations.
+   **The two sources play different roles.** Webtrition already has its own recipe, menu and cycle
+   systems and supplies the end result; for it WAND only does **site and company enrichment**,
+   validation, and placing items in the right positions. For retail, the WAND product database *is*
+   the system of record.
 2. **A location product database is always available.** Each store has its full set of products,
    resolved, regardless of whether Webtrition or a POS is reachable. Scheduling and devices never
    depend on a source being up.
@@ -209,10 +213,11 @@ store_sources (                                    -- which sources feed a store
   active bool,                                    -- POS live for this location
   priority int,                                   -- link priority at this store (lower it to
                                                   -- demote a POS)
-  create_mode text check (create_mode in ('auto','once','none')),
+  create_mode text check (create_mode in ('auto','seed','none')),
                                                   -- auto: Webtrition (projection per new item)
-                                                  -- once: first POS, one-time import
-                                                  -- none: map only (every later POS)
+                                                  -- seed: the concept's first POS at its lab
+                                                  --       store, one-time import to the concept
+                                                  -- none: map only (every other store / POS)
   refresh text,                                   -- 'cycle' (Webtrition) | interval (POS)
   config jsonb,                                   -- sap_code/venue, POS credentials ref…
   pk (store_id, source_system)
@@ -225,7 +230,8 @@ source_catalog_items (                             -- staging catalog: what a PO
   pk (store_id, source_system, external_id)
 )
 
-concept_item_maps (                                -- POS item → projection, set once at the concept
+concept_item_maps (                                -- POS item → projection, set once at the concept;
+                                                  -- POS item ids are global across a concept
   concept_id, source_system, external_id,
   product_id fk,
   mapped_from_store_id uuid,                      -- the lab (or location) it was mapped from
@@ -256,8 +262,10 @@ come from the map, not from per-store work.
   or **make a brand item** (create the concept projection) for an unmapped POS item. It's saved at the
   concept, like a brand manager's edit.
 - **Unmapped items** stay in the staging catalog, available to be mapped, invisible on menus. Nothing is
-  created from them unless an automatic import applies: the store's first POS (`create_mode = 'once'`)
-  or a concept rule (`concept_source_rules.auto_import`).
+  created from them unless an automatic import applies: the concept seed (`create_mode = 'seed'`) or a
+  concept rule (`concept_source_rules.auto_import`).
+- POS item ids are global across a concept (that's what lets it scale across the enterprise), so one
+  map per concept and POS is enough; no store or company scope.
 - Suggest matches by name; a person confirms.
 
 ### 4.6 Service request API
@@ -272,7 +280,7 @@ come from the map, not from per-store work.
 | `GET /stores/{id}/catalog?source&unmapped` | UI | Staging catalog at a location (often the lab) |
 | `POST /concepts/{id}/maps` | UI (brand manager, or a location when allowed) | Map POS items to concept projections; applies to every store on that POS |
 | `POST /concepts/{id}/products/from-catalog` | UI (brand manager, or a location when allowed) | Make a brand item from a staging catalog item |
-| `POST /stores/{id}/catalog/import-once` | UI | First POS only: create projections from its catalog |
+| `POST /concepts/{id}/seed {store, source}` | UI (brand manager) | One-time: create concept projections from the lab store's POS catalog |
 | `PATCH /stores/{id}/sources/{source}` | UI | Make a POS active, change its priority |
 | event `product.changed {product_id, store_ids, attributes}` | → Scheduling | Rebuild affected resolved menus |
 
@@ -323,7 +331,7 @@ Every pull does both jobs: update the validation cache (Webtrition) and keep pro
 2. Diff against `source_catalog_items`: new, changed, gone.
 3. New: if the concept already maps it (`concept_item_maps`), link the store's projection right away.
    Otherwise it stays in the **staging catalog** to be mapped. The ETL creates a retail projection only
-   under an automatic import: the store's first POS (`create_mode = 'once'`) or a concept rule
+   under an automatic import: the concept seed (`create_mode = 'seed'`) or a concept rule
    (`concept_source_rules.auto_import`).
 4. Changed: update `product_source_values` for mapped items (price, out_of_stock…).
 5. Gone: set `gone_at`; the projection and its link stay.
@@ -538,17 +546,20 @@ Steps:
     creates that week's own schedule.
 17. Webtrition projections go **inactive after two menu cycles** unseen.
 18. **Retail projections come first, then links.** No POS importing beyond an optional one-time import
-    from a store's first POS; each new POS is mapped to the existing projections, then made active or
+    from the concept's first POS; each new POS is mapped to the existing projections, then made active or
     given a lower priority per location. The original projection stays to serve any API.
 
 19. **POS mapping is at the concept**, once per POS, shared by every store on it. The concept maps from
     a location's staging catalog, usually a lab store. If the concept allows it, a location can make a
     brand edit or make a brand item.
 20. **Unmapped POS items stay in the staging catalog**, available to map, unless an automatic import
-    applies (first POS, or a concept auto-import rule).
+    applies (the concept seed, or a concept auto-import rule).
+
+21. **POS item ids are global across a concept**, so one mapping per concept and POS covers every store.
+22. **Retail projections are seeded at the concept** and serve many APIs and locations.
+23. **Webtrition is the system of record for its items**; WAND does site and company enrichment,
+    validation and placement only.
 
 ## 10. Still open
 
-1. **Same POS item id across stores:** does a POS use the same item id for the Whopper at every store of
-   a concept? If ids differ per store or per company, `concept_item_maps` needs a scope (company or
-   store) as well.
+Nothing blocking. Next step: the first playground migration (section 8).

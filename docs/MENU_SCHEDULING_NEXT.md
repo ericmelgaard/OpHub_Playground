@@ -6,17 +6,17 @@ table schema and the workflow for populating schedules; the product database can
 
 ## Questions to answer next
 
-1. **Same POS item id across stores:** does a POS use the same item id for the Whopper at every store of
-   a concept? If ids differ per store or per company, `concept_item_maps` needs a company or store scope.
+None blocking. The design's open questions are all answered (section 9, decisions 1–23). Start with the
+next steps below; new questions will come up while building.
 
-Answered 2026-11-25 (now in the design, section 9): harvest scope, product DB service API, link
-priority, out of stock as an attribute, Default Week edits process immediately (editing a week that
-only follows the Default Week creates its own schedule), inactive after two menu cycles, retail
-projections first and then POS mapping, POS mapping at the concept (usually from a lab store; locations
-can make brand edits / brand items when allowed), unmapped POS items wait in a staging catalog unless an
-automatic import applies.
+Answered 2026-11-25: harvest scope, product DB service API, link priority, out of stock as an
+attribute, Default Week edits process immediately, inactive after two menu cycles, retail projections
+seeded at the concept and then POS mapping, POS mapping at the concept (from a lab store; locations can
+make brand edits / brand items when allowed), staging catalog for unmapped items, POS item ids global
+across a concept, Webtrition is the system of record (WAND does site/company enrichment, validation,
+placement).
 
-## Next steps once those are answered
+## Next steps
 
 - Write the first playground migration: `product`, `etl` and `schedule` schemas, hierarchy,
   `store_sources`, `menu_targets` (design section 8).
