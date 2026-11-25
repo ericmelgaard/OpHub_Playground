@@ -1,25 +1,39 @@
-# Menu Scheduling Design
+# Menu Platform Design: Product Database, ETL and Scheduling
 
 | | |
 |---|---|
 | **Status** | **Proposed — awaiting approval.** No build work starts until this is approved. |
-| **Version** | 2.0 · 2026-11-25 |
+| **Version** | 2.1 · 2026-11-25 |
 | **Owner** | Eric Melgaard |
-| **Scope** | Infrastructure, table schema and the logic that populates menu schedules on smart labels and signage menu zones |
-| **Source of truth** | This file (`docs/MENU_SCHEDULING_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
+| **Scope** | Three connected systems behind Operator Hub menus: the **product database** (what an item is), the **ETL server** (every call to Webtrition and POS sources) and **scheduling + validation** (where and when an item shows on smart labels and signage menu zones). Infrastructure, SQL tables, logic, APIs, security, service levels, UI representation and requirements for all three. |
+| **Source of truth** | This file (`docs/MENU_PLATFORM_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
 | **Proposed — confirm** | Items marked this way are recommendations waiting for the owner's decision; they're listed in §19. Build to them unless §19 says otherwise. |
 
 ## Using this document
 
-This document is the single reference for building menu scheduling: the infrastructure, the SQL
-tables, the logic, the APIs and what the UI must show. It's written so that people and AI coding agents
-can answer build questions from it directly.
+This document is the single, connected reference for three systems that only work together: the
+**product database**, the **ETL server** and **scheduling + validation**. They share identities
+(products, MRN + portion, POS item ids), events and data, so they're specified in one place: a change to
+one is checked against the other two here. It covers the infrastructure, the SQL tables, the logic, the
+APIs and what the UI must show, and it's written so that people and AI coding agents can answer build
+questions from it directly.
+
+| System | Specified in |
+|---|---|
+| **Product database** | §2, §7 (tables), §11 F3, F4, F9, F9b (flows), §12.1 (API), `R-PD-*`, `R-DB-*` |
+| **ETL server** | §2, §5 (freshness and sync), §8 (tables), §11 F1–F3 (flows), §12.2 (API), `R-ETL-*`, `R-INF-*` |
+| **Scheduling + validation** | §2, §4 (life of a menu item), §9 (tables), §11 F5–F15 (flows), §12.3–12.6 (APIs), `R-SCH-*`, `R-API-*` |
+| **Shared by all three** | §3 infrastructure, §6 identities, §10 retention and scale, §13 security, §14 service levels, §15 UI, §17 build plan, §18 decisions |
 
 **Where to find what**
 
 | Question | Read |
 |---|---|
-| What is this system and why is it built this way? | §1 Goals, §2 Architecture, §4 Life of a menu item |
+| What is this platform and why is it built this way? | §1 Goals, §2 Architecture, §4 Life of a menu item |
+| What's the product database spec? | §1.1, §7 tables, §12.1 service request API, F3, F4, F9, F9b, `R-PD-*` |
+| What does the ETL do, and what does it store? | §1.2, §5 freshness and sync, §8 tables, F1–F3, §12.2, `R-ETL-*` |
+| What does scheduling do, and what does it store? | §1.3, §4, §9 tables, F5–F15, §12.3–12.6, `R-SCH-*`, `R-API-*` |
+| How do the three systems talk to each other? | §2, §3 (I1, I4, I7), §12.1–12.3, events in F9 and F12 |
 | What infrastructure do we need? | §3 Infrastructure choices, §10.4 Scale, §13 Security, §14 Service levels, requirements `R-INF-*` (§16) |
 | What SQL tables do we need? | §7 Product database, §8 ETL, §9 Scheduling, §10 Retention, requirements `R-DB-*` |
 | How does data stay fresh? What is cached, what is computed? | §5 Freshness and sync, §5.7 Compute on change, look up on read |
@@ -29,7 +43,7 @@ can answer build questions from it directly.
 | What must the UI show? | §15 UI representation, requirements `R-UI-*` |
 | What is the testable list of requirements? | §16 Requirements (every one traces to a section) |
 | In what order do we build, and how do we know a phase is done? | §17 Build plan |
-| Why was a choice made? | §18 Decisions (`D1`–`D57`) |
+| Why was a choice made? | §18 Decisions (`D1`–`D58`) |
 | What is still undecided? | §19 Open items and proposed decisions |
 
 **Instructions for AI agents using this document**
@@ -46,28 +60,55 @@ can answer build questions from it directly.
 
 ## 1. Goals and non-goals
 
-**Goals**
+Shared goals:
 
-- Schedule what each smart label and signage menu zone shows, by daypart, day and week, from a
-  Default Week plus week overrides.
-- Support two kinds of menu with one model:
+- Support two kinds of menu with one platform:
   - **Webtrition menus**: scheduled at the site on a menu cycle (usually 4 weeks). Webtrition is the
     system of record for those items. WAND adds site and company enrichment, validates items against
     the day's menu, and places them in the right positions.
   - **Retail menus**: relatively static. The WAND product database is the system of record. Items are
     seeded at the concept and linked to any number of POS APIs.
-- **For Webtrition, schedule against the validation response.** What can be scheduled on a date is
-  what Webtrition has on the menu for that date. The product database enriches it and keeps a
-  placement's identity across dates (§4).
 - Keep every store working when a source (Webtrition, a POS) is down.
-- Hold only the data the schedule needs, for as long as it needs it (§10).
-- Nothing slow in front of the UI.
+- Hold only the data that's needed, for as long as it's needed (§10).
+- Nothing slow in front of the UI. Run as an enterprise service (§10.4).
+
+### 1.1 Product database
+
+- Every item on a menu is a **projection**: a WAND product over one or more linked sources plus
+  overrides at concept, company and store (§7).
+- Source data keeps flowing in for mapped attributes; links fill attributes in priority order; a POS
+  can be swapped by remapping, never by re-creating products.
+- Retail projections are owned by the concept; Webtrition and custom projections by the company.
+- Each store has an always-available, resolved product set (`location_products`).
+- Reached by every other system only through its service request API (§12.1).
+
+### 1.2 ETL server
+
+- The only system that calls Webtrition or a POS.
+- Seeds a store's menu cycle, detects new menu templates, validates here and now on each source's sync
+  policy, answers uncached and forced requests within source limits (§5).
+- Holds the short-lived validation cache and the POS staging catalogs; creates and refreshes
+  projections in the product database.
+
+### 1.3 Scheduling + validation
+
+- Schedules what each smart label and signage menu zone shows, by daypart, day and week, from a
+  Default Week plus week overrides and recurring weeks (§4.7).
+- **For Webtrition, schedules against the validation response**: what can be scheduled on a date is
+  what Webtrition has on the menu for that date; the product database enriches it and keeps a
+  placement's identity across dates (§4).
+- Resolves menus when something changes and serves them to devices, signage and partners, online and
+  offline (§5.7, §12.4, §12.5).
 
 **Non-goals**
 
 - How attributes display on labels or signage (out of stock, badges, colors). Out of stock is just an
   attribute here.
 - Rebuilding Webtrition's recipe, menu or cycle systems.
+- **Product database features menus don't need.** This document specifies the product database only as
+  far as menus require (projections, links, attribute maps, overrides, store product sets, POS mapping,
+  catalogs, terms, categories). Images, variations, customizations and the other product editing
+  features are outside its scope and must not conflict with the tables here.
 - The existing playground product tables. The product database can be built new.
 
 ## 2. Architecture
@@ -1744,6 +1785,7 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 | D55 | Service levels per §14 (Proposed — confirm) | 11-25 |
 | D56 | Errors, paging, rate limits and `If-Match` edit safety per §12.6 | 11-25 |
 | D57 | This document is shared as the build reference for people and AI agents; requirements in §16 trace to it | 11-25 |
+| D58 | The product database, ETL and scheduling are specified in one connected document (`docs/MENU_PLATFORM_DESIGN.md`) because they share identities, events and data | 11-25 |
 
 ## 19. Open items and proposed decisions
 
@@ -1769,6 +1811,7 @@ build to the proposal until they're confirmed or changed.
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-11-25 | Restructured as the reference for approval: infrastructure choices, full schema, flows F1–F11, APIs, build plan |
+| 2.1 | 2026-11-25 | Renamed to Menu Platform Design (file `docs/MENU_PLATFORM_DESIGN.md`); scope names all three systems; goals per system (§1.1–1.3); product database scope boundary; system map and questions in "Using this document"; D58 |
 | 2.0 | 2026-11-25 | Shareable build reference: "Using this document" with agent instructions; §5.7 compute on change; §12.4 response format and ranges; §12.5 offline package; §12.6 errors, paging, rate limits, edit safety; §13 security and access; §14 service levels and monitoring; §15 UI representation; §16 numbered requirements; daypart hours, attribute profiles, offline and device tables; F14, F15; build phases 7–8; D45–D57; §19 proposed decisions |
 | 1.5 | 2026-11-25 | Default Week by reference (§4.7, F5, F7, F13); recurring end date; §10.4 scale as an enterprise service; D42–D44 |
 | 1.4 | 2026-11-25 | §4.6 how a mixed weekly menu is stored; §5.6 what refreshes on view and API by date; `shown_menus` for past days; `GET /menus` for any date (F13); why not Airflow; link priority example; D37–D41 |

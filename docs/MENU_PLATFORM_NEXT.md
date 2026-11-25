@@ -1,6 +1,6 @@
-# Menu scheduling: where we left off
+# Menu platform: where we left off
 
-Last session: 2026-11-25 (late). Design: [MENU_SCHEDULING_DESIGN.md](MENU_SCHEDULING_DESIGN.md) (three systems: ETL
+Last session: 2026-11-25 (late). Design: [MENU_PLATFORM_DESIGN.md](MENU_PLATFORM_DESIGN.md) (three systems: ETL
 server, product database, scheduling + validation; decisions in section 9). Focus is infrastructure,
 table schema and the workflow for populating schedules; the product database can be new.
 

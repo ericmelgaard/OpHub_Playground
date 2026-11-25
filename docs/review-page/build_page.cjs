@@ -1,4 +1,4 @@
-// Render docs/MENU_SCHEDULING_DESIGN.md to a review page. Usage: node build_page.js <md> <out.html>
+// Render docs/MENU_PLATFORM_DESIGN.md to a review page. Usage: node build_page.cjs <md> <out.html>
 const fs = require('fs');
 const MarkdownIt = require('markdown-it');
 const [, , mdPath, outPath] = process.argv;
@@ -7,7 +7,7 @@ const src = fs.readFileSync(mdPath, 'utf8');
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
 const slug = s => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const toc = [];
-let title = 'Menu Scheduling Design';
+let title = 'Menu Platform Design';
 
 md.renderer.rules.heading_open = (tokens, i, opts, env, self) => {
   const t = tokens[i];
@@ -36,5 +36,12 @@ body = body.replace('<strong>Proposed — awaiting approval.</strong>', '<span c
 
 const tocHtml = toc.map(e => `<a class="${e.level}" href="#${e.id}">${md.utils.escapeHtml(e.text)}</a>`).join('\n');
 const tpl = fs.readFileSync(require('path').join(__dirname, 'page_template.html'), 'utf8');
-fs.writeFileSync(outPath, tpl.replace('{{TITLE}}', title).replace('{{TOC}}', tocHtml).replace('{{BODY}}', body));
+// Tab / gallery name: the part before a colon; page heading: the full title.
+const shortTitle = title.split(':')[0].trim();
+const html = tpl
+  .replace('<title>{{TITLE}}</title>', `<title>${md.utils.escapeHtml(shortTitle)}</title>`)
+  .split('{{TITLE}}').join(md.utils.escapeHtml(title))
+  .replace('{{TOC}}', tocHtml)
+  .replace('{{BODY}}', body);
+fs.writeFileSync(outPath, html);
 console.log('ok', toc.length, 'sections');
