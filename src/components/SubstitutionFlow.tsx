@@ -21,7 +21,6 @@ interface SubstitutionFlowProps {
   assignedItemIds: Set<number>;
   onComplete: (substituteItem: MenuItem) => void;
   onClose: () => void;
-  onCreateMenuItem?: (data: { name: string; price: string; mealPeriod: string; mealStation: string }) => Promise<MenuItem | null>;
   availableMealPeriods?: string[];
   availableStations?: string[];
 }
@@ -33,7 +32,6 @@ export function SubstitutionFlow({
   assignedItemIds,
   onComplete,
   onClose,
-  onCreateMenuItem,
   availableMealPeriods = [],
   availableStations = [],
 }: SubstitutionFlowProps) {

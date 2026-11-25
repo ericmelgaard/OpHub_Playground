@@ -1,12 +1,11 @@
 name: Deploy Supabase
 
-# Applies new migrations and deploys edge functions when anything in supabase/ changes on main.
+# Applies migrations and deploys edge functions. Run by hand only (Actions → Deploy Supabase):
+# migrations are applied in the SQL editor for now, and the database is moving to a new data
+# source. It stopped running on push because the DB password secret no longer works.
 # Needs repo secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD.
 
 on:
-  push:
-    branches: [main]
-    paths: ['supabase/**']
   workflow_dispatch:
     inputs:
       dry_run:
@@ -52,9 +51,9 @@ jobs:
           done
 
       - name: Apply migrations
-        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        if: ${{ !inputs.dry_run }}
         run: supabase db push
 
       - name: Deploy edge functions
-        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        if: ${{ !inputs.dry_run }}
         run: supabase functions deploy --project-ref "$PROJECT_REF"

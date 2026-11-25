@@ -5,7 +5,6 @@ import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
 import { buildSubstitutionMap } from '../lib/substitutions';
 import { formatWeekRange, formatEditingDay } from '../lib/weekSchedule';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
-import { ItemSelectionModal } from '../components/ItemSelectionModal';
 import { DeviceHeader } from '../components/DeviceHeader';
 import { DeviceConfigPage } from '../components/DeviceConfigPage';
 import type { DisplayToggle } from '../components/DayToggle';
@@ -44,7 +43,6 @@ interface DeviceFirstWorkflowProps {
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, itemOrder: number[]) => void;
   onClose: () => void;
-  onForcePage?: (deviceId: string, pageId: string | null) => void;
   // Saves the label's name (device settings)
   onRenameDevice?: (deviceId: string, name: string) => Promise<void>;
   setNotifications: (count: number) => void;
@@ -97,7 +95,6 @@ export function DeviceFirstWorkflow({
   onRemoveItem,
   onReorderItems,
   onClose,
-  onForcePage,
   onRenameDevice,
   setNotifications,
   onCreateMenuItem,
@@ -108,13 +105,8 @@ export function DeviceFirstWorkflow({
   animateIn = true,
 }: DeviceFirstWorkflowProps) {
   const [showDeviceSettingsModal, setShowDeviceSettingsModal] = useState(true);
-  const [showItemSelectionModal, setShowItemSelectionModal] = useState(false);
   const [showConfigPage, setShowConfigPage] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(preSelectedDevice || null);
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
-  const [isAddingToPage, setIsAddingToPage] = useState<string | null>(null);
-  const [lastAssignedPageId, setLastAssignedPageId] = useState<string | null>(null);
-  const [duplicateCount, setDuplicateCount] = useState<number>(0);
   // Reopening a label with pending changes shows them again
   const [optimisticDevice, setOptimisticDevice] = useState<Device | null>(
     () => {
@@ -123,9 +115,6 @@ export function DeviceFirstWorkflow({
       return d && preSelectedDevice ? { ...d, displayName: preSelectedDevice.displayName } : d;
     }
   );
-  const [itemSearchValue, setItemSearchValue] = useState('');
-  const [selectedMealPeriod, setSelectedMealPeriod] = useState('all');
-  const [selectedStation, setSelectedStation] = useState('all');
   const [selectedDaypart, setSelectedDaypartState] = useState<string | null>(preSelectedDaypart);
   const setSelectedDaypart = useCallback((daypart: string | null) => {
     setSelectedDaypartState(daypart);
@@ -156,13 +145,8 @@ export function DeviceFirstWorkflow({
     const local = localStateFor(draftKey);
     setSelectedDevice(clone(preSelectedDevice));
     setOptimisticDevice(clone(draft?.device ?? preSelectedDevice));
-    setShowItemSelectionModal(false);
     setShowConfigPage(false);
     setShowDeviceSettingsModal(true);
-    setSelectedPageId(null);
-    setIsAddingToPage(null);
-    setLastAssignedPageId(null);
-    setDuplicateCount(0);
     setRecentlyAddedItemIds(new Set());
     setItemDisplayToggles(togglesFor(draftKey));
     setSubstitutions(local?.substitutions ?? []);
@@ -252,85 +236,19 @@ export function DeviceFirstWorkflow({
     });
   }, [optimisticDevice, onLocalChange, substitutions, itemName, pageDaypart]);
 
-  const mealPeriods = ['all', ...new Set(menuItems.map(item => item.mealPeriod).filter(Boolean))];
-  const stations = ['all', ...new Set(menuItems.map(item => item.mealStation).filter(Boolean))];
 
   const handleCloseModals = () => {
     setShowDeviceSettingsModal(false);
-    setShowItemSelectionModal(false);
     setShowConfigPage(false);
     setSelectedDevice(null);
     setOptimisticDevice(null);
-    setSelectedPageId(null);
-    setIsAddingToPage(null);
-    setLastAssignedPageId(null);
-    setDuplicateCount(0);
     onClose();
   };
 
-  const handleAddItems = (device: Device, pageId: string) => {
-    setSelectedDevice(device);
-    setSelectedPageId(pageId);
-    setShowItemSelectionModal(true);
-  };
-
-  const handleItemSelect = async (items: MenuItem[]) => {
-    if (!selectedDevice || !selectedPageId || items.length === 0 || !optimisticDevice) return;
-
-    const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
-    const page = updatedDevice.pages.find(p => p.id === selectedPageId);
-    if (!page) return;
-
-    const duplicateItems = items.filter(item => 
-      page.assignedItems.some(existing => existing.id === item.id)
-    );
-    const newItems = items.filter(item => 
-      !page.assignedItems.some(existing => existing.id === item.id)
-    );
-
-    setDuplicateCount(duplicateItems.length);
-
-    newItems.forEach(item => {
-      page.assignedItems.push(item);
-      page.itemOrder.push(item.id);
-    });
-
-    newItems.forEach(item => {
-      if (!updatedDevice.assignedItems.some(i => i.id === item.id)) {
-        updatedDevice.assignedItems.push(item);
-      }
-    });
-
-    setOptimisticDevice(updatedDevice);
-    setIsAddingToPage(selectedPageId);
-    setShowItemSelectionModal(false);
-    setShowDeviceSettingsModal(true);
-
-    try {
-      if (newItems.length > 0) await onAddItems(selectedDevice, newItems, selectedPageId);
-      setSelectedDevice(updatedDevice);
-      setLastAssignedPageId(selectedPageId);
-    } catch (err) {
-      console.error('Error adding items:', err);
-      const currentDevice = devices.find(d => d.id === selectedDevice.id);
-      if (currentDevice) {
-        const currentDeviceClone = JSON.parse(JSON.stringify(currentDevice));
-        setOptimisticDevice(currentDeviceClone);
-        setSelectedDevice(currentDeviceClone);
-      }
-    } finally {
-      setIsAddingToPage(null);
-      setTimeout(() => {
-        setLastAssignedPageId(null);
-        setDuplicateCount(0);
-      }, 2000);
-    }
-  };
-
-  const handleInlineAddItems = async (device: Device, items: MenuItem[], pageId: string) => {
+  const handleInlineAddItems = async (_device: Device, items: MenuItem[], pageId: string) => {
     if (!optimisticDevice || items.length === 0) return;
 
-    const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
+    const updatedDevice: Device = JSON.parse(JSON.stringify(optimisticDevice));
     const page = updatedDevice.pages.find(p => p.id === pageId);
     if (!page) return;
 
@@ -368,7 +286,7 @@ export function DeviceFirstWorkflow({
   const handleInlineRemoveItems = async (device: Device, itemIds: number[], pageId: string) => {
     if (!optimisticDevice || itemIds.length === 0) return;
 
-    const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
+    const updatedDevice: Device = JSON.parse(JSON.stringify(optimisticDevice));
     const page = updatedDevice.pages.find(p => p.id === pageId);
     if (!page) return;
 
@@ -500,23 +418,10 @@ export function DeviceFirstWorkflow({
     });
   };
 
-  const handleForcePage = (pageId: string | null) => {
-    if (!selectedDevice || !onForcePage) return;
-    
-    const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
-    updatedDevice.status.forcedPage = pageId;
-    if (pageId) {
-      updatedDevice.status.currentPage = pageId;
-    }
-    
-    setOptimisticDevice(updatedDevice);
-    onForcePage(selectedDevice.id, pageId);
-  };
-
   const handleReorderItems = async (deviceId: string, pageId: string, startIndex: number, endIndex: number) => {
     if (!optimisticDevice) return;
 
-    const updatedDevice = JSON.parse(JSON.stringify(optimisticDevice));
+    const updatedDevice: Device = JSON.parse(JSON.stringify(optimisticDevice));
     const page = updatedDevice.pages.find(p => p.id === pageId);
     if (!page) return;
 
@@ -548,16 +453,11 @@ export function DeviceFirstWorkflow({
   };
 
   const settingsModalState = { id: 'device-settings', isOpen: showDeviceSettingsModal };
-  const itemSelectionModalState = { id: 'item-selection', isOpen: showItemSelectionModal };
   const configPageState = { id: 'device-config', isOpen: showConfigPage };
 
   // The device page is the entry point (labels are picked on the Smart Labels
   // grid or the label picker), so Back closes it.
   useModalHistory(settingsModalState, handleCloseModals, true);
-  useModalHistory(itemSelectionModalState, () => {
-    setShowItemSelectionModal(false);
-    setShowDeviceSettingsModal(true);
-  });
   useModalHistory(configPageState, handleCloseConfig);
 
   return (
@@ -575,11 +475,6 @@ export function DeviceFirstWorkflow({
         setSelectedDeviceSettings={setOptimisticDevice}
         removeItemFromDevice={onRemoveItem}
         reorderItems={handleReorderItems}
-        onAddItems={handleAddItems}
-        onClose={handleCloseModals}
-        isAddingToPage={isAddingToPage}
-        lastAssignedPageId={lastAssignedPageId}
-        duplicateCount={duplicateCount}
         header={optimisticDevice && (
           <>
             {weekContextLabel && (
@@ -641,32 +536,11 @@ export function DeviceFirstWorkflow({
         itemDisplayToggles={itemDisplayToggles}
         recentlyAddedItemIds={recentlyAddedItemIds}
         onCreateMenuItem={onCreateMenuItem}
-        substitutions={substitutions}
         substitutionMap={substitutionMap}
         onAddSubstitution={handleAddSubstitution}
         onRemoveSubstitution={handleRemoveSubstitution}
         autoFill={autoFill}
         onSetAutoFill={handleSetAutoFill}
-      />
-
-      <ItemSelectionModal
-        show={showItemSelectionModal}
-        onClose={() => {
-          setShowItemSelectionModal(false);
-          setShowDeviceSettingsModal(true);
-        }}
-        menuItems={menuItems}
-        selectedDevice={optimisticDevice}
-        onItemSelect={handleItemSelect}
-        searchValue={itemSearchValue}
-        setSearchValue={setItemSearchValue}
-        selectedMealPeriod={selectedMealPeriod}
-        setSelectedMealPeriod={setSelectedMealPeriod}
-        selectedStation={selectedStation}
-        setSelectedStation={setSelectedStation}
-        mealPeriods={mealPeriods}
-        stations={stations}
-        selectedPage={selectedPageId}
       />
 
       {optimisticDevice && (

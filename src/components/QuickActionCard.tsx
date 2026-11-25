@@ -1,7 +1,7 @@
-import { LucideIcon } from 'lucide-react';
+import type { ComponentType } from 'react';
 
 interface QuickActionCardProps {
-  icon: LucideIcon;
+  icon: ComponentType<{ className?: string }>;
   title: string;
   count: number;
   subtitle: string;

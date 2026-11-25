@@ -1367,7 +1367,6 @@ function App() {
                           devices={devices}
                           onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
                           searchValue={searchValue}
-                          placements={placements}
                           selectedDaypart={selectedDaypart}
                           selectedPlacements={selectedPlacementIds}
                           selectedWeekStart={isDefaultWeekSelected ? null : getWeekStartString(labelWeekOffset)}
@@ -1385,7 +1384,6 @@ function App() {
                           devices={devices}
                           onDeviceSelect={(device, daypart) => handleDeviceSelect(device, daypart)}
                           searchValue={searchValue}
-                          placements={placements}
                           selectedDaypart={selectedDaypart}
                           selectedPlacements={selectedPlacementIds}
                           weekSchedules={scheduleOpen ? effectiveSchedules : undefined}
@@ -1510,11 +1508,6 @@ function App() {
               const updatedDevices = await api.getDevices();
               setDevices(updatedDevices);
               setSelectedDevice(prev => (prev && prev.id === deviceId ? updatedDevices.find(d => d.id === deviceId) ?? prev : prev));
-            }}
-            onForcePage={async (deviceId, pageId) => {
-              await api.updateDeviceStatus(deviceId, { forcedPage: pageId });
-              const updatedDevices = await api.getDevices();
-              setDevices(updatedDevices);
             }}
             setNotifications={setNotifications}
             onCreateMenuItem={async (data) => {

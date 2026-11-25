@@ -11,7 +11,7 @@ export function useModalHistory(
   isTopLevel: boolean = false
 ) {
   // Memoize the handler to prevent unnecessary re-renders
-  const handlePopState = useCallback((event: PopStateEvent) => {
+  const handlePopState = useCallback((_event: PopStateEvent) => {
     // Check if this modal should handle the pop state
     if (modalState.isOpen) {
       onClose();

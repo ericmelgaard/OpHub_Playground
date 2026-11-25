@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Device, DeviceWeekSchedule, LabelSize, Placement } from '../types';
+import { Device, DeviceWeekSchedule, LabelSize } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Wifi, WifiOff } from 'lucide-react';
 import { ReviewedTag } from './ReviewedTag';
@@ -19,7 +19,6 @@ interface SmartLabelGridProps {
   devices: Device[];
   onDeviceSelect: (device: Device, daypart: string) => void;
   searchValue: string;
-  placements: Placement[];
   selectedDaypart: string;
   selectedPlacements: string[];
   // When given, each card flags the day/daypart slots that have nothing scheduled that week.
@@ -65,7 +64,6 @@ export function SmartLabelGrid({
   devices,
   onDeviceSelect,
   searchValue,
-  placements,
   selectedDaypart,
   selectedPlacements,
   weekSchedules,

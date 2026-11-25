@@ -60,7 +60,7 @@ Reference: `src/components/FilterSidebar.tsx` (Products page), opened from the t
 - Remember open/closed state per user (`localStorage`, as `filterSidebarOpen` in `App.tsx`).
 
 ### Long detail pages → section bookmark nav
-Reference: the "Sections" sidebar in `src/pages/ProductEdit.tsx` (viewing/editing a product).
+Reference: the "Sections" sidebar in `src/components/ProductEditPage.tsx` (editing a product).
 Any full detail or edit page long enough to scroll past a couple of screens gets a left-side
 bookmark nav so people can jump to what they're looking for.
 - **When:** the page has roughly 4+ distinct sections or scrolls well past one screen. Short

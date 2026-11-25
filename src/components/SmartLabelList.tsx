@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Device, LabelSize, Placement, DeviceWeekSchedule } from '../types';
+import { Device, LabelSize, DeviceWeekSchedule } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Wifi, WifiOff, ChevronRight, Calendar, Tag } from 'lucide-react';
 import { DAY_ABBR } from '../lib/availability';
@@ -20,7 +20,6 @@ interface SmartLabelListProps {
   devices: Device[];
   onDeviceSelect: (device: Device, daypart: string) => void;
   searchValue: string;
-  placements: Placement[];
   selectedDaypart: string;
   selectedPlacements: string[];
   selectedWeekStart: string | null;
@@ -55,7 +54,6 @@ export function SmartLabelList({
   devices,
   onDeviceSelect,
   searchValue,
-  placements,
   selectedDaypart,
   selectedPlacements,
   selectedWeekStart,
@@ -250,7 +248,7 @@ function LabelRow({ device, daypart, onClick, schedule, defaultSchedule, compare
           </div>
         ) : (
           <div className="space-y-0.5">
-            {items.slice(0, 3).map((item, idx) => (
+            {items.slice(0, 3).map(item => (
               <div key={item.id} className="flex items-center gap-2 text-sm">
                 <span className="text-gray-900 dark:text-gray-100 truncate"><LabelName item={item} /></span>
                 <span className="text-xs text-gray-400 flex-shrink-0">${parseFloat(item.price).toFixed(2)}</span>

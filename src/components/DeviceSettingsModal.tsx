@@ -42,11 +42,6 @@ interface DeviceSettingsModalProps {
   setSelectedDeviceSettings: (device: Device | null) => void;
   removeItemFromDevice: (itemId: number, deviceId: string, pageId: string) => void;
   reorderItems: (deviceId: string, pageId: string, startIndex: number, endIndex: number) => void;
-  onAddItems: (device: Device, pageId: string) => void;
-  onClose: () => void;
-  lastAssignedPageId?: string | null;
-  isAddingToPage?: string | null;
-  duplicateCount?: number;
   header?: ReactNode;
   setNotifications: (count: number) => void;
   selectedDaypart?: string | null;
@@ -63,7 +58,6 @@ interface DeviceSettingsModalProps {
   // Why day On / Off can't be used here (Default Week); toggles show but are disabled
   dayOverridesLocked?: string;
   onCreateMenuItem?: (item: { name: string; price: string; mealPeriod: string; mealStation: string }) => Promise<MenuItem | null>;
-  substitutions?: Substitution[];
   substitutionMap?: Map<SubstitutionKey, Substitution>;
   onAddSubstitution?: (sub: Omit<Substitution, 'id' | 'createdAt'>) => void;
   onRemoveSubstitution?: (id: string) => void;
@@ -113,11 +107,6 @@ export function DeviceSettingsModal({
   selectedDeviceSettings,
   removeItemFromDevice,
   reorderItems,
-  onAddItems,
-  onClose,
-  isAddingToPage,
-  lastAssignedPageId,
-  duplicateCount,
   header,
   setNotifications,
   selectedDaypart = null,
@@ -136,7 +125,6 @@ export function DeviceSettingsModal({
   itemDisplayToggles = {},
   dayOverridesLocked,
   onCreateMenuItem,
-  substitutions = [],
   substitutionMap = new Map(),
   onAddSubstitution,
   onRemoveSubstitution,
@@ -1013,7 +1001,7 @@ export function DeviceSettingsModal({
                       >
                         <div className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-400">
                           {showNotAvailable ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                          Not available {selectedDay === 'every-day' ? '' : DAY_ABBR[selectedDay as number]}
+                          Not available {DAY_ABBR[selectedDay]}
                           <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 text-[10px] font-semibold text-white rounded-full bg-gray-400">
                             {notAvailableItems.length}
                           </span>
@@ -1169,7 +1157,6 @@ export function DeviceSettingsModal({
           assignedItemIds={assignedIds}
           onComplete={handleSubstitutionComplete}
           onClose={() => setSubstitutionContext(null)}
-          onCreateMenuItem={onCreateMenuItem}
           availableMealPeriods={mealPeriods}
           availableStations={stations}
         />

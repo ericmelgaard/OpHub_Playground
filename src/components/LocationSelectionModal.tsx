@@ -120,15 +120,6 @@ export function LocationSelectionModal({
     return map;
   }, [companies]);
 
-  // The actual location level (for breadcrumb trail display)
-  const currentLevel: 'wand' | 'concept' | 'company' | 'store' = selectedStore
-    ? 'store'
-    : selectedCompany
-      ? 'company'
-      : selectedConcept
-        ? 'concept'
-        : 'wand';
-
   // The browse view level (what's shown in the tree / search scope)
   const viewLevel: 'wand' | 'concept' | 'company' | 'store' = viewCompany
     ? selectedStore && viewConcept === selectedConcept && viewCompany === selectedCompany

@@ -17,7 +17,7 @@ export function resolveItemsForDay(
   substitutionMap: Map<SubstitutionKey, Substitution>,
 ): ResolvedItem[] {
   return itemOrder
-    .map(itemId => {
+    .map((itemId): ResolvedItem | null => {
       const originalItem = assignedItems.find(i => i.id === itemId);
       if (!originalItem) return null;
 

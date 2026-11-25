@@ -159,7 +159,6 @@ export function LabelPickerSheet({
                 devices={devices}
                 onDeviceSelect={onPick}
                 searchValue={search}
-                placements={placements}
                 selectedDaypart={daypart}
                 selectedPlacements={placementIds}
                 selectedWeekStart={weekStart}
@@ -175,7 +174,6 @@ export function LabelPickerSheet({
                 devices={devices}
                 onDeviceSelect={onPick}
                 searchValue={search}
-                placements={placements}
                 selectedDaypart={daypart}
                 selectedPlacements={placementIds}
                 lastOpenedId={lastOpenedId}
