@@ -3,13 +3,13 @@
 | | |
 |---|---|
 | **Status** | **Proposed — awaiting approval.** No build work starts until this is approved. |
-| **Version** | 1.1 · 2026-11-25 |
+| **Version** | 1.2 · 2026-11-25 |
 | **Owner** | Eric Melgaard |
 | **Scope** | Infrastructure, table schema and the logic that populates menu schedules on smart labels and signage menu zones |
 | **Source of truth** | This file (`docs/MENU_SCHEDULING_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
 
 **How to use this document.** Each part of the build should point back to a section here: the
-tables in §6–8, the flows in §9 (`F1`–`F12`), the APIs in §10. Decisions have IDs (`D1`–`D28`, §12). If
+tables in §6–8, the flows in §9 (`F1`–`F12`), the APIs in §10. Decisions have IDs (`D1`–`D31`, §12). If
 code and this document disagree, this document wins until it's changed on purpose.
 
 ## 1. Goals and non-goals
@@ -100,11 +100,14 @@ refreshes and source limits fit together, and how validated changes reach endpoi
 | Request | Example | Granularity | Served from | Speed target |
 |---|---|---|---|---|
 | **Here and now** (validation) | Is today's lunch still right? | **1 day** (today; tomorrow near close) | Source, on the store's sync policy (Webtrition about every 15 min) | Background; endpoints never wait |
-| **Planning** (this week, next week) | Opening next week in the UI | 7 days per call | Day cache, refreshed nightly and on open if older than its max age | Cache: instant |
+| **Planning** (this week, next week) | Opening next week in the UI | 7 days per call | Day cache, refreshed when opened if older than its max age | Cache: instant |
 | **Future, not cached** | Opening a week 3 weeks out | The requested days | Source on demand, single-flight; kept briefly | One source call (seconds); UI shows a loading state, falls back to projections |
 | **Force fresh** | "Refresh now" in the UI, or an operator call | The requested days | Source now, bypassing the cache, **if the source policy allows it** | One source call; if not allowed, answer with the last sync time and when the next is allowed |
 
-Seeding a cycle (F1) is a fifth, bulk kind: lowest priority, never in front of a person.
+Seeding a cycle (F1) is a fifth, bulk kind, and it runs only **at setup and when Webtrition activates a
+new menu template**. After the first seed, keeping seed data current matters little: menu item
+validation (here and now, plus UI interaction) catches nearly every change, and a person can update a
+single projection on demand (F9b) when they need to see a recipe change.
 
 ### 4.2 Sync policy per source and store
 
@@ -471,8 +474,11 @@ create table source_cycles (                 -- Webtrition menu cycle per store
   store_id             uuid,
   menu_collection_id   int,
   rotation_days        int not null,        -- menu templates `duration` / cyclemenus `menuRotationPeriod`
+  start_date           date, end_date date,  -- the template's active range
   next_play_date       date,
-  seeded_through       date,
+  active               boolean not null,
+  detected_at          timestamptz not null, -- when WAND first saw it
+  seeded_at            timestamptz,          -- null = seed still needed
   primary key (store_id, menu_collection_id)
 );
 ```
@@ -597,13 +603,25 @@ Retention: `menu_change_feed` keeps 7 days.
 
 ### F1 · Seed a store (Webtrition)
 
-1. Read menu templates / `cyclemenus` for the cycle length (usually 28 days) and next play date. Save
-   to `source_cycles`.
+Runs at setup, and again whenever a new menu template becomes active (F1b). Not on a schedule.
+
+1. Read menu templates / `cyclemenus` for the active template's cycle length (usually 28 days), range
+   and next play date. Save to `source_cycles`.
 2. Pull that many days from wds (4 calls of 7 days, `allergenMenu: "all"`).
 3. For each distinct MRN + portion, call `upsert-from-source`: find or create the **company**
    projection, link it at the store's priority, save the mapped values.
 4. Record meal periods, stations and days seen. Rebuild `location_products`.
-5. Keep this week and next as the validation cache.
+5. Keep this week and next as the validation cache. Set `seeded_at`.
+
+### F1b · Detect a new menu template
+
+1. **During validation (F2):** a pulled day contains a `menuCollectionId` not in `source_cycles` →
+   record it and queue a `seed` job.
+2. **Daily check:** read the store's menu templates (WAND `GET /client/templates`, cached 24 h, cheap)
+   or `cyclemenus`. A template that is newly active, or about to start (`start_date` / `next_play_date`
+   within the next week) → record it and queue a `seed` job so its items exist before it plays.
+3. The seed (F1) runs for that template only. Older templates' projections age out on the
+   two-cycle rule.
 
 ### F2 · Validate here and now (ongoing, per policy)
 
@@ -616,7 +634,9 @@ Retention: `menu_change_feed` keeps 7 days.
 4. Compare the payload hash with `source_menu_days`:
    - **same:** update `fetched_at` only (now `validated`);
    - **different:** replace the day's items, upsert any new MRN + portion as a projection, update
-     harvested values, rebuild `location_products`, emit `menu.source_changed {store, dates}`.
+     harvested values from the day's items (this is how projections stay current after the seed),
+     rebuild `location_products`, emit `menu.source_changed {store, dates}`. An unknown
+     `menuCollectionId` triggers F1b.
 5. On failure: keep the old day, record `last_error`, retry on the policy (with backoff). Endpoints keep
    showing the last data, marked `stale`.
 6. Set `next_due_at = now + validate_every`.
@@ -624,7 +644,8 @@ Retention: `menu_change_feed` keeps 7 days.
 ### F2b · Planning, uncached and forced requests
 
 - **Planning (this week, next week):** read `source_menu_days`. Days past `max_age` are returned at
-  once and a `warm` job (7-day pull) is queued.
+  once and a `warm` job (7-day pull) is queued. Opening a week in the UI is what keeps planning data
+  current; there is no nightly warm-up.
 - **Future week not cached:** queue a `ui_uncached` job for those days and wait up to a timeout
   (~5 s). On time: resolve as `validated`. On timeout or failure: resolve from `location_products`
   as `unvalidated` and update when the job finishes. Those days are dropped once older than `max_age`
@@ -632,8 +653,6 @@ Retention: `menu_change_feed` keeps 7 days.
 - **Force fresh:** queue a `force` job. If the policy allows it (`force_allowed`, quota, min interval),
   it runs first and the caller waits for it. If not, the job is `refused` and the caller gets `limited`
   with `last_ok_at` and `next_allowed_at`.
-- **Cycle change** (`next_play_date` reached or a new menu collection): a `seed` job pulls the new cycle
-  ahead of time, as in F1.
 - A projection unseen for **two cycles** becomes `inactive` (hidden from quick add, still searchable,
   never removed while scheduled).
 
@@ -732,6 +751,13 @@ Retention: `menu_change_feed` keeps 7 days.
 3. Scheduling: for a higher-level edit, clear the same attributes from week overrides from this week
    onward. Re-resolve affected days (F6) and push changed hashes.
 
+### F9b · Update one projection on demand
+
+A person (or an admin tool) asks to refresh a projection, for example to see a recipe change that
+menu item validation won't show. The product database asks the ETL to harvest that product's links now
+(Webtrition: the recipe for its MRN, `GET /client/{bu}/recipe/{mrn}`; POS: the item, within the
+policy's limits). Changed values flow through F9.
+
 ### F10 · Frozen order
 
 1. The first time a day / daypart is sent to a target, write `menu_order_locks` with the shown order.
@@ -742,8 +768,8 @@ Retention: `menu_change_feed` keeps 7 days.
 
 ### F11 · Nightly, rollover, retention
 
-- **Nightly:** queue `warm` jobs for this week and next for every Webtrition store with targets, check
-  for cycle changes, re-resolve and record changes.
+- **Daily:** menu template check for every Webtrition store (F1b). No nightly re-seed or warm-up;
+  validation and UI use keep data current.
 - **Saturday night rollover:** next week becomes this week; load the new next week.
 - **Retention:** delete `menu_weeks` older than 8 weeks (never the Default Week), `source_menu_days`
   older than today or outside this week and next once past `max_age`, `resolved_menus` and
@@ -771,6 +797,7 @@ Retention: `menu_change_feed` keeps 7 days.
 | `POST /products/upsert-from-source` | ETL | Find or create the projection for a source item; link it; save harvested values |
 | `POST /products` · `PATCH /products/{id}/values?level=` | UI | Custom items, overrides at a level |
 | `POST /products/{id}/links` · `DELETE /products/{id}/links/{linkId}` | UI, ETL | Link, relink, change priority |
+| `POST /products/{id}/refresh` | UI, admin | Update one projection from its sources now (F9b) |
 | `GET /stores/{id}/catalog?source&unmapped` | UI | Staging catalog at a location (often the lab store) |
 | `POST /concepts/{id}/maps` | Brand manager; a location when allowed | Map POS items to concept projections; covers every store on that POS |
 | `POST /concepts/{id}/products/from-catalog` | Brand manager; a location when allowed | Make a brand item from a staging catalog item |
@@ -787,7 +814,8 @@ Retention: `menu_change_feed` keeps 7 days.
 | `POST /refresh {store, source, dates}` | UI, jobs | Force fresh (F2b); returns the result, or `limited` with `next_allowed_at` |
 | `GET /sync-status?store` | UI | Per source: last pull, last success, next due, next allowed, error |
 | `PUT /sync-policies/{source}[?store]` | Admin | Change a source's policy (§4.2) |
-| `POST /seed {store}` | Setup | F1 |
+| `POST /seed {store[, menuCollectionId]}` | Setup, F1b | Seed one menu template (F1) |
+| `POST /harvest {productId}` | Product DB (F9b) | Harvest one product's links now |
 
 ### 10.3 Scheduling
 
@@ -809,7 +837,7 @@ Each phase is reviewed before the next starts.
 |---|---|---|
 | **0. Approve** | This document | Approved; status changed above |
 | **1. Schemas** | `product`, `etl`, `schedule` schemas with §6–8 tables in the playground Supabase; hierarchy and one demo store | Migration applies cleanly; RLS stays open for the playground |
-| **2. ETL Webtrition** | `populate-menu-data` becomes the ETL: `seed` (F1), sync policies, scheduler, queue and rate limiter, validate here and now (F2), cached / uncached / forced (F2b), `source-menu`, `validate` | Demo store seeded for one cycle; today re-validated every 15 min; a forced refresh and an uncached future week both work; projections in `location_products` |
+| **2. ETL Webtrition** | `populate-menu-data` becomes the ETL: `seed` (F1), new template detection (F1b), sync policies, scheduler, queue and rate limiter, validate here and now (F2), cached / uncached / forced (F2b), `source-menu`, `validate` | Demo store seeded for one cycle; today re-validated every 15 min; a forced refresh and an uncached future week both work; projections in `location_products` |
 | **3. Product DB API** | RPC functions for §10.1 (search, upsert-from-source, overrides, links); `product.changed` via `pg_notify` | Search returns available and unavailable items; an override shows up in `location_products` |
 | **4. Scheduling core** | Targets, Default Week, weeks, items; F5–F7, F10, F12; `resolved_menus`, change feed, `GET /menus` with ETag | Existing demo schedules migrated and resolving the same as today's UI; a source change during the day shows in the change feed |
 | **5. UI switch-over** | UI reads and writes through scheduling and product functions; week resolution moved out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` | Smart Labels and Products work on the new tables; old tables dropped |
@@ -856,6 +884,10 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 | D27 | Future dates that aren't cached are fetched on demand with a short wait, then fall back to unvalidated projection data | 11-25 |
 | D28 | Validated changes reach endpoints automatically: change feed, webhooks, and ETag / since polling | 11-25 |
 
+| D29 | Seeding runs at setup and when a new menu template becomes active; no scheduled re-seed or nightly warm-up | 11-25 |
+| D30 | Menu item validation keeps projections current after the seed; UI interaction refreshes planning data | 11-25 |
+| D31 | A person can update a single projection on demand (e.g. to see a recipe change) | 11-25 |
+
 ## 13. Open items
 
 None blocking approval. To confirm while building phase 2:
@@ -868,4 +900,5 @@ None blocking approval. To confirm while building phase 2:
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-11-25 | Restructured as the reference for approval: infrastructure choices, full schema, flows F1–F11, APIs, build plan |
+| 1.2 | 2026-11-25 | Seeding only at setup and on a new active menu template (F1b); no nightly warm-up; on-demand projection update (F9b); D29–D31 |
 | 1.1 | 2026-11-25 | Added §4 freshness and sync strategy: request kinds, sync policies, validation states, scheduler / queue / single-flight patterns, change delivery. Day-level cache, sync tables, change feed and subscriptions; flows F2, F2b, F12; D24–D28 |
