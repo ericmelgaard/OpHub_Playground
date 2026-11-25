@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 .env
 .env.*
-!.env.exampledocs/review-page/menu-platform-design.html
+!.env.example
