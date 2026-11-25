@@ -1,31 +1,30 @@
 # Menu scheduling: where we left off
 
-Last session: 2026-11-24. Design: [MENU_SCHEDULING_DESIGN.md](MENU_SCHEDULING_DESIGN.md) (three systems: ETL
-server, product database, scheduling + validation; decisions in section 9).
+Last session: 2026-11-25. Design: [MENU_SCHEDULING_DESIGN.md](MENU_SCHEDULING_DESIGN.md) (three systems: ETL
+server, product database, scheduling + validation; decisions in section 9). Focus is infrastructure,
+table schema and the workflow for populating schedules; the product database can be new.
 
 ## Questions to answer next
 
-1. **Harvest scope.** Should the ETL harvest into the product database only products that are
-   projections (plus the light search index), or every Webtrition item a company has served?
-   Harvesting everything goes against "don't keep Webtrition items".
-2. **Product DB access.** Does scheduling read the product database through an API (with a cache), or
-   share Postgres through read-only views? Playground: views. Production: probably an API.
-3. **Product-to-product links.** When a Webtrition product links to a retail product, which attributes
-   flow from the retail one? Draft: treat the linked product like a source with its own attribute map
-   and priority.
-4. **Default Week vs today's frozen order.** Draft: a Default Week change applies instantly, but today's
-   locked order still holds (removed items drop off, new ones go to the end). Or should a Default Week
-   change be allowed to reorder today?
-5. **POS availability.** Should an out-of-stock flag from a POS hide an item on labels/signage, or only
-   mark it?
-6. **Existing product database.** What does it look like today (tables, where it runs), so section 4
-   can be written as changes to it rather than new tables?
+1. **Default Week vs today's frozen order.** A Default Week change applies instantly. Does today's
+   locked order still hold (removed items drop off, new ones go to the end), or may the change reorder
+   today?
+2. **Inactive projections.** Draft: a Webtrition projection unseen for two menu cycles becomes inactive
+   (hidden from quick add, still searchable, never deleted while scheduled). Right length? For POS
+   items, how long gone from the catalog before inactive?
+3. **Retail match on auto import.** When a store's POS sends an item the concept may already have (a
+   Whopper from a new POS), match only by an existing link, or also by exact name, before creating a
+   new projection?
+
+Answered 2026-11-25 (now in the design): harvest scope (every new item becomes a projection), product DB
+access (service request API), product-to-product links (just a link in priority order), POS out of
+stock (an attribute), existing product DB (not needed; can be new).
 
 ## Next steps once those are answered
 
-- Write the first migration for the playground: `product` and `schedule` schemas, hierarchy,
-  `menu_targets` (design section 8).
-- Turn `supabase/functions/populate-menu-data` into the ETL function (`source-menu`, `validate`,
-  `harvest`) with the this-week + next-week snapshot.
-- Move week resolution out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` into the scheduling
-  function.
+- Write the first playground migration: `product`, `etl` and `schedule` schemas, hierarchy,
+  `store_sources`, `menu_targets` (design section 8).
+- Turn `supabase/functions/populate-menu-data` into the ETL function (`seed` for one menu cycle,
+  `refresh`, `source-menu`, `validate`) with the this-week + next-week validation cache.
+- Move week resolution out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` into the
+  scheduling function.
