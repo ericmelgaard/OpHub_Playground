@@ -3,13 +3,13 @@
 | | |
 |---|---|
 | **Status** | **Proposed — awaiting approval.** No build work starts until this is approved. |
-| **Version** | 1.0 · 2026-11-25 |
+| **Version** | 1.1 · 2026-11-25 |
 | **Owner** | Eric Melgaard |
 | **Scope** | Infrastructure, table schema and the logic that populates menu schedules on smart labels and signage menu zones |
 | **Source of truth** | This file (`docs/MENU_SCHEDULING_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
 
 **How to use this document.** Each part of the build should point back to a section here: the
-tables in §5–7, the flows in §8 (`F1`–`F11`), the APIs in §9. Decisions have IDs (`D1`–`D23`, §11). If
+tables in §6–8, the flows in §9 (`F1`–`F12`), the APIs in §10. Decisions have IDs (`D1`–`D28`, §12). If
 code and this document disagree, this document wins until it's changed on purpose.
 
 ## 1. Goals and non-goals
@@ -69,11 +69,13 @@ flowchart TB
 |---|---|---|---|
 | I1 | **Three separate systems** (ETL, product DB, scheduling) | The product database serves many APIs and locations beyond menus. Scheduling only places items. Source calls stay in one place. | One combined menu service: mixes the system of record with placement, and source outages leak into the UI |
 | I2 | **ETL is an always-on service** answering direct calls. Background work runs on workers or a nightly job. | Rule: no slow DAGs in front of a UI. `validate` and `source-menu` are called while a person waits. | Airflow DAGs on the request path. Airflow is allowed only for the nightly batch. |
-| I3 | **Validation cache in the ETL** for this week and next, one wds call per store per week (`Days=7`) | WAND's wds route never caches items (every call hits Compass), so this snapshot *is* the cache. Keeps a stale copy if Webtrition is down. | Calling wds per request. Keeping dated Webtrition items longer. |
+| I3 | **Day-level validation cache in the ETL** (`source_menu_days`): 1-day pulls for here-and-now validation, 7-day pulls for planning | Freshness is per day; today can be re-validated every 15 minutes without re-pulling the week. WAND's wds route never caches items, so this *is* the cache, and it keeps a stale copy when a source is down. | Week snapshots only. Calling the source per request. Keeping dated Webtrition items long. |
 | I4 | **Product database behind a service request API** | Many callers (scheduling, ETL, other apps). Lets the product DB change inside without breaking callers. | Shared tables joined directly by scheduling |
 | I5 | **`location_products`: a resolved product set per store**, rebuilt on change | A store works when sources are down. Search, quick add and scheduling read one table. | Resolving through the source chain on every read |
 | I6 | **Resolved menus cached** for this week and next, with a hash | Devices, signage, the AIMS push and the public API read only this. The hash decides whether to push. | Resolving on every device request |
 | I7 | **Events, not polling**, between systems (`product.changed`) | Product and price changes reach menus right away without scans | Nightly reconciliation only |
+| I9 | **Sync policies in data** + an always-on **policy scheduler** with a priority queue, per-source rate limiter and single-flight (§4) | Sources differ and change (Webtrition every 15 min, PAR once a day). A POS rule change is a row change. Forced and UI requests jump the queue but still respect source limits. | Fixed cron per source; hard-coded intervals |
+| I10 | **Change feed + webhooks + ETag polling** for endpoints (§4.5) | Validated changes during the day reach labels and signage automatically, by push or cheap poll | Endpoints re-pulling whole menus on a timer |
 | I8 | **Postgres** for all three. Playground: one Supabase project with schemas `product`, `etl`, `schedule`. | Matches today's stack. Schemas keep the boundaries real. | Separate databases in the playground |
 
 **Where it runs**
@@ -84,9 +86,111 @@ flowchart TB
 | Product database + service request API | WAND service on Postgres | `product` schema + RPC functions standing in for the API |
 | Scheduling + validation | WAND service on Postgres | `schedule` schema + edge function |
 | Events | Queue or webhook | Trigger + `pg_notify` |
+| Policy scheduler, queue, rate limiter | ETL workers (always on) | `pg_cron` every minute reading `source_sync_status.next_due_at` + a jobs table |
+| Change feed dispatch (webhooks) | Worker with retries | Edge function on a `pg_cron` tick |
 | Nightly / rollover / retention | Scheduled job (Airflow allowed here) | `pg_cron` |
 
-## 4. Concepts and identities
+## 4. Freshness and sync strategy
+
+This is the core of the system: how single-day validation, UI requests for uncached dates, forced
+refreshes and source limits fit together, and how validated changes reach endpoints.
+
+### 4.1 Four kinds of data request
+
+| Request | Example | Granularity | Served from | Speed target |
+|---|---|---|---|---|
+| **Here and now** (validation) | Is today's lunch still right? | **1 day** (today; tomorrow near close) | Source, on the store's sync policy (Webtrition about every 15 min) | Background; endpoints never wait |
+| **Planning** (this week, next week) | Opening next week in the UI | 7 days per call | Day cache, refreshed nightly and on open if older than its max age | Cache: instant |
+| **Future, not cached** | Opening a week 3 weeks out | The requested days | Source on demand, single-flight; kept briefly | One source call (seconds); UI shows a loading state, falls back to projections |
+| **Force fresh** | "Refresh now" in the UI, or an operator call | The requested days | Source now, bypassing the cache, **if the source policy allows it** | One source call; if not allowed, answer with the last sync time and when the next is allowed |
+
+Seeding a cycle (F1) is a fifth, bulk kind: lowest priority, never in front of a person.
+
+### 4.2 Sync policy per source and store
+
+Every source and store has a policy, because sources differ and change (Webtrition can be pulled every
+few minutes; PAR POS allows one sync a day; a POS may raise or lower its limits).
+
+| Setting | Meaning | Webtrition | PAR POS (example) |
+|---|---|---|---|
+| `validate_every` | How often "here and now" runs | 15 min | 1 day |
+| `validate_days` | Days each validation pulls | 1 (today) | full catalog |
+| `max_age` | Older than this, data counts as **stale** | 30 min | 26 h |
+| `min_interval` | Shortest gap the source allows between pulls | none | 24 h |
+| `daily_quota` | Pulls per day the source allows | none | 1 |
+| `force_allowed` | Can a person force a pull | yes | only if quota left |
+| `window` | Hours when validation runs (store hours plus lead time) | open − 1 h to close | overnight |
+
+Policies live in data (`source_sync_policies`, §7), so a POS rule change is a row change, not a deploy.
+Attributes that need faster change detection (out of stock) can only be as fresh as the source allows;
+the policy states that honestly.
+
+### 4.3 Validation states
+
+Every resolved item carries how trustworthy its data is:
+
+| State | Meaning | Shown and used? |
+|---|---|---|
+| `validated` | Source data younger than `max_age` | Yes |
+| `stale` | Source data older than `max_age` (source down, quota used) | Yes, flagged; validation keeps retrying per policy |
+| `unvalidated` | No source data for that day yet (future date not fetched, new store) | Yes, from `location_products`; flagged |
+| `limited` | A forced refresh was refused by the source policy | Yes; the UI says when the next pull is allowed |
+
+Rule: **endpoints always get something.** A source outage downgrades the state, never empties a menu.
+Validation still runs on its requirement and upgrades the state when the source returns.
+
+### 4.4 Patterns
+
+- **Day-level cache.** Source data is cached per store, source and service date (`source_menu_days`).
+  A 1-day validation replaces one day; a week load writes seven. Each day row has its own `fetched_at`,
+  so freshness is per day.
+- **Policy scheduler.** An always-on worker keeps `next_due_at` per store and source, and queues
+  validation when due (inside the window, outside the quota limits). No DAGs.
+- **Priority queue.** Order: forced (a person is waiting) → UI open of an uncached date → here-and-now
+  validation → planning warm-up → seeding. A per-source rate limiter enforces `min_interval` and
+  `daily_quota` for every job, forced ones included.
+- **Single-flight.** Concurrent requests for the same store, source and day share one source call.
+- **Stale-while-revalidate.** Reads return the cache at once with its state; if it's past `max_age`, a
+  refresh is queued. Only force-fresh and uncached-date requests wait for the source, with a timeout
+  that falls back to `stale` / `unvalidated`.
+- **Short-lived future days.** Days fetched for a future week stay cached until they're older than
+  `max_age` or fall outside this week and next; then they're dropped. Webtrition days are never kept
+  long.
+- **Change detection by hash.** Each day row stores a payload hash. Same hash: only `fetched_at`
+  moves. Different hash: upsert projections, rebuild `location_products`, emit `product.changed` /
+  `menu.source_changed`, and re-resolve affected menus.
+
+How a request for source data is answered:
+
+```mermaid
+flowchart TD
+  R[Request for a store, source and days] --> M{Mode}
+  M -- cached --> C{Day in cache?}
+  C -- yes, fresh --> V[Return: validated]
+  C -- yes, past max age --> S[Return: stale<br/>queue warm job]
+  C -- no --> U[Queue ui_uncached job<br/>wait up to ~5 s]
+  U -- done in time --> V
+  U -- timeout or failure --> N[Return: unvalidated<br/>from location products]
+  M -- fresh --> F{Policy allows a pull now?}
+  F -- yes --> P[Run force job first<br/>single-flight] --> V
+  F -- no --> L[Return: limited<br/>last ok + next allowed]
+```
+
+### 4.5 Getting changes to endpoints
+
+Validated changes must reach labels, signage and other endpoints automatically, ad hoc, during the day.
+
+1. A re-resolve (F6) that produces a new hash for a target / day / daypart writes a row to
+   **`menu_change_feed`** (a sequence number, target, date, daypart, hash).
+2. **Push:** a dispatcher sends each change to subscribed webhooks (`endpoint_subscriptions`), with
+   retries and backoff. The AIMS push is one such subscriber.
+3. **Poll:** endpoints that poll call `GET /menus?target&date&daypart` with `If-None-Match` (the hash
+   as ETag) and get `304` when nothing changed, or `GET /changes?since=<seq>` for everything since
+   their last sequence.
+4. Only today's changes are pushed during the day; future-day changes are delivered when they enter
+   the push window (or by poll).
+
+## 5. Concepts and identities
 
 | Term | Meaning |
 |---|---|
@@ -114,11 +218,11 @@ flowchart TB
 - **A different portion is a different item.** Edits apply to the same MRN + portion only.
 - An MRN is a master recipe. A Webtrition menu item can differ from its recipe (name, price, portion).
 
-## 5. Data model: product database
+## 6. Data model: product database
 
 Postgres. All tables have `created_at` / `updated_at` unless shown otherwise.
 
-### 5.1 Hierarchy
+### 6.1 Hierarchy
 
 ```sql
 create table concepts (
@@ -149,7 +253,7 @@ create table stores (
 );
 ```
 
-### 5.2 Projections and links
+### 6.2 Projections and links
 
 ```sql
 create table products (
@@ -208,13 +312,13 @@ create table product_values (                -- local overrides per level
 );
 ```
 
-### 5.3 Location products
+### 6.3 Location products
 
 ```sql
 create table location_products (             -- each store's resolved product set; always available
   store_id        uuid references stores,
   product_id      uuid references products,
-  values          jsonb not null,           -- fully resolved (§8 F6 step 4, without dated values)
+  values          jsonb not null,           -- fully resolved (§9 F6 step 4, without dated values)
   sources         jsonb not null,           -- which link or level supplied each attribute
   available_days  smallint,                 -- bit 0 = Sunday; seen pattern in the current cycle
   meal_periods    int[], station_ids int[],
@@ -224,7 +328,7 @@ create table location_products (             -- each store's resolved product se
 );
 ```
 
-### 5.4 Sources, catalogs and mapping
+### 6.4 Sources, catalogs and mapping
 
 ```sql
 create table store_sources (
@@ -270,7 +374,7 @@ create table concept_source_rules (          -- optional automatic import per PO
 );
 ```
 
-### 5.5 Helpers
+### 6.5 Helpers
 
 ```sql
 create table catalog_terms (                 -- quick-add chips
@@ -295,32 +399,73 @@ create table product_category_items (
 );
 ```
 
-## 6. Data model: ETL
+## 7. Data model: ETL
 
 ```sql
-create table source_menu_snapshots (         -- validation cache, this week + next
-  id             uuid primary key,
+create table source_sync_policies (          -- per source system, overridable per store (§4.2)
+  source_system   int  not null,
+  store_id        uuid,                     -- null = default for the source
+  validate_every  interval not null,        -- Webtrition 15 min; PAR 1 day
+  validate_days   int,                      -- days per here-and-now pull (Webtrition 1); null = full catalog
+  max_age         interval not null,        -- older = stale
+  min_interval    interval,                 -- shortest gap the source allows
+  daily_quota     int,                      -- pulls per day the source allows
+  force_allowed   boolean not null default true,
+  window_start    time, window_end time,    -- when here-and-now runs; null = always
+  unique nulls not distinct (source_system, store_id)
+);
+
+create table source_sync_status (            -- scheduler state per store and source
+  store_id        uuid,
+  source_system   int,
+  last_pull_at    timestamptz,
+  last_ok_at      timestamptz,
+  pulls_today     int not null default 0,
+  next_due_at     timestamptz,
+  next_allowed_at timestamptz,              -- from min_interval / quota
+  last_error      text,
+  primary key (store_id, source_system)
+);
+
+create table sync_jobs (                     -- the priority queue
+  id             bigserial primary key,
   store_id       uuid not null,
   source_system  int  not null,
-  week_start     date not null,             -- Sunday
+  kind           text not null check (kind in ('force','ui_uncached','validate','warm','seed')),
+  priority       int  not null,             -- force 0, ui_uncached 1, validate 2, warm 3, seed 4
+  date_from      date, date_to date,         -- days to pull (null = full catalog)
+  requested_by   text,
+  status         text not null default 'queued' check (status in ('queued','running','done','failed','refused')),
+  dedupe_key     text,                      -- store|source|dates: single-flight
+  created_at     timestamptz not null default now(),
+  finished_at    timestamptz
+);
+create unique index on sync_jobs (dedupe_key) where status in ('queued','running');
+
+create table source_menu_days (              -- day-level validation cache
+  store_id       uuid not null,
+  source_system  int  not null,
+  service_date   date not null,
   fetched_at     timestamptz not null,
-  status         text not null check (status in ('ok','stale','failed')),
   payload_hash   text,
-  unique (store_id, source_system, week_start)
+  status         text not null check (status in ('ok','failed')),
+  primary key (store_id, source_system, service_date)
 );
 
 create table source_menu_items (             -- one dated Webtrition menu item
-  snapshot_id     uuid references source_menu_snapshots on delete cascade,
-  menu_item_id    int  not null,            -- unique per date / meal period / station
+  store_id        uuid not null,
+  source_system   int  not null,
   service_date    date not null,
+  menu_item_id    int  not null,            -- unique per date / meal period / station
   meal_period_id  int, station_id int,
   mrn             text, portion text,
   source_sort     int,
   name            text, price text,         -- the menu item's own values
   attrs           jsonb,                    -- nutrition, allergens, icons, ingredients
-  primary key (snapshot_id, service_date, menu_item_id)
+  primary key (store_id, source_system, service_date, menu_item_id),
+  foreign key (store_id, source_system, service_date) references source_menu_days on delete cascade
 );
-create index on source_menu_items (snapshot_id, mrn, portion, meal_period_id);
+create index on source_menu_items (store_id, service_date, mrn, portion, meal_period_id);
 
 create table source_cycles (                 -- Webtrition menu cycle per store
   store_id             uuid,
@@ -332,7 +477,9 @@ create table source_cycles (                 -- Webtrition menu cycle per store
 );
 ```
 
-## 7. Data model: scheduling
+Freshness of a day = `now() - source_menu_days.fetched_at` compared with the policy's `max_age`.
+
+## 8. Data model: scheduling
 
 ```sql
 create table dayparts (
@@ -412,16 +559,41 @@ create table resolved_menus (                -- what devices read; this week + n
   service_date      date,
   daypart_id        uuid,
   items             jsonb not null,          -- ordered items, display values, bound menu_item_id
-  availability      jsonb not null,          -- per item: available | not_in_source | closed | unknown
+  availability      jsonb not null,          -- per item: available | not_in_source | closed
+  validation        jsonb not null,          -- per item: validated | stale | unvalidated | limited (§4.3)
+  validated_at      timestamptz,             -- oldest source fetch used
   product_versions  jsonb not null,          -- location_products.version used
-  source_status     text not null,           -- ok | stale
   hash              text not null,
   resolved_at       timestamptz not null,
   primary key (target_id, service_date, daypart_id)
 );
+
+create table menu_change_feed (              -- every change to a resolved menu (§4.5)
+  seq           bigserial primary key,
+  target_id     uuid not null,
+  service_date  date not null,
+  daypart_id    uuid not null,
+  hash          text not null,
+  reason        text,                        -- source_changed | product_changed | schedule_edit | lock
+  created_at    timestamptz not null default now()
+);
+create index on menu_change_feed (target_id, seq);
+
+create table endpoint_subscriptions (        -- webhooks
+  id           uuid primary key,
+  store_id     uuid not null,
+  target_id    uuid,                         -- null = every target in the store
+  url          text not null,
+  secret_ref   text,                         -- signing secret reference
+  push_window  text not null default 'today',  -- today | this_week
+  last_seq     bigint,                       -- last change delivered
+  active       boolean not null default true
+);
 ```
 
-## 8. Logic flows
+Retention: `menu_change_feed` keeps 7 days.
+
+## 9. Logic flows
 
 ### F1 · Seed a store (Webtrition)
 
@@ -433,22 +605,42 @@ create table resolved_menus (                -- what devices read; this week + n
 4. Record meal periods, stations and days seen. Rebuild `location_products`.
 5. Keep this week and next as the validation cache.
 
-### F2 · Refresh Webtrition (ongoing)
+### F2 · Validate here and now (ongoing, per policy)
 
-1. Triggered when a person opens a week (if the cache is over ~15 minutes old), nightly for every
-   store with targets, or by `POST /refresh`.
-2. One wds call per store per week for this week and next. Replace the snapshot. If the call fails,
-   keep the old snapshot and mark it `stale`.
-3. Upsert any new MRN + portion as a projection. Update harvested values when the source hash changes.
-   Bump `last_seen`.
-4. **Cycle change** (`next_play_date` reached or a new menu collection): pull the new cycle ahead of
-   time, as in F1.
-5. A projection unseen for **two cycles** becomes `inactive` (hidden from quick add, still searchable,
-   never removed while scheduled).
+1. The policy scheduler finds stores where `next_due_at` has passed, inside the window, and queues a
+   `validate` job (Webtrition: today only, `validate_days = 1`; near close, tomorrow too).
+2. The worker checks the rate limiter (`next_allowed_at`, `daily_quota`). If not allowed, it waits; the
+   data stays as is and turns `stale` once past `max_age`.
+3. Pull the day(s) (wds POST, `Days=1`, `allergenMenu: "all"`). Single-flight: a job already queued for
+   the same store and days is reused.
+4. Compare the payload hash with `source_menu_days`:
+   - **same:** update `fetched_at` only (now `validated`);
+   - **different:** replace the day's items, upsert any new MRN + portion as a projection, update
+     harvested values, rebuild `location_products`, emit `menu.source_changed {store, dates}`.
+5. On failure: keep the old day, record `last_error`, retry on the policy (with backoff). Endpoints keep
+   showing the last data, marked `stale`.
+6. Set `next_due_at = now + validate_every`.
+
+### F2b · Planning, uncached and forced requests
+
+- **Planning (this week, next week):** read `source_menu_days`. Days past `max_age` are returned at
+  once and a `warm` job (7-day pull) is queued.
+- **Future week not cached:** queue a `ui_uncached` job for those days and wait up to a timeout
+  (~5 s). On time: resolve as `validated`. On timeout or failure: resolve from `location_products`
+  as `unvalidated` and update when the job finishes. Those days are dropped once older than `max_age`
+  unless they fall in this week or next.
+- **Force fresh:** queue a `force` job. If the policy allows it (`force_allowed`, quota, min interval),
+  it runs first and the caller waits for it. If not, the job is `refused` and the caller gets `limited`
+  with `last_ok_at` and `next_allowed_at`.
+- **Cycle change** (`next_play_date` reached or a new menu collection): a `seed` job pulls the new cycle
+  ahead of time, as in F1.
+- A projection unseen for **two cycles** becomes `inactive` (hidden from quick add, still searchable,
+  never removed while scheduled).
 
 ### F3 · Pull a POS (ongoing)
 
-1. Pull the full catalog on the store's interval.
+1. Pull the full catalog when its sync policy says (`validate_every`, `daily_quota`; e.g. PAR once a
+   day). Forced pulls follow F2b's rules.
 2. Diff against `source_catalog_items`: new, changed, gone.
 3. **New:** if `concept_item_maps` has it, link the store's projection right away. Otherwise it stays
    in the **staging catalog**. A projection is created only under an automatic import: the concept
@@ -479,7 +671,9 @@ create table resolved_menus (                -- what devices read; this week + n
 2. If missing, copy the matching recurring week, else the Default Week: new row, rules and items with
    new ids and `origin_item_id`, `edited = false`.
 3. Webtrition target: call ETL `GET /source-menu` (autofill rules) and `POST /validate` (the week's
-   items). Retail target: no source call; category rules read the product database.
+   items) with `mode = cached` (planning) or `fresh` (force). The ETL serves per F2b; each day comes
+   back with its validation state. Retail target: no source call; category rules read the product
+   database.
 4. Resolve each day and daypart (F6).
 5. Write `resolved_menus` for days in this week and next.
 
@@ -494,7 +688,8 @@ create table resolved_menus (                -- what devices read; this week + n
 3. **Bind and validate** (Webtrition): find that day's menu item by MRN + portion + meal period,
    station ignored. Several matches: prefer the item's own station, then the sort standard. Found =
    `available`, bound to its `menu_item_id`. Not found = `not_in_source` (still allowed, shown as "Not on
-   the source menu Tue"). Week beyond the cache = `unknown`.
+   the source menu Tue"). Each item also gets its validation state (§4.3) from the day's
+   `fetched_at` and the policy.
 4. **Values** per attribute, first that has one wins:
    1. this week's `overrides`;
    2. local overrides: store → company → concept (`product_values`);
@@ -505,7 +700,7 @@ create table resolved_menus (                -- what devices read; this week + n
 5. **Order:** if the day has a lock (F10), follow it. Otherwise pinned `position`, then source
    `sortOrder`, then Webtrition menu item id (category fill: category order, then name). Items with no
    source sort after source items.
-6. Hash the result. Push to AIMS / signage only if the hash changed.
+6. Hash the result. If it changed, write `resolved_menus` and a `menu_change_feed` row (F12).
 
 ### F7 · Edit the Default Week or a week
 
@@ -547,16 +742,27 @@ create table resolved_menus (                -- what devices read; this week + n
 
 ### F11 · Nightly, rollover, retention
 
-- **Nightly:** refresh this week and next for every Webtrition store with targets (F2), check for cycle
-  changes, re-resolve and push changes.
+- **Nightly:** queue `warm` jobs for this week and next for every Webtrition store with targets, check
+  for cycle changes, re-resolve and record changes.
 - **Saturday night rollover:** next week becomes this week; load the new next week.
-- **Retention:** delete `menu_weeks` older than 8 weeks (never the Default Week), snapshots older than
-  this week, `resolved_menus` and `menu_order_locks` older than today. Products are never deleted,
+- **Retention:** delete `menu_weeks` older than 8 weeks (never the Default Week), `source_menu_days`
+  older than today or outside this week and next once past `max_age`, `resolved_menus` and
+  `menu_order_locks` older than today, `menu_change_feed` older than 7 days, finished `sync_jobs` older
+  than 7 days. Products are never deleted,
   only marked inactive or retired.
 
-## 9. APIs
+### F12 · Deliver changes to endpoints
 
-### 9.1 Product database: service request API
+1. `menu.source_changed` or `product.changed` → scheduling re-resolves the affected targets for today
+   first, then the rest of this week and next (F6).
+2. Each new hash writes `menu_change_feed`.
+3. The dispatcher sends rows inside each subscription's `push_window` to its webhook (signed, retries
+   with backoff), and advances `last_seq`. The AIMS push is a subscriber.
+4. Polling endpoints call `GET /menus` with `If-None-Match` (304 when unchanged) or `GET /changes?since`.
+
+## 10. APIs
+
+### 10.1 Product database: service request API
 
 | Request | Caller | Does |
 |---|---|---|
@@ -572,16 +778,18 @@ create table resolved_menus (                -- what devices read; this week + n
 | `PATCH /stores/{id}/sources/{source}` | UI | Make a POS active, change its priority |
 | event `product.changed` | → Scheduling | `{product_id, store_ids, attributes, level}` |
 
-### 9.2 ETL server
+### 10.2 ETL server
 
 | Request | Caller | Does |
 |---|---|---|
-| `GET /source-menu?store&week[&mealPeriod&station]` | Scheduling | Dated Webtrition items for the week, in the sort standard |
-| `POST /validate {store, week, items}` | Scheduling | Per item per day: availability, bound `menu_item_id`, that day's values |
-| `POST /refresh {store, source}` | UI, jobs | Pull now |
+| `GET /source-menu?store&dates&mode[&mealPeriod&station]` | Scheduling | Dated Webtrition items in the sort standard; `mode = cached \| fresh` (F2b); each day with `fetched_at` and validation state |
+| `POST /validate {store, dates, items, mode}` | Scheduling | Per item per day: availability, bound `menu_item_id`, that day's values, validation state |
+| `POST /refresh {store, source, dates}` | UI, jobs | Force fresh (F2b); returns the result, or `limited` with `next_allowed_at` |
+| `GET /sync-status?store` | UI | Per source: last pull, last success, next due, next allowed, error |
+| `PUT /sync-policies/{source}[?store]` | Admin | Change a source's policy (§4.2) |
 | `POST /seed {store}` | Setup | F1 |
 
-### 9.3 Scheduling
+### 10.3 Scheduling
 
 | Request | Caller | Does |
 |---|---|---|
@@ -589,19 +797,21 @@ create table resolved_menus (                -- what devices read; this week + n
 | `GET /targets/{id}/default-week` · `PATCH …` | UI | Default Week and its edits (F7) |
 | `POST/PATCH/DELETE /targets/{id}/weeks/{weekStart}/items` | UI | Add, change, hide, pin items |
 | `POST /targets/{id}/weeks/{weekStart}/copy` · `/recur` | UI | Copy, paste, recurring |
-| `GET /menus?target&date&daypart` | Devices, signage, public API | Read `resolved_menus` only |
+| `GET /menus?target&date&daypart` | Devices, signage, public API | Read `resolved_menus` only; ETag = hash, `304` when unchanged |
+| `GET /changes?store&since=<seq>` | Polling endpoints | Changes since a sequence number |
+| `POST/DELETE /subscriptions` | Endpoint setup | Register a webhook (§4.5) |
 
-## 10. Build plan
+## 11. Build plan
 
 Each phase is reviewed before the next starts.
 
 | Phase | Builds | Done when |
 |---|---|---|
 | **0. Approve** | This document | Approved; status changed above |
-| **1. Schemas** | `product`, `etl`, `schedule` schemas with §5–7 tables in the playground Supabase; hierarchy and one demo store | Migration applies cleanly; RLS stays open for the playground |
-| **2. ETL Webtrition** | `populate-menu-data` becomes the ETL: `seed` (F1), `refresh` (F2), `source-menu`, `validate` | Demo store seeded for one cycle; this and next week cached; projections in `location_products` |
-| **3. Product DB API** | RPC functions for §9.1 (search, upsert-from-source, overrides, links); `product.changed` via `pg_notify` | Search returns available and unavailable items; an override shows up in `location_products` |
-| **4. Scheduling core** | Targets, Default Week, weeks, items; F5–F7, F10; `resolved_menus` | Existing demo schedules migrated and resolving the same as today's UI |
+| **1. Schemas** | `product`, `etl`, `schedule` schemas with §6–8 tables in the playground Supabase; hierarchy and one demo store | Migration applies cleanly; RLS stays open for the playground |
+| **2. ETL Webtrition** | `populate-menu-data` becomes the ETL: `seed` (F1), sync policies, scheduler, queue and rate limiter, validate here and now (F2), cached / uncached / forced (F2b), `source-menu`, `validate` | Demo store seeded for one cycle; today re-validated every 15 min; a forced refresh and an uncached future week both work; projections in `location_products` |
+| **3. Product DB API** | RPC functions for §10.1 (search, upsert-from-source, overrides, links); `product.changed` via `pg_notify` | Search returns available and unavailable items; an override shows up in `location_products` |
+| **4. Scheduling core** | Targets, Default Week, weeks, items; F5–F7, F10, F12; `resolved_menus`, change feed, `GET /menus` with ETag | Existing demo schedules migrated and resolving the same as today's UI; a source change during the day shows in the change feed |
 | **5. UI switch-over** | UI reads and writes through scheduling and product functions; week resolution moved out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` | Smart Labels and Products work on the new tables; old tables dropped |
 | **6. Retail** | `store_sources`, staging catalog, concept maps, seed (F3, F4), category autofill | A test POS catalog seeded at a lab store and mapped; a retail target fills by category |
 | **7. Signage zones** | `menu_targets.kind = 'zone'` with reported capacity and overflow | A zone resolves a category menu |
@@ -612,7 +822,7 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 `product_dayparts` become store overrides. `converge-custom` rows become custom projections.
 `menu_items` and `product_availability` are dropped.
 
-## 11. Decisions
+## 12. Decisions
 
 | ID | Decision | Date |
 |---|---|---|
@@ -640,12 +850,22 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 | D22 | Webtrition and custom projections are owned by the company (translations for all locations); retail by the concept | 11-25 |
 | D23 | Webtrition is the system of record for its items; WAND does site and company enrichment, validation and placement | 11-25 |
 
-## 12. Open items
+| D24 | Here-and-now validation pulls one day (today) on each source's sync policy; Webtrition about every 15 minutes, and it can be forced | 11-25 |
+| D25 | Each source has a sync policy in data (interval, max age, min interval, quota, force allowed, window); POS limits like PAR's one sync a day are respected even for forced pulls | 11-25 |
+| D26 | When a source is down or limited, cached data is used and marked stale; validation keeps trying per its requirement; menus never go empty | 11-25 |
+| D27 | Future dates that aren't cached are fetched on demand with a short wait, then fall back to unvalidated projection data | 11-25 |
+| D28 | Validated changes reach endpoints automatically: change feed, webhooks, and ETag / since polling | 11-25 |
 
-None blocking approval.
+## 13. Open items
+
+None blocking approval. To confirm while building phase 2:
+
+- The wait before an uncached future request falls back to unvalidated (draft: ~5 s).
+- Each source's real limits for its starting policy (PAR's daily sync time, other POS rates).
 
 ## Change log
 
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-11-25 | Restructured as the reference for approval: infrastructure choices, full schema, flows F1–F11, APIs, build plan |
+| 1.1 | 2026-11-25 | Added §4 freshness and sync strategy: request kinds, sync policies, validation states, scheduler / queue / single-flight patterns, change delivery. Day-level cache, sync tables, change feed and subscriptions; flows F2, F2b, F12; D24–D28 |
