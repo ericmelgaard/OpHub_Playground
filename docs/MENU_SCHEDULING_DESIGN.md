@@ -3,14 +3,14 @@
 | | |
 |---|---|
 | **Status** | **Proposed — awaiting approval.** No build work starts until this is approved. |
-| **Version** | 1.3 · 2026-11-25 |
+| **Version** | 1.4 · 2026-11-25 |
 | **Owner** | Eric Melgaard |
 | **Scope** | Infrastructure, table schema and the logic that populates menu schedules on smart labels and signage menu zones |
 | **Source of truth** | This file (`docs/MENU_SCHEDULING_DESIGN.md`). Any review page is a copy of it. Change this file first, add a row to the change log, then rebuild. |
 
 **How to use this document.** Each part of the build should point back to a section here: the
-tables in §7–9, retention in §10, the flows in §11 (`F1`–`F12`), the APIs in §12. Decisions have IDs
-(`D1`–`D36`, §14). Start with §4: it explains the life of a menu item, which everything else serves. If
+tables in §7–9, retention in §10, the flows in §11 (`F1`–`F13`), the APIs in §12. Decisions have IDs
+(`D1`–`D41`, §14). Start with §4: it explains the life of a menu item, which everything else serves. If
 code and this document disagree, this document wins until it's changed on purpose.
 
 ## 1. Goals and non-goals
@@ -79,6 +79,8 @@ flowchart TB
 | I5 | **`location_products`: a resolved product set per store**, rebuilt on change | Enrichment for every item, the primary list for retail, and the fallback when Webtrition can't answer. A store works when sources are down. | Resolving through the source chain on every read |
 | I11 | **Webtrition scheduling reads the validation response first** (§4) | Webtrition is the system of record for what is on a menu on a date; WAND schedules and validates against that | Scheduling from the product database and only checking against Webtrition afterwards |
 | I12 | **Placements store identity, links are made per date** (`menu_item_links`) | Menu item ids change every day; a placement must survive until its date's menu item exists, and keep a visible record of what it matched | Storing a menu item id on the placement; keeping matches only inside cached menus |
+| I14 | **A compact record of what was shown** (`shown_menus`) for past days | Past days never change and must be answerable ("what did the label show last Tuesday?") even after products are renamed or repriced | Rebuilding past days from today's product data |
+| I15 | **Every date is readable by UI and API the same way** (§5.6) | An endpoint asking for a future date must get the same answer the UI shows | API reading only the cached window |
 | I13 | **Dated rows stay slim; detail is stored once per product**; date-keyed tables are partitioned by date | Keeps the cache about 10x smaller (§10) and makes retention a partition drop | Nutrition and allergens copied onto every dated row |
 | I6 | **Resolved menus cached** for this week and next, with a hash | Devices, signage, the AIMS push and the public API read only this. The hash decides whether to push. | Resolving on every device request |
 | I7 | **Events, not polling**, between systems (`product.changed`) | Product and price changes reach menus right away without scans | Nightly reconciliation only |
@@ -97,6 +99,16 @@ flowchart TB
 | Policy scheduler, queue, rate limiter | ETL workers (always on) | `pg_cron` every minute reading `source_sync_status.next_due_at` + a jobs table |
 | Change feed dispatch (webhooks) | Worker with retries | Edge function on a `pg_cron` tick |
 | Nightly / rollover / retention | Scheduled job (Airflow allowed here) | `pg_cron` |
+
+**Why not Airflow for the core.** Airflow is a batch orchestrator. Most of this system is a person or a
+device asking for an answer in seconds (validate today, fetch an uncached week, force a refresh), and an
+Airflow run takes seconds to minutes to start and returns nothing to the caller. Validating every store
+every 15 minutes is about 96 tiny runs per store per day, which Airflow's scheduler isn't built for.
+Per-source rules (PAR once a day, forced pulls that still respect quotas, single-flight) don't map onto
+pools and priority weights, and policies that change at runtime fight DAGs defined in code. The core
+runs on an always-on service with a durable job queue (Postgres-backed such as pg-boss or Graphile
+Worker, or SQS / Redis). Airflow is acceptable only for the light scheduled batch: the daily template
+check, seeding, the Saturday rollover and retention.
 
 ## 4. Life of a menu item
 
@@ -176,6 +188,39 @@ from when that date was last fetched.
    `validated`; the label shows the item. If Webtrition removes it at 11:00, the link turns `missing`,
    the resolved menu changes, the change feed records it and the label updates.
 5. **After.** The placement and its links are kept with the schedule for 8 weeks, then purged (§10).
+
+### 4.6 How a weekly menu is stored: Webtrition and custom items together
+
+A week holds only *placements*: which product goes where, on which days. Names, prices and nutrition
+are never copied into a week, so every read gets current values, and a week stays small.
+
+**Example:** the Grill Station label's lunch page for the week of Dec 13 holds a Webtrition item and a
+custom item.
+
+| Row | Table | Holds | Size |
+|---|---|---|---|
+| The week | `menu_weeks` | target, `week_start = 2026-12-13`, origin (Default Week / copy / recurring), `edited` | ~150 B |
+| Chicken Tenders placement | `menu_week_items` | product id (company projection for MRN 13404, portion "1 each"), meal period Lunch, station Grill, `on_mask` / `off_mask` (Auto = follow Webtrition), sort keys, any this-week override | ~300 B |
+| Chicken Tenders, Tue Dec 15 | `menu_item_links` | `linked`, menu item id for that date, when the date was fetched | ~80 B |
+| Soup of the Day placement | `menu_week_items` | product id (company custom projection), no meal period, days Mon–Fri forced On | ~300 B |
+| Soup of the Day links | none | Custom and retail items have no source dates, so no links; always available | 0 |
+
+- **Values at read time.** Chicken Tenders gets its name and price from that day's Webtrition menu item
+  (validation response), then the company and store values from the product database, then any
+  this-week override. Soup of the Day gets everything from the product database. A retail item works the
+  same way, with its POS price harvested per the POS sync policy.
+- **Default Week** placements are stored the same way under the target's Default Week row, with day
+  masks and no links (it has no dates). Real weeks are copied from it (§4.4).
+- **Size:** a target's page is a few kilobytes a week; 50 targets is about 1 MB a week of placements,
+  plus links for Webtrition placements only (§10.2).
+- **Updates:** because only identities are stored, a product edit or a new validation result changes
+  what every week shows the next time it's resolved: at once for today through next week (events), and
+  on access for later weeks (§5.6). Past days are read from what was shown (§9, `shown_menus`).
+- **Days that follow another meal period.** A placement can follow a different Webtrition meal period
+  than its page (`follows_meal_period_id`): a Brunch item on the Breakfast page shows on the days Brunch
+  offers it.
+- **Hidden autofill items.** Removing an autofilled item stores a placement with `state = 'hidden'`, so
+  autofill doesn't bring it back that week.
 
 ## 5. Freshness and sync strategy
 
@@ -279,6 +324,24 @@ Validated changes must reach labels, signage and other endpoints automatically, 
    their last sequence.
 4. Only today's changes are pushed during the day; future-day changes are delivered when they enter
    the push window (or by poll).
+
+### 5.6 What refreshes when a menu is viewed or read by API
+
+The UI and the API get the same answer for the same date. What happens depends on the date:
+
+| Date | Viewed in the UI | Read by API (`GET /menus`, `GET /targets/{id}/weeks/…`) | Stored |
+|---|---|---|---|
+| **Past days** | Read-only, from `shown_menus` (what was actually sent), with placements and links for context | Same, from `shown_menus` | `shown_menus`, placements and links for 8 weeks |
+| **Today** | Cached menu; validated every 15 min (policy) in the background; changes pushed as they happen | Cached menu with ETag / `304`; freshness state per item | `resolved_menus` |
+| **Rest of this week and next week** | Cached menu at once; if the dates are past `max_age`, a refresh is queued and the view updates when it lands | Same as the UI: cache at once, refresh queued if stale, freshness state per item | `resolved_menus` |
+| **Further out** | Dates pulled on demand (short wait), then resolved | **Resolved on demand** like the UI (F13); not stored as a cached menu | Placements and links only; pulled days dropped once past `max_age` |
+| **Any date, forced** | "Refresh now": pull now if the policy allows, else `limited` | `POST /refresh` then read | As above |
+
+- **Custom and retail items** need no source pull: they resolve from the product database on every
+  read, so they're always current. Their product edits reach today through next week right away
+  (`product.changed`) and later weeks on access.
+- **Mixed pages** resolve both kinds together; a slow Webtrition pull never blocks custom items (they
+  resolve at once; Webtrition items fall back to `stale` / `unvalidated` if the pull times out).
 
 ## 6. Concepts and identities
 
@@ -684,6 +747,18 @@ create table resolved_menus (                -- what devices read; this week + n
   primary key (target_id, service_date, daypart_id)
 );
 
+create table shown_menus (                   -- what was actually sent, for past days (I14)
+  target_id     uuid not null,
+  service_date  date not null,
+  daypart_id    uuid not null,
+  version       int  not null,               -- 1 = first send that day; +1 per change sent
+  items         jsonb not null,              -- compact: product id, display name, price, position,
+                                             -- link state; no nutrition
+  hash          text not null,
+  sent_at       timestamptz not null,
+  primary key (target_id, service_date, daypart_id, version)
+) partition by range (service_date);
+
 create table menu_change_feed (              -- every change to a resolved menu (§5.5)
   seq           bigserial primary key,
   target_id     uuid not null,
@@ -723,6 +798,7 @@ Retention: `menu_change_feed` keeps 7 days.
 | Schedules | `menu_weeks`, `menu_autofill_rules`, `menu_week_items` | Default Week always; weeks from 8 weeks back to the furthest future week created | History and planning |
 | Menu item links | `menu_item_links` | Same as their placements (8 weeks back) | What each placement matched, per date |
 | Resolved menus | `resolved_menus` | Today through next week | What endpoints read |
+| What was shown | `shown_menus` | 8 weeks, like schedules | Past days are read from it; audit |
 | Order locks | `menu_order_locks` | Today only | Frozen order |
 | Change feed | `menu_change_feed` | 7 days | Endpoint polling and webhook retries |
 | Sync jobs and status | `sync_jobs`, `source_sync_status` | Jobs 7 days; status current | Troubleshooting |
@@ -743,15 +819,16 @@ page, and 10 weeks of schedules (8 back, this week, next week).
 | `menu_week_items` | ~30,000 | ~10 MB |
 | `menu_item_links` (Webtrition placements × days scheduled) | up to ~200,000 | ~25 MB |
 | `resolved_menus` (50 × 14 days × 4 dayparts) | ~2,800 | ~12 MB |
+| `shown_menus` (50 × 56 days × 4 dayparts × ~1.5 versions, ~1 KB) | ~17,000 | ~20 MB |
 | Change feed, jobs, locks, catalog | small | ~2 MB |
-| **Total** | | **~60 MB per large store** |
+| **Total** | | **~80 MB per large store** |
 
-Rough scale: 1,000 such stores is about 60 GB, most of it links and resolved menus. Copying detail onto
+Rough scale: 1,000 such stores is about 80 GB, most of it links, shown menus and resolved menus. Copying detail onto
 every dated row instead (§8, I13) would add about 25 MB per store for the cache alone.
 
 ### 10.3 How retention runs
 
-- Date-keyed tables (`source_menu_items`, `menu_item_links`, `resolved_menus`, `menu_change_feed`) are
+- Date-keyed tables (`source_menu_items`, `menu_item_links`, `resolved_menus`, `shown_menus`, `menu_change_feed`) are
   partitioned by date (weekly). Retention drops whole partitions instead of deleting rows.
 - A daily job (F11) drops expired partitions, deletes past-window `source_menu_days`, deletes
   `menu_weeks` older than 8 weeks (placements and links cascade), and ages out catalog rows and terms.
@@ -874,7 +951,9 @@ Runs at setup, and again whenever a new menu template becomes active (F1b). Not 
    2. local overrides: store → company → concept (`product_values`);
    3. linked sources in priority order: the lowest-numbered link whose attribute map includes the
       attribute, skipping sources not active at the store. For Webtrition the day's menu item values
-      (name, price) beat the harvested values;
+      (name, price) beat the harvested values. Example: Webtrition at priority 1 maps name, nutrition
+      and allergens but not price; Agilysys at priority 2 maps price and out_of_stock; so price comes
+      from Agilysys and allergens from Webtrition;
    4. otherwise empty.
 5. **Order:** if the day has a lock (F10), follow it. Otherwise pinned `position`, then source
    `sortOrder`, then Webtrition menu item id (category fill: category order, then name). Items with no
@@ -946,7 +1025,20 @@ policy's limits). Changed values flow through F9.
 2. Each new hash writes `menu_change_feed`.
 3. The dispatcher sends rows inside each subscription's `push_window` to its webhook (signed, retries
    with backoff), and advances `last_seq`. The AIMS push is a subscriber.
+3b. Each version actually sent for a day writes a `shown_menus` row (the first send also writes the
+   order lock, F10).
 4. Polling endpoints call `GET /menus` with `If-None-Match` (304 when unchanged) or `GET /changes?since`.
+
+### F13 · Read a menu for any date (UI or API)
+
+1. **Past date:** return the last `shown_menus` version for that target, date and daypart (with earlier
+   versions on request). Never re-resolved.
+2. **Today through next week:** return `resolved_menus` with its ETag. If its source days are past
+   `max_age`, queue a refresh (F2b) and return the cache with freshness states.
+3. **Further out:** run F5 steps 1–5 for that week if needed (create the week from its origin, get the
+   validation response on demand, write links), resolve the day (F6) and return it. Not stored as a
+   cached menu; links are kept.
+4. **Forced:** `POST /refresh` first (subject to policy), then as above.
 
 ## 12. APIs
 
@@ -990,7 +1082,8 @@ policy's limits). Changed values flow through F9.
 | `POST /targets/{id}/weeks/{weekStart}/copy` · `/recur` | UI | Copy, paste, recurring |
 | `GET /targets/{id}/available?date&daypart` | UI | What can be scheduled: the date's validation response, enriched (Webtrition), or products (retail); each with link state |
 | `GET /targets/{id}/links?from&to` | UI, support | Menu item links per placement and date |
-| `GET /menus?target&date&daypart` | Devices, signage, public API | Read `resolved_menus` only; ETag = hash, `304` when unchanged |
+| `GET /menus?target&date&daypart` | Devices, signage, public API | Any date (F13): past from `shown_menus`, today to next week from `resolved_menus` (ETag = hash, `304` when unchanged), later dates resolved on demand |
+| `GET /targets/{id}/shown?date[&daypart]` | UI, support | Every version sent for a past day |
 | `GET /changes?store&since=<seq>` | Polling endpoints | Changes since a sequence number |
 | `POST/DELETE /subscriptions` | Endpoint setup | Register a webhook (§5.5) |
 
@@ -1004,7 +1097,7 @@ Each phase is reviewed before the next starts.
 | **1. Schemas** | `product`, `etl`, `schedule` schemas with §7–9 tables in the playground Supabase; hierarchy and one demo store | Migration applies cleanly; RLS stays open for the playground |
 | **2. ETL Webtrition** | `populate-menu-data` becomes the ETL: `seed` (F1), new template detection (F1b), sync policies, scheduler, queue and rate limiter, validate here and now (F2), cached / uncached / forced (F2b), `source-menu`, `validate` | Demo store seeded for one cycle; today re-validated every 15 min; a forced refresh and an uncached future week both work; projections in `location_products` |
 | **3. Product DB API** | RPC functions for §12.1 (search, upsert-from-source, overrides, links); `product.changed` via `pg_notify` | Search returns available and unavailable items; an override shows up in `location_products` |
-| **4. Scheduling core** | Targets, Default Week, weeks, placements, `menu_item_links`; F5–F7, F10, F12; `resolved_menus`, change feed, `GET /menus` with ETag; retention job (§10) | Existing demo schedules migrated and resolving the same as today's UI; a future-week placement goes `planned` → `linked`; a source change during the day shows in the change feed |
+| **4. Scheduling core** | Targets, Default Week, weeks, placements, `menu_item_links`, `shown_menus`; F5–F7, F10, F12, F13; `resolved_menus`, change feed, `GET /menus` with ETag; retention job (§10) | Existing demo schedules migrated and resolving the same as today's UI; a future-week placement goes `planned` → `linked`; a source change during the day shows in the change feed |
 | **5. UI switch-over** | UI reads and writes through scheduling and product functions; week resolution moved out of `src/lib/weekSchedule.ts` / `deviceWeekProjection.ts` | Smart Labels and Products work on the new tables; old tables dropped |
 | **6. Retail** | `store_sources`, staging catalog, concept maps, seed (F3, F4), category autofill | A test POS catalog seeded at a lab store and mapped; a retail target fills by category |
 | **7. Signage zones** | `menu_targets.kind = 'zone'` with reported capacity and overflow | A zone resolves a category menu |
@@ -1057,6 +1150,11 @@ become `on_mask` / `off_mask`; MRNs become projections). `product_local_values`,
 | D34 | Copy, recur and the Default Week copy placements, never links | 11-25 |
 | D35 | Dated Webtrition rows are slim; nutrition and allergen detail is stored once per product | 11-25 |
 | D36 | Retention per §10; date-keyed tables are partitioned by date so retention drops partitions | 11-25 |
+| D37 | A week stores placements only (product identity, days, position, this-week overrides); values are resolved at read time, for Webtrition, custom and retail items alike | 11-25 |
+| D38 | Custom and retail placements have no menu item links; they're always available and resolve from the product database | 11-25 |
+| D39 | UI and API get the same answer for any date: past from what was shown, today to next week from the cache, later dates resolved on demand | 11-25 |
+| D40 | What was sent to each target is kept as a compact record (`shown_menus`) for 8 weeks; past days are read from it, never re-resolved | 11-25 |
+| D41 | Airflow is not used for the core (request path, validation, queue); it's acceptable only for light scheduled batch work | 11-25 |
 
 ## 15. Open items
 
@@ -1070,6 +1168,7 @@ None blocking approval. To confirm while building phase 2:
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-11-25 | Restructured as the reference for approval: infrastructure choices, full schema, flows F1–F11, APIs, build plan |
+| 1.4 | 2026-11-25 | §4.6 how a mixed weekly menu is stored; §5.6 what refreshes on view and API by date; `shown_menus` for past days; `GET /menus` for any date (F13); why not Airflow; link priority example; D37–D41 |
 | 1.3 | 2026-11-25 | New §4 Life of a menu item (validation response first, placements vs menu item links, link states, example); new §10 Data retention and volume; `menu_item_links`; slim dated rows; F5, F6, F8 rewritten; D32–D36 |
 | 1.2 | 2026-11-25 | Seeding only at setup and on a new active menu template (F1b); no nightly warm-up; on-demand projection update (F9b); D29–D31 |
 | 1.1 | 2026-11-25 | Added §5 freshness and sync strategy: request kinds, sync policies, validation states, scheduler / queue / single-flight patterns, change delivery. Day-level cache, sync tables, change feed and subscriptions; flows F2, F2b, F12; D24–D28 |
