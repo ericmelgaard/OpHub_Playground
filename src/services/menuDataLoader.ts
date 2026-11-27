@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { getWeekStartDate, getWeekEndDate, localDate } from '../lib/weekSchedule';
 import { DEFAULT_SOURCE_SYSTEM } from '../lib/sources';
+import { cleanupSourceCache, getSourceWeek, warmSourceWeeks } from './sourceMenu';
 
 const EDGE_FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/populate-menu-data`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -111,5 +112,18 @@ export async function ensureCurrentAndNextWeek(): Promise<void> {
     ensureWeekData(0),
     ensureWeekData(1),
   ]);
+  // This browser's copy: this week and next kept warm (src/services/sourceMenu.ts)
+  warmSourceWeeks().catch(() => {});
+  // Retention, stored copy and browser copy together (spec §10.1)
   cleanupOldWeeks().catch(() => {});
+  cleanupSourceCache().catch(() => {});
+}
+
+// A later week someone opened: fill the stored copy if it has none, then this browser's copy.
+// Returns true when new source data came in (so products should be reloaded).
+export async function ensureRequestedWeek(weekOffset: number): Promise<boolean> {
+  if (weekOffset <= 1) return false;
+  const { inserted } = await ensureWeekData(weekOffset);
+  await getSourceWeek(weekOffset);
+  return inserted > 0;
 }

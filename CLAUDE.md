@@ -137,16 +137,16 @@ Reference: `src/components/ProductEditPage.tsx` (Edit in the product sheet, and 
   "ID · {source} {ID label} · local values", `SaveButton` / Create product), the **Sections** bookmark
   nav on the left (`w-56`, its own scroll, scroll-spy) and the content scrolling beside it.
 - One card per section (`rounded-xl`, icon + sentence-case title), in this order: Basics, Dayparts,
-  Images, Variations, Ingredients, Dietary and nutrition, Schedule, Customizations, Menu source.
+  Images, Served at, Ingredients, Dietary and nutrition, Schedule, Customizations, Menu source.
   Sections not built yet show an amber **Not built yet** tag and one line on what goes there.
 - **Schedule** is view only and uses the Smart Labels → Schedule week tiles (Default Week, then a
   scrollable strip with the Default / Override / Recurring bars). Rows are daypart + station, days
   drawn like the product day strip; weeks the source hasn't sent yet are dashed.
 - **Menu source** names the product's API and its item ID ("Webtrition · MRN 13404.3"), with a
   Field / {source} / Here table and **Use source** on local values.
-- **Variations** (direction): the same product (same ID) by daypart, station and group, each with
-  its own name, price or description there. A different portion is a different product.
-  **Customizations** (direction): only the changes made by levels below the one you're at.
+- **Served at** lists the product's variants (see "Products and variants" below); each one is
+  edited from the product sheet (Edit → Edit for {station} · {daypart}). **Customizations** (direction): only the changes made by levels below
+  the one you're at.
 
 ### Site settings (approved 2026-11-17)
 Reference: `src/components/SiteSettingsPage.tsx`, settings in `src/lib/siteSettings.ts`.
@@ -167,6 +167,74 @@ Component: `CopyButton` (`src/components/CopyButton.tsx`). **Every ID shown in t
 icon right after it**: product IDs, source IDs (MRN), device IDs. `size="xs"` in cards and rows,
 the default in headers and detail views; `label` names what's copied ("device ID", "MRN"). It
 shows a green check for a moment and never opens the card or row it sits in.
+
+### Products and variants (2026-11-25, menu platform spec v2.6 §6, F8, §15.6)
+References: `src/lib/variants.ts` (rules), `src/components/ProductVariants.tsx` (product display),
+`src/components/VariantChooser.tsx` (picking one). **Each portion is its own product**: a source
+product is MRN + portion (the database splits them: `menu_items_condensed.mrn` is the product key,
+`MRN|portion` when the MRN comes in several sizes; `source_mrn`, `portion`, `family_size` beside it).
+Sizes of one MRN are linked for display only. Each **meal station + daypart** a product is served at
+is a **variant** with its own name and price; station and daypart always go together. The station is
+the only choice when adding. Custom products have no variants.
+- **On screen it's "Served at", never "variant" (decided 2026-11-26).** "Variant" is the data and
+  code term (types, tables, functions, the spec) and isn't shown to staff. The list is headed
+  **Served at**; each one is named by its station · daypart ("Grill · Lunch"); counts read
+  "Served at 3"; the edit choice is **Edit for Grill · Lunch** vs **Edit product** ("Every
+  station"). Don't say "serving" (it means serving size in nutrition).
+- **Sizes:** when a recipe comes in more than one size, its products show the size in gray after the
+  name ("smoked beef brisket · 1 lb") in product cards and rows, Available Items and label page rows
+  (`sizeOf()`). The product sheet shows **Size** chips linking to the other sizes.
+- **Products:** cards and rows show "Served at 3" (`Layers`) after the IDs when there's more than one.
+  A product card or row stands for one variant, its **default** (`defaultVariant()`: the one whose
+  source name and price the card shows, else the first); the card's price is that variant's
+  (`cardPrice()`). The product sheet opens with **Served at**: one compact list (`VariantList`, no
+  chips or sideways scrolling), a row per variant (daypart dot, station, daypart, price, its own
+  name / portion, day letters), with the default **preselected**. There's no "All variants" view: the
+  sheet always shows one variant (the side panel's job is adding to a label, and you add a variant).
+  It shows that variant's name, portion, price and description, each tagged **Local** (set for this
+  variant), **At this station** (the source's own value there) or **From product**; its days; the
+  labels using it; then the product's shared values (calories, dietary, ingredients).
+  Variants are merged by station + daypart name (the source sends two "Lunch" meal periods).
+- **Editing (approved 2026-11-26):** one **Edit** button. With variants it opens a menu: **Edit for
+  {station} · {daypart}** (local count) or **Edit product** ("Every station"); without variants it
+  edits the product directly. Edit for a station opens `VariantEditPage` (same shell as the product edit
+  page): name, portion, price and description only, each with **Local** / **Use product**. Saved in
+  `variant_local_values` (product key + station + meal period, jsonb). Layers, lowest first: source →
+  station's own source value → product local value (all variants) → variant local value
+  (`variantValues()`). **Portion** is locked on the product (it's what the product is) but a variant
+  can rename how it's shown ("slice" for 1/8 pie). Ingredients, nutrition, allergens and images stay
+  on the product.
+- **Labels show the variant's values:** `labelName()` uses the variant's own name (Local, or the
+  station's when the product has no display name), `labelPrice()` / `labelPortion()` its price and
+  portion.
+- **Adding to a label names the variant**, chosen by logic whenever it can (`pickVariant()`): one
+  station in the page's daypart is picked for you (`inferred`). Otherwise the **chooser** opens:
+  Daypart chips (preselected, "This page" marked, changeable) and Meal station rows with their own
+  name, price and day letters. Adding from another daypart asks, unless the filters settle it.
+  **The filters are the choice (2026-11-26):** Available Items' **Station** filter matches products
+  served at that station *in the daypart being browsed* (their variants), and only those list. When
+  the filtered station leaves one serving location, adding picks it (`inferred`) with no question.
+  In Available Items a product that will still ask says so before you tap: "2 stations" in its gray
+  line and a small `ChevronDown` beside the `+` (`choiceHint()`); products settled by logic or the
+  filters keep the plain `+`.
+- **From a product (product-first):** the sheet shows one variant (the card's, or the one tapped).
+  **Add to label** opens the label page with Available Items **filtered to that variant's station and
+  daypart** (`initialFilters`; visible and clearable, never a hidden value), so it adds as that variant
+  with a plain `+`. Clearing the station filter brings the normal choice back. The label picker opens
+  on its daypart.
+- **Days follow the variant:** an item that names its variant uses that variant's days (the days
+  the source served it at that station and daypart) for Auto, the day pills and Not available.
+- **Auto Fill** knows the station: the item gets that station's variant (`inferred`); when several
+  picked stations serve it, the first is used and marked `review`.
+- **On the page** each item shows its station in gray under the price (display only). It's changed
+  from the item's menu (tap the item: Substitute, **Change station**, Remove from page), shown
+  when the product is served at more than one station, with the current one under it and a lime
+  `MapPin`; it reads **Choose station** (amber) when unclear. An unclear one (Auto Fill's
+  `review`, or several stations and none picked) also shows an amber **Choose station** button on the
+  row, and the page header counts them ("2 need a choice"). Picking is a pending change like any other.
+- Stored on the label item as `variant` (`device_schedule_items.variant`: station, meal period,
+  `user` / `inferred` / `review`). A product is on a page once (a second variant of it isn't
+  supported yet).
 
 ### Last opened → sky ring (approved 2026-11-15)
 Reference: `lastOpened` in `src/components/SmartLabelGrid.tsx` / `SmartLabelList.tsx` (labels, and
@@ -261,29 +329,37 @@ Edits on a label page are **pending changes** until applied; nothing is written 
 - **Day availability (Off / Auto / On)** on a label page is per day of the week being edited
   (`src/lib/labelDisplay.ts`). Auto follows the product's days; On adds the day for this label,
   Off removes it. It never means priority — drag order does. "Every day" sets all 7 days and shows
-  Mixed when they differ. **Every item on a label has its own week**, set when it's added:
-  added in Every day = all 7 days on Auto (follows the source); added on one day = that day only,
-  the other six Off (one pending change, "Pancakes on Tue only"). To follow the source all week,
-  add it in Every day. On a single day, items that are Off or not offered that day go under the
-  collapsed **Not available {day}** section (with an "On {day}" button), not in the page list.
-  They also stay in **Available Items** for that day, always under its **Not available {day}**
-  (decided 2026-11-18), marked "On this page", with an "On {day}" button: adding one again
-  turns that day on — Auto when the source offers it that day, else On. Items showing that day
-  aren't listed there.
+  Mixed when they differ. **An item on a label is one day at a time (2026-11-26, menu platform
+  spec v2.7 §4.8, D66: a "scheduled item").** Each day it's on is its own row in
+  `device_schedule_items` (`day_of_week`, `state`: `auto` / `on` / `hidden`); a day with no row
+  isn't on the label. Added in Every day = 7 rows on Auto (follows the source, including days it
+  doesn't serve yet); added on one day = that day's row only ("Pancakes on Tue only"). Turning a
+  day Off deletes that day's row; On sets `state = 'on'`; `hidden` is for Auto Fill. The page's
+  Off / Auto / On toggles are worked out from the rows (`daySettingsFromRows()` in
+  `src/services/api.ts`) and written back as rows (`setItemDaySettings`). To follow the source all
+  week, add it in Every day. **Adding writes only the days it's added for** (one row on a single
+  day, seven from Every day). **On a single day, an item that's Off (no row) isn't on that day's
+  page at all** (2026-11-26, spec R-UI-10): it's not in the page list or its Not available section,
+  and **Available Items** lists it like any product (up top or under Not available by its source,
+  no "On this page"); adding it turns that day on (`onPageIds` in `DeviceSettingsModal.tsx`).
+  Items on the page that day (Auto) but not offered by the source that day go under the page's
+  collapsed **Not available {day}** (with an "On {day}" button) and under Available Items' Not
+  available, marked "On this page": adding one turns that day On. Items showing that day aren't
+  listed there.
   **Available Items: up top vs Not available** for products not on the page is decided by the
   source alone (the product's days and dayparts), or for an item without a source by its
   dayparts alone (a blank slate) — never by this week's label settings. So Wednesday's bacon on
   Tuesday is under **Not available Tue** ("Add anyway" turns Tue On); a custom item is up top.
   The exception: an item turned Off while you're on that day stays in the page list, struck through, so it can
   be undone (until the day or daypart changes). Removing an item applies to the whole week.
-  **Layers:** source days (read-only) → the item's **base week** on that label = its day settings
-  in the **Default Week** (Auto follows the source; On / Off overrule it) → a specific week's own
-  settings, only when that week has its own schedule (a full copy, like its item list; it
-  doesn't pick up later base changes). Bases are per label, not per product. Day settings are
-  stored in `label_day_settings` with the week schedule (copy / paste / recurring carry them);
-  the first edit to a week without its own schedule copies what it shows first.
+  **Layers:** source days (read-only) → the item's **base week** on that label = its day rows
+  in the **Default Week** (Auto follows the source; On shows anyway; no row = not on) → a specific
+  week's own rows, only when that week has its own schedule (a full copy, like its item list; it
+  doesn't pick up later base changes). Bases are per label, not per product. Copy / paste /
+  recurring copy the rows with their states; the first edit to a week without its own schedule
+  copies what it shows first.
   Items not linked to a source have no days to follow,
-  so their toggle is **Off / On** only (no Auto; an unset day is Off). Auto appears once an item
+  so their toggle is **Off / On** only (no Auto; a day without an On row is Off). Auto appears once an item
   is linked. Custom products have no days of their own: adding
   one to a label turns it On for the day being edited (all 7 in Every day).
 - **Product days are view-only.** Each day has two independent parts: an
@@ -297,7 +373,12 @@ Edits on a label page are **pending changes** until applied; nothing is written 
   Every letter keeps 4.5:1 contrast in both modes.
   Separate colors for labels vs signage (and both) are still open; decide them when signage exists. Week = the week selector. Lists and cards show one strip
   (`ProductDayStrip`); the product sheet shows a row per source plus a legend (`ProductDayRows`).
-  Reference: `src/components/ProductDays.tsx`.
+  Reference: `src/components/ProductDays.tsx`. **The label page uses the same strip** (`DayPills`
+  in `DeviceSettingsModal.tsx`, 2026-11-26): the outline is the source serving it in that page's
+  daypart (or the item's variant / followed daypart), the fill is it showing on that label that
+  day (Auto on a served day, or On). A day it isn't on has no fill; there's no red / struck Off
+  look and no extra mark for On. Products in Available Items not on the page have no fill.
+  No picked-day mark there: with a day picked, the page list and Not available already split it.
 - **Products is product control + "schedule lite" (decided 2026-11-16).** The list is all
   products (some on this week's menu, some on a later one). The week picker after Filters
   (`ProductWeekPicker`) offers **This week** and **Next week** only, each noting whether it follows
@@ -450,6 +531,15 @@ Never use inline `style={{ color }}` or arbitrary values like `bg-[rgb(...)]` fo
   (`bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300`) after the date, on today's row
   and on the trigger when today is picked, with the row's text `font-semibold` sky; day tiles color
   the day name and date sky. No row backgrounds (they read as hover / selection) and no cyan.
+- **The picked day** (the day being edited or filtered; approved 2026-11-26) has a sky edge, one
+  look everywhere: day tiles and day chips get a soft sky fill + `sky-500` border
+  (`bg-sky-50 dark:bg-sky-950/60 border-sky-500`, label page tiles and the Products Day filter);
+  that's the selected-day standard. Products cards and rows echo the Day filter's days with a
+  short `sky-500` bar under the letter in their day strip (`markDays` on `ProductDayStrip`), to
+  show which picked days each product matched; never a strip fill or outline (those mean "on
+  labels" and "served"). Label page strips don't mark the picked day (the page list and Not
+  available already split by it). Today stays sky text (plus the Today pill in dropdowns); day
+  strips don't mark today.
 - Day numbers are JS `getDay()` values (0 = Sunday) everywhere, including stored `day_of_week`.
 - Stored `week_start` is the week's Sunday. Dates use local time (`localDate()`), never `toISOString()`.
 

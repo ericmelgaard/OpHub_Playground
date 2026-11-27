@@ -1,6 +1,7 @@
 import { DevicePage, MenuItem, ResolvedItem, Substitution, SubstitutionKey } from '../types';
 import { resolveItemsForDay } from './substitutions';
 import { plainText } from './richText';
+import { placedVariantOf, variantDays, variantValues } from './variants';
 
 export type DisplayToggleState = 'off' | 'auto' | 'on';
 
@@ -22,16 +23,41 @@ export const isCustomItem = (item: MenuItem) => item.mrn.startsWith('CUSTOM-');
 // Items brought in from a source are linked to the source item (Webtrition's MRN today) for
 // their values. Linking itself isn't built yet; this only shows the IDs that way.
 export const wandId = (item: MenuItem) => String(Math.abs(item.id));
-export const linkedSourceId = (item: MenuItem): string | null => (isCustomItem(item) ? null : item.mrn);
+export const linkedSourceId = (item: MenuItem): string | null => (isCustomItem(item) ? null : item.sourceMrn ?? item.mrn);
 // Matches an ID search against the WAND ID or the linked source ID
 export const matchesItemId = (item: MenuItem, query: string) => {
   const q = query.trim().toLowerCase();
   return !q || wandId(item).startsWith(q) || !!linkedSourceId(item)?.toLowerCase().startsWith(q);
 };
 
-// The name a label shows, as plain text: the display name when set, else the product name.
-// The display name can carry bold/italic/line breaks; render those with <LabelName>.
-export const labelName = (item: MenuItem) => plainText(item.displayName).replace(/\s+/g, ' ').trim() || item.name.trim();
+// The name an item's variant gives it on a label, when it has its own: set for the variant here,
+// or the station's own name from the source (unless the product has a display name). Else null.
+export function variantLabelName(item: MenuItem): string | null {
+  const v = placedVariantOf(item);
+  if (!v) return null;
+  const name = variantValues(item, v).name;
+  if (name.from === 'variant') return name.value.trim() || null;
+  if (name.from === 'station' && !item.displayName?.trim()) return name.value.trim() || null;
+  return null;
+}
+
+// The name a label shows, as plain text: the variant's own name, else the display name when set,
+// else the product name. The display name can carry bold/italic/line breaks; render with <LabelName>.
+export const labelName = (item: MenuItem) =>
+  variantLabelName(item) || plainText(item.displayName).replace(/\s+/g, ' ').trim() || item.name.trim();
+
+// The price a label shows: its variant's (set here, the station's, or the product's), else the product's
+export function labelPrice(item: MenuItem): string {
+  const v = placedVariantOf(item);
+  return v ? variantValues(item, v).price.value : item.price;
+}
+
+// The portion a label shows for its variant ("slice"), when one is set here for the variant
+export function labelPortion(item: MenuItem): string | null {
+  const v = placedVariantOf(item);
+  const p = v ? variantValues(item, v).portion : null;
+  return p?.from === 'variant' ? p.value : null;
+}
 
 function servesDaypart(item: MenuItem, daypart: string): boolean {
   if (!daypart || daypart === 'All Day' || daypart === 'Custom') return true;
@@ -68,6 +94,12 @@ export const followsSource = (item: MenuItem, pageDaypart: string) =>
 // count as every day, except custom products and products whose only history is stale, which
 // have no days until a label turns one on.
 export function isBaseOffered(item: MenuItem, daypart: string, day: number): boolean {
+  // An item that names its variant (station + daypart) follows that variant's days
+  const variant = placedVariantOf(item);
+  if (variant) {
+    const own = variantDays(variant);
+    if (own.length > 0) return own.includes(day);
+  }
   const days = item.activeDays || [];
   const perDaypart = item.daysByDaypart && Object.keys(item.daysByDaypart).length > 0 ? item.daysByDaypart : null;
   // Following a daypart the source sends: its days. One it no longer sends: no days (Not

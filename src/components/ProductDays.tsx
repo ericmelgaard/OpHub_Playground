@@ -49,20 +49,32 @@ export function dayClass(onMenu: boolean, use: Use) {
 }
 
 // One strip (lists and cards)
-export function ProductDayStrip({ menuDays, labelDays, signageDays, size = 'sm' }: DayUse & { size?: 'sm' | 'md' }) {
+// `markDays`: the picked day(s) — the day being edited on a label page, or the Day filter on
+// Products — get a short sky bar underneath (the strip's own sky fill and outline already mean
+// "on labels" and "served", so the pick can't be another fill or border).
+export function ProductDayStrip({ menuDays, labelDays, signageDays, size = 'sm', markDays }: DayUse & { size?: 'sm' | 'md'; markDays?: number[] }) {
+  const marking = (markDays?.length ?? 0) > 0;
   return (
     <div className="flex gap-0.5" data-guide="day-strip">
       {WEEK_ORDER.map(d => {
         const onMenu = menuDays.includes(d);
         const onLabels = !!labelDays?.has(d);
         const onSignage = !!signageDays?.has(d);
-        return (
+        const marked = !!markDays?.includes(d);
+        const pill = (
           <span
             key={d}
-            title={describe(d, onMenu, onLabels, onSignage)}
+            title={`${describe(d, onMenu, onLabels, onSignage)}${marked ? ' · picked' : ''}`}
             className={`${sizes[size]} ${dayClass(onMenu, useOf(onLabels, onSignage))} flex items-center justify-center font-bold flex-shrink-0`}
           >
             {DAY_ABBR[d][0]}
+          </span>
+        );
+        if (!marking) return pill;
+        return (
+          <span key={d} className="flex flex-col items-center gap-0.5 flex-shrink-0">
+            {pill}
+            <span className={`h-0.5 w-3 rounded-full ${marked ? 'bg-sky-500 dark:bg-sky-400' : 'bg-transparent'}`} />
           </span>
         );
       })}

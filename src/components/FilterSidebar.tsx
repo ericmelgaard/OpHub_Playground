@@ -621,7 +621,8 @@ export function FilterSidebar({
                           title={`${d.label} ${d.dateNum}${d.isToday ? ' (today)' : ''}`}
                           className={`flex flex-col items-center py-1.5 rounded-lg border text-xs transition-colors ${
                             selected
-                              ? 'bg-sky-500 border-sky-500 text-white'
+                              // Picked day: soft sky fill + sky-500 border, same as the label page day tiles
+                              ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500 text-sky-700 dark:text-sky-300'
                               : d.isToday
                                 ? 'border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/30'
                                 : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'

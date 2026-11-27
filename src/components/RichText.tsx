@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import type { MenuItem } from '../types';
 import { isRichText } from '../lib/richText';
-import { labelName } from '../lib/labelDisplay';
+import { labelName, variantLabelName } from '../lib/labelDisplay';
 
 // Renders a description or display name: plain text as-is, or the small HTML subset from the
 // editor. Built from DOM nodes, so unknown tags and attributes are dropped.
@@ -35,7 +35,7 @@ export function RichText({ value, className, inline, breaks = 'line' }: {
 
 // A product's name as its label shows it, keeping display name formatting
 export function LabelName({ item, breaks = 'space' }: { item: MenuItem; breaks?: 'line' | 'space' }) {
-  return item.displayName?.trim() && isRichText(item.displayName)
+  return !variantLabelName(item) && item.displayName?.trim() && isRichText(item.displayName)
     ? <RichText value={item.displayName} inline breaks={breaks} />
     : <>{labelName(item)}</>;
 }

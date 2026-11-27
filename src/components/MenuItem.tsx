@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { MapPin, MoreVertical, Plus, ChevronRight, Calendar, Eye, Link2 } from 'lucide-react';
+import { MapPin, MoreVertical, Plus, ChevronRight, Calendar, Eye, Link2, Layers } from 'lucide-react';
 import { MenuItem as MenuItemType, Device } from '../types';
 import {
   Card,
@@ -19,6 +19,7 @@ import { productDayparts, ALL_DAYPARTS } from '../lib/stations';
 import { ProductDayStrip } from './ProductDays';
 import { labelName, isCustomItem, wandId, linkedSourceId } from '../lib/labelDisplay';
 import { CopyButton } from './CopyButton';
+import { cardPrice, sizeOf } from '../lib/variants';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -36,6 +37,8 @@ interface MenuItemProps {
   labelDays?: Set<number>;
   // Where it's on labels; a custom product's dayparts and stations come only from here
   labelUse?: LabelUse;
+  // Days picked in the Day filter: underlined in the day strip
+  markDays?: number[];
   selectedCycleWeek?: number;
   refreshTag?: 'new' | 'updated';
 }
@@ -54,6 +57,7 @@ export function MenuItem({
   lastOpened,
   labelDays,
   labelUse,
+  markDays,
   selectedCycleWeek,
   refreshTag,
 }: MenuItemProps) {
@@ -111,7 +115,7 @@ export function MenuItem({
         {(activeDays.length > 0 || (labelDays?.size ?? 0) > 0) && (
           <div className="flex items-center gap-2 w-full">
             <Calendar className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            <ProductDayStrip menuDays={activeDays} labelDays={labelDays} />
+            <ProductDayStrip menuDays={activeDays} labelDays={labelDays} markDays={markDays} />
           </div>
         )}
 
@@ -220,7 +224,7 @@ export function MenuItem({
           <div className="flex items-center gap-3 min-w-0">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}{sizeOf(item) && <span className="ml-1 font-normal text-gray-500 dark:text-gray-400">· {sizeOf(item)}</span>}</span>
                 {refreshTag && <RefreshTagBadge tag={refreshTag} />}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -273,11 +277,11 @@ export function MenuItem({
 
           {/* Days: Webtrition menu, on labels, or both */}
           <div className="hidden lg:flex items-center min-w-0">
-            <ProductDayStrip menuDays={menuDays} labelDays={labelDays} />
+            <ProductDayStrip menuDays={menuDays} labelDays={labelDays} markDays={markDays} />
           </div>
 
           <span className="hidden lg:block text-xs text-gray-500 dark:text-gray-400 tabular-nums">{item.calories} cal</span>
-          <span className="text-sm font-medium text-sky-600 dark:text-sky-400 tabular-nums">${item.price}</span>
+          <span className="text-sm font-medium text-sky-600 dark:text-sky-400 tabular-nums">${cardPrice(item)}</span>
 
           <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
             {renderAddButton()}
@@ -320,6 +324,7 @@ export function MenuItem({
       <CardContent className="flex-1 p-0 min-w-0">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           {item.name}
+          {sizeOf(item) && <span className="ml-1.5 text-sm font-normal text-gray-500 dark:text-gray-400">· {sizeOf(item)}</span>}
         </h3>
         {(item.description || item.enticingDescription) && (
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-3">
@@ -340,7 +345,7 @@ export function MenuItem({
               {item.calories} cal
             </span>
             <span className="font-medium text-sky-600 dark:text-sky-400">
-              ${item.price}
+              ${cardPrice(item)}
             </span>
           </div>
           {renderOptionsMenu()}
@@ -368,6 +373,12 @@ function ItemIds({ item }: { item: MenuItemType }) {
         ID {wandId(item)}
         <CopyButton value={wandId(item)} size="xs" />
       </span>
+      {(item.variants?.length ?? 0) > 1 && (
+        <span className="inline-flex items-center gap-1 ml-2 font-normal text-gray-400 dark:text-gray-500" title={item.variants!.map(v => `${v.station} · ${v.daypart}`).join('\n')}>
+          <Layers className="h-3 w-3 flex-shrink-0" />
+          Served at {item.variants!.length}
+        </span>
+      )}
       {source && (
         <span className="inline-flex items-center gap-1 ml-2 font-normal text-gray-400 dark:text-gray-500" title={`Linked to source item ${source}`}>
           <Link2 className="h-3 w-3 flex-shrink-0" />

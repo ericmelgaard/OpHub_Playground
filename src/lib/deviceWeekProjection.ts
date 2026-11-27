@@ -1,4 +1,4 @@
-import { Device, MenuItem, DeviceWeekSchedule } from '../types';
+import { Device, MenuItem, DeviceWeekSchedule, PlacedVariant } from '../types';
 import type { LabelDayOverrides } from './labelDisplay';
 
 // Builds a device whose page items reflect a resolved week schedule.
@@ -20,11 +20,14 @@ export function projectScheduleOntoDevice(
   const mrnsByDaypart = new Map<string, string[]>();
   // Daypart|MRN → the source daypart the item follows there (when not the page's own)
   const follows = new Map<string, string>();
+  // Daypart|MRN → the variant the item stands for there
+  const variants = new Map<string, PlacedVariant>();
   const sorted = [...(schedule?.items ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
   for (const si of sorted) {
     const list = mrnsByDaypart.get(si.daypart) ?? [];
     if (!list.includes(si.menuItemMrn)) list.push(si.menuItemMrn);
     if (si.followsDaypart) follows.set(`${si.daypart}|${si.menuItemMrn}`, si.followsDaypart);
+    if (si.variant) variants.set(`${si.daypart}|${si.menuItemMrn}`, si.variant);
     mrnsByDaypart.set(si.daypart, list);
   }
 
@@ -38,6 +41,8 @@ export function projectScheduleOntoDevice(
       const copy: MenuItem = JSON.parse(JSON.stringify(i));
       const f = follows.get(`${page.daypart}|${i.mrn}`);
       if (f) copy.followsDaypart = f;
+      const v = variants.get(`${page.daypart}|${i.mrn}`);
+      if (v) copy.variant = v;
       return copy;
     });
     page.itemOrder = items.map(i => i.id);

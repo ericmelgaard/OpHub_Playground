@@ -33,6 +33,7 @@ interface Icon {
 interface MenuItem {
   id: number;
   stringId: string;
+  portion?: string | null;
   date: string;
   name: string;
   description: string | null;
@@ -96,6 +97,7 @@ async function upsertItems(supabase: any, items: MenuItem[]) {
       ingredients: item.ingredients,
       price: item.price,
       mrn: item.mrn,
+      portion: item.portion ?? null,
       calories: item.calories,
       allergens: item.allergens,
       nutrition: item.nutrition,

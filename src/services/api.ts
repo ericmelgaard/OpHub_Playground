@@ -1,4 +1,4 @@
-import { MenuItem, Device, Concept, Company, Store, Brand, DeviceGroup, DeviceWeekSchedule, DaySetting, ProductValues } from '../types';
+import { MenuItem, Device, Concept, Company, Store, Brand, DeviceGroup, DeviceWeekSchedule, DeviceScheduleItem, ScheduledState, DaySetting, ProductValues, PlacedVariant, ProductVariant, VariantField } from '../types';
 import { applyLocalValues } from '../lib/productValues';
 import { mockDevices, mockPlacements } from './mockData';
 import { supabase } from '../lib/supabase';
@@ -45,6 +45,8 @@ const mapScheduleRow = (s: any): DeviceWeekSchedule => ({
     sortOrder: i.sort_order,
     createdAt: i.created_at,
     followsDaypart: i.follows_daypart ?? null,
+    variant: i.variant ?? null,
+    state: i.state ?? 'auto',
   })),
 });
 
@@ -59,22 +61,34 @@ type ScheduleItemInput = {
   menuItemPrice: string;
   sortOrder: number;
   followsDaypart?: string | null;
+  variant?: PlacedVariant | null;
+  state?: ScheduledState;
 };
 
-// Inserts schedule item rows. Before the "follows daypart" migration runs the column is
-// missing; then the rows go in without it (items follow their page's daypart).
+// Inserts schedule item rows. Columns added by later migrations (follows_daypart, variant) may
+// be missing; then the rows go in without them.
 async function insertScheduleRows(rows: Record<string, unknown>[]): Promise<void> {
   if (rows.length === 0) return;
-  const { error } = await supabase.from('device_schedule_items').insert(rows);
-  if (!error) return;
-  if (/follows_daypart/.test(error.message)) {
-    const { error: retry } = await supabase.from('device_schedule_items')
-      .insert(rows.map(({ follows_daypart: _f, ...r }) => r));
-    if (!retry) return;
-    throw new Error(retry.message);
+  let pending = rows;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await supabase.from('device_schedule_items').insert(pending);
+    if (!error) return;
+    const column = ['follows_daypart', 'variant', 'state'].find(c => error.message.includes(c));
+    if (!column) throw new Error(error.message);
+    pending = pending.map(({ [column]: _drop, ...r }) => r);
   }
-  throw new Error(error.message);
+  throw new Error('Could not save the label items');
 }
+
+// Optional columns on a schedule item row
+const optionalColumns = (i: { followsDaypart?: string | null; variant?: PlacedVariant | null; state?: ScheduledState }) => ({
+  ...(i.followsDaypart ? { follows_daypart: i.followsDaypart } : {}),
+  ...(i.variant ? { variant: i.variant } : {}),
+  ...(i.state && i.state !== 'auto' ? { state: i.state } : {}),
+});
+
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const isCustomMrn = (mrn: string) => mrn.startsWith('CUSTOM-');
 
 // Returns the id of the device's default/override row, creating it if missing.
 async function ensureScheduleRow(deviceId: string, target: ScheduleTarget): Promise<string | null> {
@@ -97,41 +111,53 @@ async function ensureScheduleRow(deviceId: string, target: ScheduleTarget): Prom
   return created?.id ?? null;
 }
 
-// Day settings for these schedules. Missing (left empty) until their migration runs.
-async function attachDaySettings(schedules: DeviceWeekSchedule[]): Promise<DeviceWeekSchedule[]> {
-  if (schedules.length === 0) return schedules;
-  const { data, error } = await supabase
-    .from('label_day_settings')
-    .select('schedule_id, daypart, menu_item_mrn, day_of_week, state')
-    .in('schedule_id', schedules.map(s => s.id));
-  if (error) return schedules;
-  const bySchedule = new Map<string, DaySetting[]>();
-  for (const r of data || []) {
-    const list = bySchedule.get(r.schedule_id) ?? [];
-    list.push({ daypart: r.daypart, menuItemMrn: r.menu_item_mrn, dayOfWeek: r.day_of_week, state: r.state });
-    bySchedule.set(r.schedule_id, list);
+// Each row is the item on one day (spec v2.7, D66). The label page still works in Off / Auto / On
+// per day, so those are worked out from the rows: no row that day = Off, 'on' = On, 'auto' = Auto
+// (nothing stored), 'hidden' = Off.
+function daySettingsFromRows(items: DeviceScheduleItem[]): DaySetting[] {
+  const groups = new Map<string, DeviceScheduleItem[]>();
+  for (const i of items) {
+    const key = `${i.daypart}|${i.menuItemMrn}`;
+    groups.set(key, [...(groups.get(key) ?? []), i]);
   }
-  return schedules.map(s => ({ ...s, daySettings: bySchedule.get(s.id) ?? [] }));
+  const out: DaySetting[] = [];
+  for (const rows of groups.values()) {
+    const { daypart, menuItemMrn } = rows[0];
+    for (const d of ALL_DAYS) {
+      const row = rows.find(r => r.dayOfWeek === d);
+      if (!row || row.state === 'hidden') out.push({ daypart, menuItemMrn, dayOfWeek: d, state: 'off' });
+      else if (row.state === 'on') out.push({ daypart, menuItemMrn, dayOfWeek: d, state: 'on' });
+    }
+  }
+  return out;
 }
 
-// Replaces a schedule row's day settings (copy, paste and recurring carry them with the items)
-async function replaceDaySettings(scheduleId: string, settings: DaySetting[]): Promise<void> {
-  const { error } = await supabase.from('label_day_settings').delete().eq('schedule_id', scheduleId);
-  if (error || settings.length === 0) return;
-  await supabase.from('label_day_settings').insert(settings.map(s => ({
-    schedule_id: scheduleId,
-    daypart: s.daypart,
-    menu_item_mrn: s.menuItemMrn,
-    day_of_week: s.dayOfWeek,
-    state: s.state,
-  })));
+async function attachDaySettings(schedules: DeviceWeekSchedule[]): Promise<DeviceWeekSchedule[]> {
+  return schedules.map(s => ({ ...s, daySettings: daySettingsFromRows(s.items ?? []) }));
+}
+
+// Applies Off / On day settings to an item list: Off drops that day's row, On sets (or adds) it
+function applyDaySettings(items: ScheduleItemInput[], settings: DaySetting[]): ScheduleItemInput[] {
+  if (settings.length === 0) return items;
+  const key = (daypart: string, mrn: string, day: number) => `${daypart}|${mrn}|${day}`;
+  const byKey = new Map(settings.map(s => [key(s.daypart, s.menuItemMrn, s.dayOfWeek), s.state]));
+  const out = items
+    .filter(i => byKey.get(key(i.daypart, i.menuItemMrn, i.dayOfWeek)) !== 'off')
+    .map(i => byKey.get(key(i.daypart, i.menuItemMrn, i.dayOfWeek)) === 'on' ? { ...i, state: 'on' as const } : i);
+  // On for a day the item has no row yet: add one like its other days
+  for (const st of settings) {
+    if (st.state !== 'on') continue;
+    if (out.some(i => i.daypart === st.daypart && i.menuItemMrn === st.menuItemMrn && i.dayOfWeek === st.dayOfWeek)) continue;
+    const like = items.find(i => i.daypart === st.daypart && i.menuItemMrn === st.menuItemMrn);
+    if (like) out.push({ ...like, dayOfWeek: st.dayOfWeek, state: 'on' });
+  }
+  return out;
 }
 
 // Replaces all items on a schedule row, and its day settings with them.
 async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput[], settings: DaySetting[] = []): Promise<void> {
-  await replaceDaySettings(scheduleId, settings);
   await supabase.from('device_schedule_items').delete().eq('schedule_id', scheduleId);
-  await insertScheduleRows(items.map(i => ({
+  await insertScheduleRows(applyDaySettings(items, settings).map(i => ({
     schedule_id: scheduleId,
     daypart: i.daypart,
     day_of_week: i.dayOfWeek,
@@ -139,7 +165,7 @@ async function replaceScheduleItems(scheduleId: string, items: ScheduleItemInput
     menu_item_name: i.menuItemName,
     menu_item_price: i.menuItemPrice,
     sort_order: i.sortOrder,
-    ...(i.followsDaypart ? { follows_daypart: i.followsDaypart } : {}),
+    ...optionalColumns(i),
   })));
 }
 
@@ -200,6 +226,65 @@ async function setCustomDays(mrn: string, days: number[]) {
   if (error) throw new Error(`Saved, but the days didn't save: ${error.message}`);
 }
 
+// Variant rows (one per product + station + meal period) grouped into each product's variants, in
+// meal period then station order. The database already splits products by portion (product_key).
+// A variant is station + daypart: two meal periods with the same name (the source sends two
+// "Lunch") at one station are one variant, with their dates merged and the latest name and price.
+function buildVariants(
+  rows: any[],
+  mpMap: Map<any, any>,
+  stMap: Map<any, any>,
+  localByKey: Map<string, Partial<Record<VariantField, string>>>,
+): Map<string, ProductVariant[]> {
+  const out = new Map<string, ProductVariant[]>();
+  const latest = new Map<ProductVariant, string>();
+  for (const r of rows) {
+    const list = out.get(r.product_key) ?? [];
+    out.set(r.product_key, list);
+    const daypart = mpMap.get(r.meal_period_id) || 'All Day';
+    const dates: string[] = r.dates || [];
+    const last = dates[dates.length - 1] ?? '';
+    const same = list.find(v => v.stationId === r.station_id && v.daypart === daypart);
+    if (same) {
+      same.mealPeriodIds.push(r.meal_period_id);
+      // Keyed by the lowest meal period id, so it's the same on every load
+      if (r.meal_period_id < same.mealPeriodId) {
+        same.mealPeriodId = r.meal_period_id;
+        same.key = `${r.station_id}|${r.meal_period_id}`;
+      }
+      same.dates = [...new Set([...same.dates, ...dates])].sort();
+      if (last > (latest.get(same) ?? '')) {
+        same.name = (r.name || '').trim();
+        same.price = r.price || '0.00';
+        latest.set(same, last);
+      }
+      continue;
+    }
+    const v: ProductVariant = {
+      key: `${r.station_id}|${r.meal_period_id}`,
+      stationId: r.station_id,
+      station: stMap.get(r.station_id) || 'Station',
+      mealPeriodId: r.meal_period_id,
+      mealPeriodIds: [r.meal_period_id],
+      daypart,
+      name: (r.name || '').trim(),
+      price: r.price || '0.00',
+      dates,
+    };
+    latest.set(v, last);
+    list.push(v);
+  }
+  out.forEach((list, productKey) => {
+    list.sort((a, b) => a.daypart.localeCompare(b.daypart) || a.station.localeCompare(b.station));
+    for (const v of list) {
+      // Local values are saved under its key (lowest meal period id)
+      const local = localByKey.get(`${productKey}|${v.stationId}|${v.mealPeriodId}`);
+      if (local && Object.keys(local).length) v.local = local;
+    }
+  });
+  return out;
+}
+
 export const api = {
   // Menu Items - from condensed Supabase view (pre-grouped by MRN + name)
   // Site settings (missing table or row = defaults)
@@ -240,7 +325,7 @@ export const api = {
     }
 
     // Fetch meal periods and stations in parallel for name lookups
-    const [mpResult, stResult, avResult, dnResult, dpResult, lvResult] = await Promise.all([
+    const [mpResult, stResult, avResult, dnResult, dpResult, lvResult, variantRows, vlvResult] = await Promise.all([
       supabase.from('meal_periods').select('id, name'),
       supabase.from('stations').select('id, name'),
       (async () => {
@@ -261,12 +346,38 @@ export const api = {
       supabase.from('product_display_names').select('mrn, display_name'),
       supabase.from('product_dayparts').select('mrn, dayparts'),
       supabase.from('product_local_values').select('mrn, local_values'),
+      // Recipes' variants (station + meal period, per portion); missing until its migration runs
+      (async () => {
+        let all: any[] = [];
+        for (let f = 0; ; f += pageSize) {
+          const { data: page, error } = await supabase
+            .from('menu_item_variants')
+            .select('product_key, station_id, meal_period_id, name, price, dates')
+            .range(f, f + pageSize - 1);
+          if (error) return [];
+          all = all.concat(page || []);
+          if ((page?.length || 0) < pageSize) return all;
+        }
+      })(),
+      // Variants' local values; missing until its migration runs
+      supabase.from('variant_local_values').select('product_key, station_id, meal_period_id, local_values'),
     ]);
+    const variantLocal = new Map<string, Partial<Record<VariantField, string>>>(
+      (vlvResult.data || []).map((d: any) => [`${d.product_key}|${d.station_id}|${d.meal_period_id}`, d.local_values || {}]));
     // Local values on linked products; missing until its migration runs
     const localValues = new Map<string, Partial<ProductValues>>((lvResult.data || []).map((d: any) => [d.mrn, d.local_values || {}]));
 
     const mpMap = new Map((mpResult.data || []).map((mp: any) => [mp.id, mp.name]));
     const stMap = new Map((stResult.data || []).map((st: any) => [st.id, st.name]));
+    const variantsByMrn = buildVariants(variantRows, mpMap, stMap, variantLocal);
+    // Sizes of one MRN (each its own product), for linking them on product cards
+    const sizesByMrn = new Map<string, { mrn: string; size: string; id: number }[]>();
+    for (const r of allData) {
+      if (!r.source_mrn || (r.family_size ?? 1) <= 1) continue;
+      const list = sizesByMrn.get(r.source_mrn) ?? [];
+      list.push({ mrn: r.mrn, size: r.portion || 'Regular', id: r.id });
+      sizesByMrn.set(r.source_mrn, list);
+    }
     // Missing until the display names migration runs; products then just have none
     const displayNames = new Map<string, string>((dnResult.data || []).map((d: any) => [d.mrn, d.display_name]));
     // Custom products' dayparts (no row = all dayparts); missing until its migration runs
@@ -293,10 +404,13 @@ export const api = {
       const stationIds: number[] = custom ? [] : item.station_ids || [];
 
       // Custom products carry their own dayparts; an empty list means all dayparts
-      const mealPeriodNames = custom ? customDayparts.get(item.mrn) ?? [] : mealPeriodIds.map(id => mpMap.get(id) || 'All Day');
-      const stationNames = stationIds.map(id => stMap.get(id) || 'Uncategorized');
+      // By name, once each: the source has two meal periods named Breakfast (and two Lunch)
+      const mealPeriodNames: string[] = custom ? customDayparts.get(item.mrn) ?? [] : [...new Set(mealPeriodIds.map(id => mpMap.get(id) || 'All Day'))];
+      const stationNames: string[] = [...new Set(stationIds.map(id => stMap.get(id) || 'Uncategorized'))];
 
-      const availability = custom ? [] : availabilityByMrn.get(item.mrn) || [];
+      // Availability is tracked per source MRN (every size of it)
+      const sourceMrn: string = item.source_mrn || item.mrn;
+      const availability = custom ? [] : availabilityByMrn.get(sourceMrn) || [];
       const activeDays = [...new Set(availability.map((av: any) => av.day_of_week))].sort();
       const activeMealPeriods = custom
         ? mealPeriodNames
@@ -356,7 +470,7 @@ export const api = {
           },
         },
         allergens: item.allergens || '',
-        portion: item.nutrition?.portion || '',
+        portion: item.portion || item.nutrition?.portion || '',
         icons: item.icons ? (Array.isArray(item.icons) ? item.icons.map((i: any) => i.name || i) : []) : [],
         iconImages: Array.isArray(item.icons)
           ? item.icons
@@ -372,11 +486,15 @@ export const api = {
         sortOrder: item.sort_order || 0,
         isActive: true,
         activeDays,
-        hasAvailability: !custom && hasAnyAvailability.has(item.mrn),
+        hasAvailability: !custom && hasAnyAvailability.has(sourceMrn),
         daysByDaypart,
         activeMealPeriods,
         availabilityData: availabilityDataFormatted,
         isGrouped,
+        variants: custom ? [] : variantsByMrn.get(item.mrn) ?? [],
+        sourceMrn,
+        size: item.portion || undefined,
+        sizes: (item.family_size ?? 1) > 1 ? sizesByMrn.get(sourceMrn) : undefined,
         dates: item.dates || [],
         mealPeriods: isGrouped || custom ? mealPeriodNames : undefined,
         mealStations: isGrouped ? stationNames : undefined,
@@ -889,6 +1007,8 @@ export const api = {
         menuItemPrice: i.menuItemPrice,
         sortOrder: i.sortOrder,
         followsDaypart: i.followsDaypart ?? null,
+        variant: i.variant ?? null,
+        state: i.state ?? 'auto',
       })), schedule.daySettings ?? []);
     }
     return true;
@@ -912,18 +1032,24 @@ export const api = {
         menuItemPrice: i.menuItemPrice,
         sortOrder: i.sortOrder,
         followsDaypart: i.followsDaypart ?? null,
+        variant: i.variant ?? null,
+        state: i.state ?? 'auto',
       })), schedule.daySettings ?? []);
     }
     return true;
   },
 
-  // Adds menu items to a device's schedule (default or a specific week override),
-  // creating the row if needed. Items are recorded for each of their active days.
+  // Adds menu items to a device's schedule (default or a specific week override), creating the
+  // row if needed. Each item gets a row per day it's added for, Auto (spec §4.8): one day, or all
+  // seven from Every day. Its day settings then set any day On.
   addScheduleItems: async (
     target: ScheduleTarget,
     deviceId: string,
     daypart: string,
     items: MenuItem[],
+    addDays: number[] = ALL_DAYS,
+    // Days added as On (shows anyway: custom products, or "Add anyway" on a day the source skips)
+    onDays: number[] = [],
   ): Promise<boolean> => {
     const rowId = await ensureScheduleRow(deviceId, target);
     if (!rowId) return false;
@@ -937,8 +1063,7 @@ export const api = {
 
     const toInsert: any[] = [];
     for (const item of items) {
-      const followed = item.followsDaypart ? item.daysByDaypart?.[item.followsDaypart] : undefined;
-      const days = followed?.length ? followed : item.activeDays && item.activeDays.length > 0 ? item.activeDays : [0, 1, 2, 3, 4, 5, 6];
+      const days = addDays;
       maxSort += 1;
       const sort = maxSort;
       for (const d of days) {
@@ -952,7 +1077,7 @@ export const api = {
           menu_item_name: item.name,
           menu_item_price: item.price,
           sort_order: sort,
-          ...(item.followsDaypart ? { follows_daypart: item.followsDaypart } : {}),
+          ...optionalColumns({ ...item, state: onDays.includes(d) ? 'on' as const : undefined }),
         });
       }
     }
@@ -995,13 +1120,6 @@ export const api = {
       .eq('schedule_id', rowId)
       .eq('daypart', daypart)
       .eq('menu_item_mrn', mrn);
-    // Its day settings go with it
-    await supabase
-      .from('label_day_settings')
-      .delete()
-      .eq('schedule_id', rowId)
-      .eq('daypart', daypart)
-      .eq('menu_item_mrn', mrn);
     return true;
   },
 
@@ -1020,7 +1138,43 @@ export const api = {
     await api.pasteWeekSchedule(weekStart, [{ ...shown, deviceId }], null);
   },
 
-  // Sets one item's week on a label page (Off / On per day; missing days are Auto)
+  // Names the variant an item on a label page stands for (and the daypart whose days it follows)
+  setItemVariant: async (
+    target: ScheduleTarget,
+    deviceId: string,
+    daypart: string,
+    mrn: string,
+    variant: PlacedVariant,
+    followsDaypart: string | null,
+  ): Promise<void> => {
+    const rowId = await ensureScheduleRow(deviceId, target);
+    if (!rowId) throw new Error('Could not find the schedule to save the station to');
+    const { error } = await supabase
+      .from('device_schedule_items')
+      .update({ variant, follows_daypart: followsDaypart })
+      .eq('schedule_id', rowId)
+      .eq('daypart', daypart)
+      .eq('menu_item_mrn', mrn);
+    if (error) throw new Error(`The station didn't save (has the recipe variants migration run?): ${error.message}`);
+  },
+
+  // Saves one variant's local values (only fields that differ from the product). None left = row removed.
+  setVariantLocalValues: async (
+    productKey: string,
+    stationId: number,
+    mealPeriodId: number,
+    local: Partial<Record<VariantField, string>>,
+  ): Promise<void> => {
+    const keys = { product_key: productKey, station_id: stationId, meal_period_id: mealPeriodId };
+    const { error } = Object.keys(local).length
+      ? await supabase.from('variant_local_values').upsert({ ...keys, local_values: local, updated_at: new Date().toISOString() })
+      : await supabase.from('variant_local_values').delete().match(keys);
+    if (error) throw new Error(`The station's values didn't save (has the variant local values migration run?): ${error.message}`);
+  },
+
+  // Sets one item's week on a label page from its Off / On per day (missing days are Auto).
+  // Each day is a row (spec v2.7): Off = no row, On = state 'on', Auto = state 'auto'. Custom
+  // products have no source days, so a day that isn't On has no row.
   setItemDaySettings: async (
     target: ScheduleTarget,
     deviceId: string,
@@ -1030,19 +1184,45 @@ export const api = {
   ): Promise<void> => {
     const rowId = await ensureScheduleRow(deviceId, target);
     if (!rowId) throw new Error('Could not find the schedule to save day settings to');
-    const { error } = await supabase
-      .from('label_day_settings')
-      .delete()
+    const { data: rows, error } = await supabase
+      .from('device_schedule_items')
+      .select('*')
       .eq('schedule_id', rowId)
       .eq('daypart', daypart)
       .eq('menu_item_mrn', mrn);
-    if (error) throw new Error(`Day settings didn't save (has the label_day_settings migration run?): ${error.message}`);
-    const rows = Object.entries(days)
-      .filter(([, state]) => state === 'on' || state === 'off')
-      .map(([d, state]) => ({ schedule_id: rowId, daypart, menu_item_mrn: mrn, day_of_week: Number(d), state }));
-    if (rows.length === 0) return;
-    const { error: insertError } = await supabase.from('label_day_settings').insert(rows);
-    if (insertError) throw new Error(`Day settings didn't save: ${insertError.message}`);
+    if (error) throw new Error(`Day settings didn't save: ${error.message}`);
+    const like = (rows || [])[0];
+    const want = (d: number): ScheduledState | null =>
+      days[d] === 'off' ? null
+        : days[d] === 'on' ? 'on'
+        : isCustomMrn(mrn) ? null : 'auto';
+    const drop = (rows || []).filter((r: any) => want(r.day_of_week) === null).map((r: any) => r.id);
+    if (drop.length) {
+      const { error: delError } = await supabase.from('device_schedule_items').delete().in('id', drop);
+      if (delError) throw new Error(`Day settings didn't save: ${delError.message}`);
+    }
+    for (const r of rows || []) {
+      const st = want(r.day_of_week);
+      if (st && (r.state ?? 'auto') !== st) {
+        const { error: upError } = await supabase.from('device_schedule_items').update({ state: st }).eq('id', r.id);
+        if (upError) throw new Error(`Day settings didn't save (has the per-day migration run?): ${upError.message}`);
+      }
+    }
+    // Days it isn't on yet: a row like its others
+    const missing = ALL_DAYS.filter(d => want(d) && !(rows || []).some((r: any) => r.day_of_week === d));
+    if (missing.length && !like) throw new Error('This item is no longer on the page; add it again');
+    await insertScheduleRows(missing.map(d => ({
+      schedule_id: rowId,
+      daypart,
+      day_of_week: d,
+      menu_item_mrn: mrn,
+      menu_item_name: like.menu_item_name,
+      menu_item_price: like.menu_item_price,
+      sort_order: like.sort_order,
+      ...(like.follows_daypart ? { follows_daypart: like.follows_daypart } : {}),
+      ...(like.variant ? { variant: like.variant } : {}),
+      ...(want(d) === 'on' ? { state: 'on' } : {}),
+    })));
   },
 
   // Marks a week as recurring every N weeks. Persists the given (resolved) items

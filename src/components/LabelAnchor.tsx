@@ -1,7 +1,7 @@
 import React from 'react';
 import { CalendarRange, Layers } from 'lucide-react';
 import { Device, DevicePage, LabelSize, ResolvedItem, Substitution, SubstitutionKey } from '../types';
-import { getShownItems, LabelDayOverrides } from '../lib/labelDisplay';
+import { getShownItems, labelPrice, LabelDayOverrides } from '../lib/labelDisplay';
 import { daypartColor } from '../lib/daypartColors';
 import { plainText } from '../lib/richText';
 import { WEEK_ORDER, dayIndexInWeek, getWeekStartString } from '../lib/weekSchedule';
@@ -182,7 +182,7 @@ export function LabelAnchor({
                   )}
                   <span className="flex items-end justify-between mt-auto pt-1">
                     <span className="text-[10px] text-[#5F5F5F]">{shown[0].item.calories} cal</span>
-                    <span className="text-xl font-bold tabular-nums">{formatPrice(shown[0].item.price)}</span>
+                    <span className="text-xl font-bold tabular-nums">{formatPrice(labelPrice(shown[0].item))}</span>
                   </span>
                 </button>
               ) : (
@@ -206,7 +206,7 @@ export function LabelAnchor({
                         <span className={`${capacity > 4 ? 'text-xs' : 'text-sm'} font-bold truncate`}><LabelName item={r.item} /></span>
                         {capacity <= 4 && <span className="text-[10px] text-[#5F5F5F]">{r.item.calories} cal</span>}
                       </span>
-                      <span className={`${capacity > 4 ? 'text-xs' : 'text-base'} font-bold tabular-nums`}>{formatPrice(r.item.price)}</span>
+                      <span className={`${capacity > 4 ? 'text-xs' : 'text-base'} font-bold tabular-nums`}>{formatPrice(labelPrice(r.item))}</span>
                     </button>
                   );
                 })}

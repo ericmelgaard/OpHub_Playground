@@ -130,6 +130,46 @@ export interface MenuItem {
   // Linked to a source: the source's own values, and the fields changed here (local values)
   source?: ProductValues;
   localFields?: ProductField[];
+  // Its variants: each meal station + daypart it's served at (menu platform spec §6).
+  // Custom products have none.
+  variants?: ProductVariant[];
+  // Source products are MRN + portion (spec D64). mrn above is the product's key (the MRN, or
+  // "MRN|portion" when the MRN comes in several portions); these are what the source sends.
+  sourceMrn?: string;
+  size?: string;
+  // The MRN's portions as products ("1/2 lb", "1 lb"), when it comes in more than one
+  sizes?: { mrn: string; size: string; id: number }[];
+  // On a label page only: the variant this item stands for there (see lib/variants.ts)
+  variant?: PlacedVariant | null;
+}
+
+// A product at one meal station in one daypart (meal period). Station and daypart always go together.
+export interface ProductVariant {
+  key: string;            // `${stationId}|${mealPeriodId}`
+  stationId: number;
+  station: string;        // meal station name
+  mealPeriodId: number;
+  daypart: string;        // meal period name
+  // Every meal period id merged into this variant (the source can send two with the same name)
+  mealPeriodIds: number[];
+  // Its own values there (latest the source sent) and the dates it's served
+  name: string;
+  price: string;
+  dates: string[];
+  // Values set here for this variant only (variant_local_values); see variantValues()
+  local?: Partial<Record<VariantField, string>>;
+}
+
+// Fields a variant can have a local value for. Portion is how the size is shown there ("slice"),
+// never which product it is.
+export type VariantField = 'name' | 'description' | 'price' | 'portion';
+
+// The variant a label item names, and how it was chosen
+export interface PlacedVariant {
+  stationId: number;
+  mealPeriodId: number;
+  // user: picked; inferred: chosen by logic; review: Auto Fill picked among several, needs a look
+  choice: 'user' | 'inferred' | 'review';
 }
 
 // A product's editable values (see src/lib/productValues.ts)
@@ -281,7 +321,8 @@ export interface DeviceWeekSchedule {
   createdAt: string;
   updatedAt: string;
   items?: DeviceScheduleItem[];
-  // Off / On per item and day on this schedule's labels; no entry is Auto
+  // Off / On per item and day on this schedule's labels; no entry is Auto. Worked out from the
+  // per-day rows (no row that day = Off, state 'on' = On), not stored on their own
   daySettings?: DaySetting[];
 }
 
@@ -304,7 +345,14 @@ export interface DeviceScheduleItem {
   createdAt: string;
   // Source daypart whose days the item follows on this page; null = the page's own
   followsDaypart?: string | null;
+  // The variant (station + meal period, portion) the item stands for on this page
+  variant?: PlacedVariant | null;
+  // This row is the item on this day (spec v2.7 scheduled item): 'auto' follows the source's
+  // days, 'on' shows anyway, 'hidden' is kept off by Auto Fill
+  state?: ScheduledState;
 }
+
+export type ScheduledState = 'auto' | 'on' | 'hidden';
 
 export type FilterType = 'daypart' | 'station' | 'menu_item_name' | 'menu_item_mrn' | 'date' | 'week' | 'placement' | 'usage';
 

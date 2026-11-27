@@ -23,6 +23,7 @@ import type { ProductInput } from '../services/api';
 import { RichTextEditor } from './RichTextEditor';
 import { productSource, sourceSystem, type ProductSource } from '../lib/sources';
 import { CopyButton } from './CopyButton';
+import { VariantList } from './ProductVariants';
 
 // One product on one label page in a week: the days it shows there
 export interface ProductScheduleRow {
@@ -67,7 +68,7 @@ type NutrientKey = typeof NUTRIENTS[number]['key'];
 
 export const splitAllergens = (s: string | undefined) => (s ? s.split(',').map(a => a.trim()).filter(Boolean) : []);
 
-type SectionId = 'basics' | 'dayparts' | 'images' | 'variations' | 'ingredients' | 'dietary' | 'schedule' | 'customizations' | 'source';
+type SectionId = 'basics' | 'dayparts' | 'images' | 'variants' | 'ingredients' | 'dietary' | 'schedule' | 'customizations' | 'source';
 
 // Editing or creating a product: a full-screen page like an open label, with a section bookmark nav
 export function ProductEditPage({ item, menuItems, weekStateOf, loadSchedule, onCancel, onSave }: ProductEditPageProps) {
@@ -242,7 +243,7 @@ export function ProductEditPage({ item, menuItems, weekStateOf, loadSchedule, on
     { id: 'dayparts', label: 'Dayparts', icon: Clock },
     ...(item ? [
       { id: 'images' as const, label: 'Images', icon: ImageIcon },
-      { id: 'variations' as const, label: 'Variations', icon: Layers },
+      { id: 'variants' as const, label: 'Served at', icon: Layers },
     ] : []),
     { id: 'ingredients', label: 'Ingredients', icon: ListChecks },
     { id: 'dietary', label: 'Dietary and nutrition', icon: Leaf },
@@ -487,12 +488,13 @@ export function ProductEditPage({ item, menuItems, weekStateOf, loadSchedule, on
                     Photos of the product: a main image, more images, and one per variation where it looks different.
                   </p>
                 </Card>
-                <Card id="variations" icon={Layers} title="Variations" aside={<NotBuilt />}>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    The same product (same ID) where it's offered by daypart, station and group, each with its own name,
-                    price or description there. A Breakfast page could show "Hashbrowns" while Dinner shows
-                    "Pan Fried Potatoes". A different portion is a different product.
+                <Card id="variants" icon={Layers} title="Served at">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Each meal station and daypart that serves this recipe. Each one can have its own name,
+                    price, portion and description (in the product: Edit, then Edit for that station);
+                    everything else comes from the recipe. Changes here apply to every station.
                   </p>
+                  {item ? <VariantList item={item} /> : <p className="text-sm text-gray-500 dark:text-gray-400">A new product isn't served at a meal station.</p>}
                 </Card>
               </>
             )}

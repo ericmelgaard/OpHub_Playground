@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { daypartColor } from '../lib/daypartColors';
-import { Device, MenuItem, Substitution, DeviceGroup, Brand } from '../types';
+import { Device, MenuItem, Substitution, DeviceGroup, Brand, PlacedVariant } from '../types';
 import { buildSubstitutionMap } from '../lib/substitutions';
 import { formatWeekRange, formatEditingDay } from '../lib/weekSchedule';
 import { DeviceSettingsModal } from '../components/DeviceSettingsModal';
@@ -13,6 +13,7 @@ import { api } from '../services/api';
 import { MergeMode, getDraft, getAppliedLocalState, saveDraft, useHasDraft } from '../lib/pendingChanges';
 import { DAY_ABBR } from '../lib/availability';
 import { AutoFillPage, autoFillCandidates, inStations, stationKey } from '../lib/stations';
+import { placed } from '../lib/variants';
 import { LabelDayOverrides, WEEK_DAYS, type ItemDayOverrides } from '../lib/labelDisplay';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -39,7 +40,11 @@ interface DeviceFirstWorkflowProps {
   storedToggles?: LabelDayOverrides;
   // Set when day On / Off can't be used here (the Default Week), with the reason
   dayOverridesLocked?: string;
-  onAddItems: (device: Device, items: MenuItem[], pageId: string) => void;
+  onAddItems: (device: Device, items: MenuItem[], pageId: string, note?: string) => void;
+  // Sets which variant an item on a page stands for (a pending change)
+  onSetItemVariant?: (device: Device, pageId: string, item: MenuItem, variant: PlacedVariant, followsDaypart: string | null) => void;
+  // Opened from a product's sheet: Available Items starts filtered to its station and daypart
+  initialFilters?: { station: string; daypart: string } | null;
   onRemoveItem: (itemId: number, deviceId: string, pageId: string) => void;
   onReorderItems: (deviceId: string, pageId: string, itemOrder: number[]) => void;
   onClose: () => void;
@@ -92,6 +97,8 @@ export function DeviceFirstWorkflow({
   storedToggles,
   dayOverridesLocked,
   onAddItems,
+  onSetItemVariant,
+  initialFilters,
   onRemoveItem,
   onReorderItems,
   onClose,
@@ -245,7 +252,7 @@ export function DeviceFirstWorkflow({
     onClose();
   };
 
-  const handleInlineAddItems = async (_device: Device, items: MenuItem[], pageId: string) => {
+  const handleInlineAddItems = async (_device: Device, items: MenuItem[], pageId: string, note?: string) => {
     if (!optimisticDevice || items.length === 0) return;
 
     const updatedDevice: Device = JSON.parse(JSON.stringify(optimisticDevice));
@@ -268,7 +275,7 @@ export function DeviceFirstWorkflow({
     setRecentlyAddedItemIds(new Set(newItems.map(i => i.id)));
 
     try {
-      if (newItems.length > 0) await onAddItems(selectedDevice!, newItems, pageId);
+      if (newItems.length > 0) await onAddItems(selectedDevice!, newItems, pageId, note);
       setSelectedDevice(updatedDevice);
     } catch (err) {
       console.error('Error adding items inline:', err);
@@ -337,7 +344,14 @@ export function DeviceFirstWorkflow({
       const item = page.assignedItems.find(i => i.id === id);
       return !item || !inStations(item, keys);
     });
-    const toAdd = autoFillCandidates(menuItems, stations, page.daypart, assigned);
+    // Each item names its variant: the picked station's, chosen by logic. When more than one picked
+    // station serves it, the first in the list is used and marked for review (menu platform spec F8)
+    const toAdd = autoFillCandidates(menuItems, stations, page.daypart, assigned).map(item => {
+      const fits = (item.variants ?? []).filter(v =>
+        v.daypart === page.daypart && keys.has(stationKey(v.station)));
+      if (fits.length === 0) return item;
+      return { ...item, variant: placed(fits[0], fits.length > 1 ? 'review' : 'inferred') };
+    });
 
     page.assignedItems = page.assignedItems.filter(i => !toRemove.includes(i.id));
     page.itemOrder = page.itemOrder.filter(id => !toRemove.includes(id));
@@ -402,14 +416,29 @@ export function DeviceFirstWorkflow({
     });
   };
 
-  // Sets an item's whole week on a page at once (used when it's added for one day)
-  const handleSetItemDays = (device: Device, pageId: string, itemId: number, days: ItemDayOverrides, summary: string) => {
+  // Names the variant (station + daypart, portion) an item on a page stands for
+  const handleSetItemVariant = (device: Device, pageId: string, itemId: number, variant: PlacedVariant, followsDaypart: string | null) => {
+    if (!optimisticDevice || !onSetItemVariant) return;
+    const updated: Device = JSON.parse(JSON.stringify(optimisticDevice));
+    const page = updated.pages.find(p => p.id === pageId);
+    const item = page?.assignedItems.find(i => i.id === itemId);
+    if (!page || !item) return;
+    item.variant = variant;
+    item.followsDaypart = followsDaypart;
+    setOptimisticDevice(updated);
+    onSetItemVariant(device, pageId, item, variant, followsDaypart);
+  };
+
+  // Sets an item's whole week on a page at once (used when it's added for one day). With
+  // `queue` false it only sets the working copy: the add itself carries the days.
+  const handleSetItemDays = (device: Device, pageId: string, itemId: number, days: ItemDayOverrides, summary: string, queue = true) => {
     setItemDisplayToggles(prev => {
       const pageOverrides = { ...(prev[pageId] || {}) };
       if (Object.keys(days).length === 0) delete pageOverrides[itemId];
       else pageOverrides[itemId] = { ...days };
       return { ...prev, [pageId]: pageOverrides };
     });
+    if (!queue) return;
     queueItemDays(device.id, pageId, itemId, {
       summary,
       mergeKey: `days|${pageId}|${itemId}`,
@@ -532,6 +561,8 @@ export function DeviceFirstWorkflow({
         onInlineRemoveItems={handleInlineRemoveItems}
         onToggleItemDisplay={handleToggleItemDisplay}
         onSetItemDays={handleSetItemDays}
+        onSetItemVariant={onSetItemVariant ? handleSetItemVariant : undefined}
+        initialFilters={initialFilters}
         dayOverridesLocked={dayOverridesLocked}
         itemDisplayToggles={itemDisplayToggles}
         recentlyAddedItemIds={recentlyAddedItemIds}

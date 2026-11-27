@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { ArrowLeftRight, Trash2, X, Undo2, RefreshCw } from 'lucide-react';
+import { ArrowLeftRight, Trash2, X, Undo2, RefreshCw, MapPin } from 'lucide-react';
 import { ResolvedItem } from '../types';
 import { labelName } from '../lib/labelDisplay';
+import { levelIconColor } from '../lib/levelColors';
 
 interface ItemActionSheetProps {
   resolvedItem: ResolvedItem;
@@ -11,6 +12,9 @@ interface ItemActionSheetProps {
   onSubstitute: () => void;
   onEndSubstitution: () => void;
   onRemove: () => void;
+  // The meal station it stands for, when it's served at more than one (else null: nothing to change)
+  station?: { label: string | null; needsChoice: boolean } | null;
+  onChangeStation?: () => void;
   canSubstitute: boolean;
 }
 
@@ -22,6 +26,8 @@ export function ItemActionSheet({
   onSubstitute,
   onEndSubstitution,
   onRemove,
+  station,
+  onChangeStation,
   canSubstitute,
 }: ItemActionSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -64,6 +70,15 @@ export function ItemActionSheet({
             )}
           </div>
           <div className="py-1">
+            {station && onChangeStation && (
+              <ActionButton
+                icon={<MapPin className={`h-4 w-4 ${levelIconColor('placement')}`} />}
+                label={station.needsChoice ? 'Choose serving location' : 'Change serving location'}
+                subtitle={station.label ?? 'Not picked yet'}
+                onClick={onChangeStation}
+                variant={station.needsChoice ? 'amber' : undefined}
+              />
+            )}
             {isSubstituted ? (
               <>
                 <ActionButton icon={<Undo2 className="h-4 w-4" />} label="End Substitution" onClick={onEndSubstitution} variant="amber" />
@@ -110,6 +125,15 @@ export function ItemActionSheet({
           </div>
         </div>
         <div className="px-2 pb-4 space-y-1">
+          {station && onChangeStation && (
+            <MobileAction
+              icon={<MapPin className={`h-5 w-5 ${levelIconColor('placement')}`} />}
+              label={station.needsChoice ? 'Choose serving location' : 'Change serving location'}
+              subtitle={station.label ? `Now ${station.label}` : 'Served at more than one; pick which this is'}
+              onClick={onChangeStation}
+              variant={station.needsChoice ? 'amber' : undefined}
+            />
+          )}
           {isSubstituted ? (
             <>
               <MobileAction icon={<Undo2 className="h-5 w-5" />} label="End Substitution" subtitle="Restore original item" onClick={onEndSubstitution} variant="amber" />
@@ -133,8 +157,8 @@ export function ItemActionSheet({
   );
 }
 
-function ActionButton({ icon, label, onClick, variant, disabled }: {
-  icon: React.ReactNode; label: string; onClick: () => void; variant?: 'primary' | 'danger' | 'amber'; disabled?: boolean;
+function ActionButton({ icon, label, subtitle, onClick, variant, disabled }: {
+  icon: React.ReactNode; label: string; subtitle?: string; onClick: () => void; variant?: 'primary' | 'danger' | 'amber'; disabled?: boolean;
 }) {
   const colors = variant === 'danger'
     ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
@@ -148,10 +172,13 @@ function ActionButton({ icon, label, onClick, variant, disabled }: {
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${colors} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${colors} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     >
       {icon}
-      {label}
+      <span className="min-w-0">
+        <span className="block">{label}</span>
+        {subtitle && <span className="block max-w-[240px] truncate text-[11px] font-normal text-gray-500 dark:text-gray-400">{subtitle}</span>}
+      </span>
     </button>
   );
 }

@@ -52,6 +52,9 @@ export function MenuItems({
   selectedCycleWeek,
   refreshTags,
 }: MenuItemsProps) {
+  // Days picked in the Day filter, underlined in each product's day strip
+  const markDays = activeFilters.find(f => f.type === 'date')?.selectedValues.map(Number);
+
   const applyFilters = (item: MenuItemType): boolean => {
     if (activeFilters.length === 0) return true;
 
@@ -165,6 +168,7 @@ export function MenuItems({
             onOpen={onOpen}
             lastOpened={!!lastOpenedMrn && item.mrn === lastOpenedMrn}
             labelDays={labelDaysByMrn?.get(item.mrn)}
+            markDays={markDays}
             labelUse={labelUseByMrn?.get(item.mrn)}
             selectedCycleWeek={selectedCycleWeek}
             refreshTag={refreshTags?.get(item.id)}
@@ -203,6 +207,7 @@ export function MenuItems({
           onOpen={onOpen}
           lastOpened={!!lastOpenedMrn && item.mrn === lastOpenedMrn}
           labelDays={labelDaysByMrn?.get(item.mrn)}
+          markDays={markDays}
           labelUse={labelUseByMrn?.get(item.mrn)}
           selectedCycleWeek={selectedCycleWeek}
           refreshTag={refreshTags?.get(item.id)}

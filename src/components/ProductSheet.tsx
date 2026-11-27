@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
-import { X, Plus, Tag, MapPin, Clock, CalendarDays, Leaf, ChevronRight, Link2, Unlink, Pencil, Loader2, Check, ListChecks } from 'lucide-react';
-import { Device, MenuItem } from '../types';
+import { X, Plus, Tag, MapPin, Clock, CalendarDays, Leaf, ChevronRight, ChevronDown, Link2, Unlink, Pencil, Loader2, Check, ListChecks, Layers, Package } from 'lucide-react';
+import { Device, MenuItem, ProductVariant, VariantField } from '../types';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { VariantEditPage } from './VariantEditPage';
 import { FIELD_LABELS } from '../lib/productValues';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -18,6 +20,8 @@ import { productSource } from '../lib/sources';
 import { ProductEditPage, DietaryIcon, splitAllergens, type ProductScheduleRow } from './ProductEditPage';
 import { deviceName } from '../lib/deviceName';
 import { CopyButton } from './CopyButton';
+import { VariantList, VariantDetails, FromTag, money } from './ProductVariants';
+import { defaultVariant, findVariant, placed, sizeOf, variantDays, variantLocalCount, variantValues } from '../lib/variants';
 
 interface ProductSheetProps {
   // The product being viewed, or null
@@ -36,23 +40,31 @@ interface ProductSheetProps {
   onClose: () => void;
   onAddToLabel: (item: MenuItem) => void;
   onOpenLabel: (device: Device, daypart: string) => void;
+  // Opens another product in the sheet (another size of the same recipe)
+  onOpenProduct?: (item: MenuItem) => void;
   // Saves a new (item null) or edited custom product; resolves to the saved product. Throws on failure.
   onSave: (input: ProductInput, item: MenuItem | null) => Promise<MenuItem | null>;
   // Sets (or clears, with blank) what labels show for a product. Throws on failure.
   onSaveDisplayName: (item: MenuItem, displayName: string) => Promise<void>;
+  // Saves one variant's local values. Throws on failure.
+  onSaveVariant?: (item: MenuItem, variant: ProductVariant, local: Partial<Record<VariantField, string>>) => Promise<void>;
   // For the edit page's Schedule: how a week is scheduled, and where the product is on labels that week
   weekStateOf?: (weekOffset: number) => WeekState;
   loadSchedule?: (mrn: string, weekOffset: number | null) => Promise<ProductScheduleRow[]>;
 }
 
 // One product: its details in a right-side sheet. Edit and New product open the full-screen edit page.
-export function ProductSheet({ item, creating, weekOffset, labelDays, labelUse, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onSave, onSaveDisplayName, weekStateOf, loadSchedule }: ProductSheetProps) {
+export function ProductSheet({ item, creating, weekOffset, labelDays, labelUse, devices, menuItems, onClose, onAddToLabel, onOpenLabel, onOpenProduct, onSave, onSaveDisplayName, onSaveVariant, weekStateOf, loadSchedule }: ProductSheetProps) {
   const [editing, setEditing] = useState(false);
+  // Editing one variant (its key), on its own page
+  const [editingVariant, setEditingVariant] = useState<string | null>(null);
+  // The variant picked in the sheet (null = the card's), kept while editing so the sheet comes back to it
+  const [viewing, setViewing] = useState<string | null>(null);
   const open = creating || !!item;
   const showForm = creating || editing;
 
   // A different product (or closing) leaves edit mode
-  useEffect(() => { setEditing(false); }, [item?.id, creating]);
+  useEffect(() => { setEditing(false); setEditingVariant(null); setViewing(null); }, [item?.id, creating]);
 
   useEffect(() => {
     if (!open || showForm) return;
@@ -62,6 +74,22 @@ export function ProductSheet({ item, creating, weekOffset, labelDays, labelUse, 
   }, [open, showForm, onClose]);
 
   if (!open) return null;
+
+  const variantToEdit = item && editingVariant ? item.variants?.find(v => v.key === editingVariant) : undefined;
+  if (item && variantToEdit && onSaveVariant) {
+    return (
+      <VariantEditPage
+        key={`${item.id}|${variantToEdit.key}`}
+        item={item}
+        variant={variantToEdit}
+        onCancel={() => setEditingVariant(null)}
+        onSave={async local => {
+          await onSaveVariant(item, variantToEdit, local);
+          setEditingVariant(null);
+        }}
+      />
+    );
+  }
 
   // Editing or creating opens a full-screen page, like opening a label
   if (showForm) {
@@ -95,9 +123,13 @@ export function ProductSheet({ item, creating, weekOffset, labelDays, labelUse, 
             devices={devices}
             onClose={onClose}
             onEdit={() => setEditing(true)}
+            onEditVariant={onSaveVariant ? setEditingVariant : undefined}
+            viewing={viewing}
+            onView={setViewing}
             onAddToLabel={onAddToLabel}
             onOpenLabel={onOpenLabel}
             onSaveDisplayName={onSaveDisplayName}
+            onOpenSize={onOpenProduct ? mrn => { const other = menuItems.find(i => i.mrn === mrn); if (other) onOpenProduct(other); } : undefined}
           />
         )}
       </div>
@@ -127,7 +159,7 @@ function SheetHeader({ title, subtitle, onClose, closeLabel = 'Close' }: {
   );
 }
 
-function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClose, onEdit, onAddToLabel, onOpenLabel, onSaveDisplayName }: {
+function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClose, onEdit, onEditVariant, viewing, onView: setViewing, onAddToLabel, onOpenLabel, onSaveDisplayName, onOpenSize }: {
   item: MenuItem;
   weekOffset: number;
   labelDays?: Set<number>;
@@ -135,17 +167,35 @@ function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClos
   devices: Device[];
   onClose: () => void;
   onEdit?: () => void;
+  // Edits one variant (its key)
+  onEditVariant?: (key: string) => void;
+  // The variant being viewed (its key); null opens on the one the card stands for
+  viewing: string | null;
+  onView: (key: string) => void;
   onAddToLabel: (item: MenuItem) => void;
   onOpenLabel: (device: Device, daypart: string) => void;
   onSaveDisplayName: (item: MenuItem, displayName: string) => Promise<void>;
+  // Opens another size of the same recipe (its product key)
+  onOpenSize?: (mrn: string) => void;
 }) {
-  // Labels showing this product, with the dayparts it's on
+  // The variant being viewed (station + daypart)
+  // Always one variant when there are any: the picked one, else the one the card stands for
+  const variant = item.variants?.find(v => v.key === viewing) ?? defaultVariant(item) ?? null;
+  const hasVariants = (item.variants?.length ?? 0) > 0;
+
+  // Labels showing this product, with the dayparts it's on. Viewing a variant: the labels using it
+  // (it's named there, or it's the only one that fits that page's daypart).
   const labels = useMemo(() => devices
     .map(device => ({
       device,
-      dayparts: device.pages.filter(p => p.assignedItems.some(i => i.id === item.id)).map(p => p.daypart),
+      dayparts: device.pages.filter(p => p.assignedItems.some(i => {
+        if (i.id !== item.id) return false;
+        if (!variant) return true;
+        const named = i.variant ? findVariant(item, i.variant) : undefined;
+        return named ? named.key === variant.key : (i.followsDaypart || p.daypart) === variant.daypart;
+      })).map(p => p.daypart),
     }))
-    .filter(l => l.dayparts.length > 0), [item, devices]);
+    .filter(l => l.dayparts.length > 0), [item, devices, variant]);
 
   const custom = isCustomItem(item);
   // Custom products have no daypart or station of their own: show where they're on labels
@@ -188,23 +238,78 @@ function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClos
       />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-5 space-y-6">
-        {/* Price, calories */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
-            <div className="text-xs text-gray-500 dark:text-gray-400">Price</div>
-            <div className="text-lg font-semibold text-sky-600 dark:text-sky-400 tabular-nums">${parseFloat(item.price || '0').toFixed(2)}</div>
+        {/* Sizes of the same recipe are separate products; link to the others */}
+        {sizeOf(item) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Size</span>
+            {item.sizes!.map(sz => (
+              <button
+                key={sz.mrn}
+                type="button"
+                disabled={sz.mrn === item.mrn || !onOpenSize}
+                onClick={() => onOpenSize?.(sz.mrn)}
+                aria-current={sz.mrn === item.mrn}
+                className={`h-7 px-2.5 rounded-full border text-xs font-medium transition-colors ${
+                  sz.mrn === item.mrn
+                    ? 'bg-sky-50 dark:bg-sky-900/30 border-sky-500 text-sky-700 dark:text-sky-300'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-sky-300 dark:hover:border-sky-700'
+                }`}
+              >
+                {sz.size}
+              </button>
+            ))}
           </div>
-          <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
-            <div className="text-xs text-gray-500 dark:text-gray-400">Calories</div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{item.calories || '0'}</div>
-          </div>
-        </div>
+        )}
 
-        {/* Changed in Edit (every product can be edited) */}
-        <DisplayNameRow item={item} editable={!onEdit} onSave={value => onSaveDisplayName(item, value)} />
+        {/* Which variant you're looking at: preselected on the one the card stands for */}
+        {hasVariants && (
+          <Section icon={Layers} title={`Served at (${item.variants!.length})`}>
+            <VariantList item={item} value={variant?.key ?? null} onChange={setViewing} weekStart={getWeekStartString(weekOffset)} />
+          </Section>
+        )}
 
-        {description && (
-          <RichText value={description} className="text-sm text-gray-600 dark:text-gray-300 leading-6 space-y-2" />
+        {variant ? (
+          <>
+            <Section icon={Layers} title={`${variant.station} · ${variant.daypart}`}>
+              <VariantDetails item={item} variant={variant} />
+            </Section>
+            {/* This variant's price, beside the product's calories */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                  Price
+                  {variantValues(item, variant).price.from !== 'product' && <FromTag from={variantValues(item, variant).price.from} />}
+                </div>
+                <div className="text-lg font-semibold text-sky-600 dark:text-sky-400 tabular-nums">{money(variantValues(item, variant).price.value)}</div>
+              </div>
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Calories</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{item.calories || '0'}</div>
+              </div>
+            </div>
+            <DisplayNameRow item={item} editable={!onEdit} onSave={value => onSaveDisplayName(item, value)} />
+          </>
+        ) : (
+          <>
+            {/* A product with no variants (custom, or not served at a station) */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Price</div>
+                <div className="text-lg font-semibold text-sky-600 dark:text-sky-400 tabular-nums">${parseFloat(item.price || '0').toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Calories</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-white tabular-nums">{item.calories || '0'}</div>
+              </div>
+            </div>
+
+            {/* Changed in Edit (every product can be edited) */}
+            <DisplayNameRow item={item} editable={!onEdit} onSave={value => onSaveDisplayName(item, value)} />
+
+            {description && (
+              <RichText value={description} className="text-sm text-gray-600 dark:text-gray-300 leading-6 space-y-2" />
+            )}
+          </>
         )}
 
         {/* Dietary */}
@@ -244,29 +349,29 @@ function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClos
           </Section>
         )}
 
-        {/* When */}
-        <Section icon={Clock} title="When">
-          <div className="flex flex-wrap gap-1.5">
+        {/* When: days belong to a variant (or a product without any) */}
+        {(variant || !hasVariants) && <Section icon={Clock} title="When">
+          {!variant && <div className="flex flex-wrap gap-1.5">
             {(periods.length > 0 ? periods : [ALL_DAYPARTS]).map(p => (
               <span key={p} className={`text-xs font-medium px-2 py-0.5 rounded-full border ${daypartColor(p).chip}`}>{p}</span>
             ))}
-          </div>
+          </div>}
           <div className="space-y-1.5">
             <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
               <CalendarDays className="h-3.5 w-3.5 flex-shrink-0" />
               {formatWeekRange(getWeekStartString(weekOffset))}
             </p>
-            <ProductDayRows menuDays={menuDays} labelDays={labelDays} showMenu={!custom} />
+            <ProductDayRows menuDays={variant ? variantDays(variant, getWeekStartString(weekOffset)) : menuDays} labelDays={labelDays} showMenu={!custom} />
             {(labelDays?.size ?? 0) === 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {custom ? 'Not on any labels this week · days come from the labels it\'s added to' : 'Not on any labels this week'}
               </p>
             )}
           </div>
-        </Section>
+        </Section>}
 
-        {/* Where */}
-        {stations.length > 0 && (
+        {/* Where (the variant list shows stations when there are variants) */}
+        {!hasVariants && stations.length > 0 && (
           <Section icon={MapPin} iconClassName={levelIconColor('placement')} title={stations.length === 1 ? 'Station' : `Stations (${stations.length})`}>
             <ul className="space-y-1 max-h-48 overflow-y-auto">
               {stations.map(s => (
@@ -306,12 +411,47 @@ function ProductDetails({ item, weekOffset, labelDays, labelUse, devices, onClos
       </div>
 
       <div className="flex gap-2 px-4 sm:px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 safe-area-bottom">
-        {onEdit && (
+        {onEdit && (variant && onEditVariant ? (
+          // Edit asks what to edit: this variant, or the product (every variant)
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" data-guide="product-edit" className="h-11 gap-2">
+                <Pencil className="h-4 w-4" />Edit
+                <ChevronDown className="h-4 w-4 -mr-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-72">
+              <DropdownMenuItem onSelect={() => onEditVariant(variant.key)} className="items-start">
+                <Layers className="mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block truncate">Edit for {variant.station} · {variant.daypart}</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">
+                    Name, price, portion, description
+                    {variantLocalCount(variant) > 0 && ` · ${variantLocalCount(variant)} local`}
+                  </span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onEdit} className="items-start">
+                <Package className="mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block">Edit product</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">Every station{(item.variants?.length ?? 0) > 1 ? ` (${item.variants!.length})` : ''}</span>
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
           <Button variant="outline" onClick={onEdit} data-guide="product-edit" className="h-11 gap-2">
             <Pencil className="h-4 w-4" />Edit
           </Button>
-        )}
-        <Button onClick={() => onAddToLabel(item)} className="flex-1 h-11 gap-2">
+        ))}
+        <Button
+          // The variant shown opens the label page with Available Items filtered to its station and
+          // daypart (visible filters), so it's added as that one unless the filters are changed
+          onClick={() => onAddToLabel(variant ? { ...item, variant: placed(variant, 'user') } : item)}
+          title={variant ? `Opens the label filtered to ${variant.station} (${variant.daypart})` : undefined}
+          className="flex-1 h-11 gap-2"
+        >
           <Plus className="h-5 w-5" />Add to label
         </Button>
       </div>

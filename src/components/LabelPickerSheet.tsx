@@ -52,7 +52,10 @@ export function LabelPickerSheet({
 }: LabelPickerSheetProps) {
   const dayparts = orderedDayparts(devices);
   // Start on the product's first daypart that labels have; products for all dayparts keep the current one
-  const startDaypart = (item && productDayparts(item).find(p => dayparts.includes(p)))
+  // A variant picked in the product sheet decides the daypart; else the product's first one labels have
+  const variantDaypart = item?.variant ? item.variants?.find(v => v.stationId === item.variant!.stationId && v.mealPeriodId === item.variant!.mealPeriodId)?.daypart : undefined;
+  const startDaypart = (variantDaypart && dayparts.includes(variantDaypart) ? variantDaypart : undefined)
+    || (item && productDayparts(item).find(p => dayparts.includes(p)))
     || (dayparts.includes(initialDaypart) ? initialDaypart : dayparts[0] ?? initialDaypart);
   const [daypart, setDaypart] = useState(startDaypart);
   const [search, setSearch] = useState('');

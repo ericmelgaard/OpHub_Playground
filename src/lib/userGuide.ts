@@ -37,6 +37,30 @@ export interface GuideSection {
 
 export const GUIDE_UPDATES: GuideUpdate[] = [
   {
+    id: '2026-11-26-picked-day',
+    date: '2026-11-26',
+    title: 'Day strips match everywhere',
+    text: 'Item days on a label page now look like the days on Products: an outline means the source serves it that day, a blue fill means it shows on the label. Days it isn\'t on are simply unfilled. On Products, days picked in the Day filter have a small blue line under them.',
+    section: 'days',
+    showMe: { open: 'label', target: 'add-daypart', note: 'Each item\'s days: outline = the source serves it, blue fill = on this label.' },
+  },
+  {
+    id: '2026-11-26-one-day',
+    date: '2026-11-26',
+    title: 'Items added on one day stay on that day',
+    text: 'An item you add on one day is on the label that day only. On the other days it isn\'t on the page: find it in Available Items like any product and add it to put it on that day too. To have it follow its normal days all week, add it with Every day picked.',
+    section: 'days',
+    showMe: { open: 'label', target: 'add-daypart', note: 'Pick a day, then add items here. They go on that day only.' },
+  },
+  {
+    id: '2026-11-25-variants',
+    date: '2026-11-25',
+    title: 'One product, served at several stations',
+    text: 'A product from the source can be served at more than one station and daypart, each with its own name, price or portion. Open a product: "Served at" lists each one, with the card\'s picked. Pick another to see its days and price. Edit asks whether to change just that one or the whole product. When you add it to a label and it isn\'t clear which, you\'re asked to pick the station.',
+    section: 'items',
+    showMe: { open: 'product', target: 'variant-tabs', note: 'Tap a station to see what it serves this product as.' },
+  },
+  {
     id: '2026-11-24-show-me',
     date: '2026-11-24',
     title: 'See where each update is',
@@ -177,6 +201,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     entries: [
       { term: 'Add items', text: 'Find the item in Available Items and tap +. Search by name, or narrow by Station and daypart.' },
       { term: 'Pick a daypart', text: 'Available Items lists one daypart at a time. It starts on the page\'s daypart. Pick another, like Brunch, to add its items to this page. They follow that daypart\'s days and are marked "Follows Brunch".' },
+      { term: 'Pick the station', text: 'Some products are served at more than one station. When it isn\'t clear which you mean, adding asks you to pick, and the + shows a small arrow first. Items that still need a choice show "Choose station". Each size of a product (cup, bowl) is its own product.' },
       { term: 'Can\'t find it?', text: 'If your search matches items in other dayparts, "2 more in Breakfast" shows under the list. Tap it to switch.' },
       { term: 'Order', text: 'Drag items to set their order. When the label is full, the items at the top show first.' },
       { term: 'Remove', text: 'Removing an item takes it off that page for the whole week.' },
@@ -191,10 +216,11 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     entries: [
       { term: 'Auto', text: 'Follows the days the item is offered in the source.' },
       { term: 'On', text: 'Shows the item on this day, even if the source doesn\'t offer it.' },
-      { term: 'Off', text: 'Hides the item on this day. Items that are off or not offered that day are listed under "Not available", where "On" turns them back on.' },
+      { term: 'Off', text: 'Takes the item off this day. It\'s no longer on the page that day; add it from Available Items to put it back.' },
+      { term: 'Not available', text: 'Items on the page that the source doesn\'t offer that day are listed under "Not available", where "On" shows them anyway.' },
       { term: 'Items without a source', text: 'Custom products have no days to follow, so they only have Off and On.' },
-      { term: 'Adding on one day', text: 'Adds the item for that day only; the other days are Off. To follow the source all week, add it with Every day picked.' },
-      { term: 'Adding to another day', text: 'Pick the day and add the item again from Available Items. Items already on the page show "On this page" there.' },
+      { term: 'Adding on one day', text: 'Adds the item for that day only. On other days it isn\'t on the page. To follow the source all week, add it with Every day picked.' },
+      { term: 'Adding to another day', text: 'Pick the day and add the item from Available Items, where it\'s listed like any other product.' },
       { term: 'Mixed', text: 'In Every day, Mixed means the item is set differently on some days.' },
     ],
   },

@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Tag, Tv, Database, Package, Layers, Globe, Activity, Plus } from 'lucide-react';
 import { Navigation } from './components/Navigation';
 import { MenuFilters } from './components/MenuFilters';
-import { ensureCurrentAndNextWeek } from './services/menuDataLoader';
+import { ensureCurrentAndNextWeek, ensureRequestedWeek } from './services/menuDataLoader';
+import { onSourceMenuChange } from './services/sourceMenu';
 import { ProductWeekPicker, ProductWeek } from './components/ProductWeekPicker';
 import { MenuItems } from './components/MenuItems';
 import { SmartLabelGrid } from './components/SmartLabelGrid';
@@ -35,7 +36,7 @@ import { CustomizeQuickActionsModal } from './components/CustomizeQuickActionsMo
 import { GroupsPage } from './components/GroupsPage';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { LocationChangeOverlay } from './components/LocationChangeOverlay';
-import { Theme, MenuItem, Device, FilterConfig, DeviceWeekSchedule, ProductValues } from './types';
+import { Theme, MenuItem, Device, FilterConfig, DeviceWeekSchedule, ProductValues, PlacedVariant, ProductVariant, VariantField } from './types';
 import { api, type ProductInput } from './services/api';
 import { demoSecondaryDomains } from './services/mockData';
 import { useNfc } from './hooks/useNfc';
@@ -44,6 +45,7 @@ import { DEFAULT_SITE_SETTINGS, SITE_ID, SiteSettings, SiteSettingsContext } fro
 import { SiteSettingsPage } from './components/SiteSettingsPage';
 import { GuideSpotlight, showGuideSpot } from './components/GuideSpotlight';
 import type { GuideShowMe } from './lib/userGuide';
+import { findVariant } from './lib/variants';
 
 // Each label item replaced by the current product with the same id (or MRN), when there is one
 function withCurrentProducts(devices: Device[], menuItems: MenuItem[]): Device[] {
@@ -331,6 +333,21 @@ function App() {
 
     loadMenuItems();
   }, []);
+
+  // The source menu changed in a background refresh: reload products quietly (no spinner; the
+  // open page, sheet, filters and pending changes stay as they are)
+  useEffect(() => onSourceMenuChange(() => {
+    api.getMenuItems().then(setMenuItems).catch(err => console.warn('Quiet product reload failed', err));
+  }), []);
+
+  // Weeks after next are fetched when someone opens them (Products week, Smart Labels week)
+  useEffect(() => {
+    for (const offset of new Set([selectedCycleWeek, labelWeekOffset])) {
+      ensureRequestedWeek(offset)
+        .then(changed => { if (changed) return api.getMenuItems().then(setMenuItems); })
+        .catch(err => console.warn('Could not load that week', err));
+    }
+  }, [selectedCycleWeek, labelWeekOffset]);
 
   // Load devices
   useEffect(() => {
@@ -671,21 +688,51 @@ function App() {
       : api.ensureWeekCopy(target.weekStart, deviceId, shown);
   }, [workflowSchedule]);
 
-  const queueAddItems = useCallback((device: Device, items: MenuItem[], pageId: string) => {
+  // `note` names the days when it isn't every day ("Thu only"); the days themselves are the label's
+  // working copy, read when applied, so adding on a day is one change, not an add plus a day change
+  const queueAddItems = useCallback((device: Device, items: MenuItem[], pageId: string, note?: string) => {
     const target = deviceWeekContext && { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart };
     const daypart = device.pages.find(p => p.id === pageId)?.daypart;
     const prepare = () => (target ? prepareWeek(target, device.id) : Promise.resolve());
+    const key = `${device.id}|${draftContext}`;
     for (const item of items) {
       queueChange(device.id, {
-        summary: `Added ${item.name}`,
+        summary: `Added ${item.name}${note ? ` · ${note}` : ''}`,
         daypart,
         mergeKey: `item|${pageId}|${item.id}`,
         mode: 'toggle',
         commit: target
-          ? async () => { if (daypart) { await prepare(); await api.addScheduleItems(target, device.id, daypart, [item]); } }
+          ? async () => {
+              if (!daypart) return;
+              await prepare();
+              // Only the days it's added for (spec v2.7 §4.8): added on Tuesday writes Tuesday's row;
+              // in Every day, all seven. Read from the label's working copy when applied.
+              const toggles = getDraft(key)?.toggles[pageId]?.[item.id] ?? {};
+              const days = [0, 1, 2, 3, 4, 5, 6].filter(d => toggles[d] !== 'off');
+              const onDays = days.filter(d => toggles[d] === 'on');
+              if (days.length) await api.addScheduleItems(target, device.id, daypart, [item], days, onDays);
+            }
           : () => api.assignItemToPage(item.id, device.id, pageId),
       });
     }
+  }, [deviceWeekContext, queueChange, prepareWeek, draftContext]);
+
+  // Which variant (station + daypart, portion) an item on a page stands for
+  const queueSetVariant = useCallback((device: Device, pageId: string, item: MenuItem, variant: PlacedVariant, followsDaypart: string | null) => {
+    const target = deviceWeekContext && { isDefault: deviceWeekContext.isDefault, weekStart: deviceWeekContext.weekStart };
+    const daypart = device.pages.find(p => p.id === pageId)?.daypart;
+    if (!target || !daypart) return;
+    const station = item.variants?.find(v => v.stationId === variant.stationId && v.mealPeriodId === variant.mealPeriodId)?.station;
+    queueChange(device.id, {
+      summary: `${item.name.trim()}: ${station ?? 'station picked'}`,
+      daypart,
+      mergeKey: `variant|${pageId}|${item.id}`,
+      mode: 'replace',
+      commit: async () => {
+        await prepareWeek(target, device.id);
+        await api.setItemVariant(target, device.id, daypart, item.mrn, variant, followsDaypart);
+      },
+    });
   }, [deviceWeekContext, queueChange, prepareWeek]);
 
   const queueRemoveItem = useCallback((itemId: number, deviceId: string, pageId: string) => {
@@ -1003,7 +1050,12 @@ function App() {
       if (!label) { setPendingShowMe(null); return; }
       handleDeviceSelect(label, selectedDaypart);
     }
-    if (pendingShowMe.open === 'product' && menuItems[0]) setProductSheetItem(menuItems[0]);
+    if (pendingShowMe.open === 'product') {
+      const product = pendingShowMe.target === 'variant-tabs'
+        ? menuItems.find(i => (i.variants?.length ?? 0) > 1) ?? menuItems[0]
+        : menuItems[0];
+      if (product) setProductSheetItem(product);
+    }
     showGuideSpot(pendingShowMe.target, pendingShowMe.note);
     setPendingShowMe(null);
   }, [pendingShowMe, selectedQuickAction, showDeviceWorkflow, visibleLabels, devices, menuItems, selectedDaypart, handleDeviceSelect]);
@@ -1104,6 +1156,14 @@ function App() {
   // Display name for any product (Webtrition ones only change it here)
   const handleSaveDisplayName = useCallback(async (item: MenuItem, displayName: string) => {
     await api.setDisplayName(item.mrn, displayName);
+    const updated = await api.getMenuItems();
+    setMenuItems(updated);
+    setProductSheetItem(updated.find(i => i.mrn === item.mrn) ?? item);
+  }, []);
+
+  // One variant's local values (only what differs from the product); keeps the sheet on that variant
+  const handleSaveVariant = useCallback(async (item: MenuItem, variant: ProductVariant, local: Partial<Record<VariantField, string>>) => {
+    await api.setVariantLocalValues(item.mrn, variant.stationId, variant.mealPeriodId, local);
     const updated = await api.getMenuItems();
     setMenuItems(updated);
     setProductSheetItem(updated.find(i => i.mrn === item.mrn) ?? item);
@@ -1520,6 +1580,11 @@ function App() {
             onItemDaysChange={queueItemDays}
             storedToggles={storedDayToggles}
             onAddItems={queueAddItems}
+            onSetItemVariant={queueSetVariant}
+            initialFilters={(() => {
+              const v = labelFromPicker && selectedItem?.variant ? findVariant(selectedItem, selectedItem.variant) : undefined;
+              return v ? { station: v.station, daypart: v.daypart } : null;
+            })()}
             onRemoveItem={queueRemoveItem}
             onReorderItems={queueReorder}
             onClose={() => {
@@ -1560,6 +1625,7 @@ function App() {
         )}
 
         <ProductSheet
+          onOpenProduct={setProductSheetItem}
           item={productSheetItem}
           creating={creatingProduct}
           weekOffset={selectedCycleWeek}
@@ -1570,6 +1636,7 @@ function App() {
           onClose={() => { setProductSheetItem(null); setCreatingProduct(false); }}
           onSave={handleSaveProduct}
           onSaveDisplayName={handleSaveDisplayName}
+          onSaveVariant={handleSaveVariant}
           onAddToLabel={handleAddFromProductSheet}
           onOpenLabel={handleOpenLabelFromProductSheet}
           weekStateOf={productWeekStateOf}
